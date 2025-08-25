@@ -21,11 +21,7 @@ describe('SheetsTools', () => {
       initialize: jest.fn(),
       getAuthClient: jest.fn(),
       validateAuth: jest.fn().mockImplementation(() => {
-        return Promise.resolve({
-          isOk: () => true,
-          isErr: () => false,
-          value: true
-        });
+        return Promise.resolve(ok(true));
       }), // デフォルトで認証成功
       getGoogleAuth: jest.fn(),
     } as any;
@@ -33,57 +29,37 @@ describe('SheetsTools', () => {
     mockSheetsService = {
       initialize: jest.fn(),
       listSpreadsheets: jest.fn().mockImplementation(() => {
-        return Promise.resolve({
-          isOk: () => true,
-          isErr: () => false,
-          value: [
-            {
-              id: 'sheet1',
-              title: 'Test Sheet 1',
-              url: 'https://docs.google.com/spreadsheets/d/sheet1',
-              modifiedTime: '2023-01-01T00:00:00Z'
-            },
-            {
-              id: 'sheet2',
-              title: 'Test Sheet 2',
-              url: 'https://docs.google.com/spreadsheets/d/sheet2',
-              modifiedTime: '2023-01-02T00:00:00Z'
-            }
-          ]
-        });
+        return Promise.resolve(ok([
+          {
+            id: 'sheet1',
+            title: 'Test Sheet 1',
+            url: 'https://docs.google.com/spreadsheets/d/sheet1',
+            modifiedTime: '2023-01-01T00:00:00Z'
+          },
+          {
+            id: 'sheet2',
+            title: 'Test Sheet 2',
+            url: 'https://docs.google.com/spreadsheets/d/sheet2',
+            modifiedTime: '2023-01-02T00:00:00Z'
+          }
+        ]));
       }),
       getSpreadsheet: jest.fn(),
       readRange: jest.fn().mockImplementation(() => {
-        return Promise.resolve({
-          isOk: () => true,
-          isErr: () => false,
-          value: {
-            range: 'Sheet1!A1:B2',
-            values: [['A1', 'B1'], ['A2', 'B2']],
-            majorDimension: 'ROWS'
-          }
-        });
+        return Promise.resolve(ok({
+          range: 'Sheet1!A1:B2',
+          values: [['A1', 'B1'], ['A2', 'B2']],
+          majorDimension: 'ROWS'
+        }));
       }),
       writeRange: jest.fn().mockImplementation(() => {
-        return Promise.resolve({
-          isOk: () => true,
-          isErr: () => false,
-          value: undefined
-        });
+        return Promise.resolve(ok(undefined));
       }),
       appendData: jest.fn().mockImplementation(() => {
-        return Promise.resolve({
-          isOk: () => true,
-          isErr: () => false,
-          value: undefined
-        });
+        return Promise.resolve(ok(undefined));
       }),
       healthCheck: jest.fn().mockImplementation(() => {
-        return Promise.resolve({
-          isOk: () => true,
-          isErr: () => false,
-          value: true
-        });
+        return Promise.resolve(ok(true));
       }),
     } as any;
 
@@ -117,32 +93,30 @@ describe('SheetsTools', () => {
 
       const result = await sheetsTools.sheetsList();
       expect(result.isOk()).toBe(true);
-      expect(result.value).toEqual(expectedResult);
+      if (result.isOk()) {
+        expect(result.value).toEqual(expectedResult);
+      }
     });
 
     test('should handle empty spreadsheet list', async () => {
       mockSheetsService.listSpreadsheets.mockImplementationOnce(() => {
-        return Promise.resolve({
-          isOk: () => true,
-          isErr: () => false,
-          value: []
-        });
+        return Promise.resolve(ok([]));
       });
       const result = await sheetsTools.sheetsList();
       expect(result.isOk()).toBe(true);
-      expect(result.value.spreadsheets).toEqual([]);
+      if (result.isOk()) {
+        expect(result.value.spreadsheets).toEqual([]);
+      }
     });
 
     test('should handle error when service fails', async () => {
       mockSheetsService.listSpreadsheets.mockImplementationOnce(() => {
-        return Promise.resolve({
-          isOk: () => false,
-          isErr: () => true,
-          error: { 
-            message: 'Service failed',
-            toJSON: () => ({ message: 'Service failed' })
-          }
-        });
+        const error = new GoogleSheetsError(
+          'Service failed',
+          'GOOGLE_SHEETS_SERVICE_ERROR',
+          500
+        );
+        return Promise.resolve(err(error));
       });
       const result = await sheetsTools.sheetsList();
       expect(result.isErr()).toBe(true);
@@ -161,38 +135,36 @@ describe('SheetsTools', () => {
 
       const result = await sheetsTools.sheetsRead(spreadsheetId, range);
       expect(result.isOk()).toBe(true);
-      expect(result.value).toEqual(expectedResult);
+      if (result.isOk()) {
+        expect(result.value).toEqual(expectedResult);
+      }
     });
 
     test('should handle empty range', async () => {
       mockSheetsService.readRange.mockImplementationOnce(() => {
-        return Promise.resolve({
-          isOk: () => true,
-          isErr: () => false,
-          value: {
-            range: 'A1:A1',
-            values: [],
-            majorDimension: 'ROWS'
-          }
-        });
+        return Promise.resolve(ok({
+          range: 'A1:A1',
+          values: [],
+          majorDimension: 'ROWS'
+        }));
       });
 
       const result = await sheetsTools.sheetsRead('sheet-id', 'A1:A1');
       expect(result.isOk()).toBe(true);
-      expect(result.value.values).toEqual([]);
+      if (result.isOk()) {
+        expect(result.value.values).toEqual([]);
+      }
     });
 
     test('should handle error for invalid spreadsheet ID', async () => {
       const invalidId = 'invalid-id';
       mockSheetsService.readRange.mockImplementationOnce(() => {
-        return Promise.resolve({
-          isOk: () => false,
-          isErr: () => true,
-          error: { 
-            message: 'Spreadsheet not found',
-            toJSON: () => ({ message: 'Spreadsheet not found' })
-          }
-        });
+        const error = new GoogleSheetsError(
+          'Spreadsheet not found',
+          'GOOGLE_SHEETS_NOT_FOUND',
+          404
+        );
+        return Promise.resolve(err(error));
       });
       const result = await sheetsTools.sheetsRead(invalidId, 'A1:B2');
       expect(result.isErr()).toBe(true);
@@ -218,13 +190,17 @@ describe('SheetsTools', () => {
 
       const result = await sheetsTools.sheetsWrite(spreadsheetId, range, values);
       expect(result.isOk()).toBe(true);
-      expect(result.value).toEqual(expectedResult);
+      if (result.isOk()) {
+        expect(result.value).toEqual(expectedResult);
+      }
     });
 
     test('should handle empty values', async () => {
       const result = await sheetsTools.sheetsWrite('sheet-id', 'A1:A1', []);
       expect(result.isOk()).toBe(true);
-      expect(result.value.updatedCells).toBe(0);
+      if (result.isOk()) {
+        expect(result.value.updatedCells).toBe(0);
+      }
     });
 
     test('should handle error for invalid parameters', async () => {
@@ -236,7 +212,9 @@ describe('SheetsTools', () => {
       const largeValues = Array(1000).fill(['data1', 'data2']);
       const result = await sheetsTools.sheetsWrite('sheet-id', 'A1:B1000', largeValues);
       expect(result.isOk()).toBe(true);
-      expect(result.value.updatedRows).toBe(1000);
+      if (result.isOk()) {
+        expect(result.value.updatedRows).toBe(1000);
+      }
     });
   });
 
@@ -254,7 +232,9 @@ describe('SheetsTools', () => {
 
       const result = await sheetsTools.sheetsAppend(spreadsheetId, range, values);
       expect(result.isOk()).toBe(true);
-      expect(result.value).toEqual(expectedResult);
+      if (result.isOk()) {
+        expect(result.value).toEqual(expectedResult);
+      }
     });
 
     test('should handle multiple rows', async () => {
@@ -265,8 +245,10 @@ describe('SheetsTools', () => {
 
       const result = await sheetsTools.sheetsAppend('sheet-id', 'A1', values);
       expect(result.isOk()).toBe(true);
-      expect(result.value.updates.updatedRows).toBe(2);
-      expect(result.value.updates.updatedCells).toBe(4);
+      if (result.isOk()) {
+        expect(result.value.updates.updatedRows).toBe(2);
+        expect(result.value.updates.updatedCells).toBe(4);
+      }
     });
 
     test('should handle error for invalid spreadsheet ID', async () => {
@@ -276,14 +258,12 @@ describe('SheetsTools', () => {
 
     test('should handle error from sheets service', async () => {
       mockSheetsService.appendData.mockImplementationOnce(() => {
-        return Promise.resolve({
-          isOk: () => false,
-          isErr: () => true,
-          error: { 
-            message: 'Service error',
-            toJSON: () => ({ message: 'Service error' })
-          }
-        });
+        const error = new GoogleSheetsError(
+          'Service error',
+          'GOOGLE_SHEETS_SERVICE_ERROR',
+          500
+        );
+        return Promise.resolve(err(error));
       });
       const result = await sheetsTools.sheetsAppend('error-sheet-id', 'A1', [['data']]);
       expect(result.isErr()).toBe(true);
@@ -293,11 +273,7 @@ describe('SheetsTools', () => {
   describe('error handling', () => {
     test('should handle authentication errors', async () => {
       mockAuthService.validateAuth.mockImplementationOnce(() => {
-        return Promise.resolve({
-          isOk: () => true,
-          isErr: () => false,
-          value: false
-        });
+        return Promise.resolve(ok(false));
       });
       const result = await sheetsTools.sheetsList();
       expect(result.isErr()).toBe(true);
@@ -305,14 +281,12 @@ describe('SheetsTools', () => {
 
     test('should handle service initialization errors', async () => {
       mockSheetsService.listSpreadsheets.mockImplementationOnce(() => {
-        return Promise.resolve({
-          isOk: () => false,
-          isErr: () => true,
-          error: { 
-            message: 'Init failed',
-            toJSON: () => ({ message: 'Init failed' })
-          }
-        });
+        const error = new GoogleSheetsError(
+          'Init failed',
+          'GOOGLE_SHEETS_INIT_ERROR',
+          500
+        );
+        return Promise.resolve(err(error));
       });
       const result = await sheetsTools.sheetsList();
       expect(result.isErr()).toBe(true);
@@ -347,11 +321,15 @@ describe('SheetsTools', () => {
       // These should work now that they're implemented
       const writeResult = await sheetsTools.sheetsWrite('sheet-id', 'A1:B1', validValues);
       expect(writeResult.isOk()).toBe(true);
-      expect(writeResult.value.updatedRows).toBe(1);
+      if (writeResult.isOk()) {
+        expect(writeResult.value.updatedRows).toBe(1);
+      }
       
       const appendResult = await sheetsTools.sheetsAppend('sheet-id', 'A1', validValues);
       expect(appendResult.isOk()).toBe(true);
-      expect(appendResult.value.updates.updatedRows).toBe(1);
+      if (appendResult.isOk()) {
+        expect(appendResult.value.updates.updatedRows).toBe(1);
+      }
     });
   });
 
@@ -359,34 +337,36 @@ describe('SheetsTools', () => {
     test('should handle read-write cycle', async () => {
       // Mock readRange to return some data
       mockSheetsService.readRange.mockImplementationOnce(() => {
-        return Promise.resolve({
-          isOk: () => true,
-          isErr: () => false,
-          value: {
-            range: 'A1:B2',
-            values: [['old1', 'old2']],
-            majorDimension: 'ROWS'
-          }
-        });
+        return Promise.resolve(ok({
+          range: 'A1:B2',
+          values: [['old1', 'old2']],
+          majorDimension: 'ROWS'
+        }));
       });
 
       // Test the read operation
       const readResult = await sheetsTools.sheetsRead('sheet-id', 'A1:B2');
       expect(readResult.isOk()).toBe(true);
-      expect(readResult.value.values).toEqual([['old1', 'old2']]);
+      if (readResult.isOk()) {
+        expect(readResult.value.values).toEqual([['old1', 'old2']]);
+      }
 
       // Test the write operation
       const writeResult = await sheetsTools.sheetsWrite('sheet-id', 'A1:B2', [['new1', 'new2']]);
       expect(writeResult.isOk()).toBe(true);
-      expect(writeResult.value.updatedRows).toBe(1);
+      if (writeResult.isOk()) {
+        expect(writeResult.value.updatedRows).toBe(1);
+      }
     });
 
     test('should handle bulk operations', async () => {
       const bulkData = Array(50).fill(0).map((_, i) => [`Row ${i + 1}`, `Data ${i + 1}`]);
       const result = await sheetsTools.sheetsAppend('sheet-id', 'A1', bulkData);
       expect(result.isOk()).toBe(true);
-      expect(result.value.updates.updatedRows).toBe(50);
-      expect(result.value.updates.updatedCells).toBe(100);
+      if (result.isOk()) {
+        expect(result.value.updates.updatedRows).toBe(50);
+        expect(result.value.updates.updatedCells).toBe(100);
+      }
     });
   });
 
@@ -395,7 +375,9 @@ describe('SheetsTools', () => {
       // Test that normal operations work (timeout handling would be in service layer)
       const result = await sheetsTools.sheetsList();
       expect(result.isOk()).toBe(true);
-      expect(result.value.spreadsheets).toBeDefined();
+      if (result.isOk()) {
+        expect(result.value.spreadsheets).toBeDefined();
+      }
     });
 
     test('should handle rate limiting', async () => {
@@ -405,7 +387,9 @@ describe('SheetsTools', () => {
       expect(results.length).toBe(10);
       results.forEach(result => {
         expect(result.isOk()).toBe(true);
-        expect(result.value.spreadsheets).toBeDefined();
+        if (result.isOk()) {
+          expect(result.value.spreadsheets).toBeDefined();
+        }
       });
     });
   });
