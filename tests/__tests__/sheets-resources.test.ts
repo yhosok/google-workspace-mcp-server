@@ -2,6 +2,8 @@ import { SheetsResources } from '../../src/resources/sheets-resources.js';
 import { AuthService } from '../../src/services/auth.service.js';
 import { SheetsService } from '../../src/services/sheets.service.js';
 import type { EnvironmentConfig } from '../../src/types/index.js';
+import { err, ok } from 'neverthrow';
+import { GoogleSheetsError } from '../../src/errors/index.js';
 
 describe('SheetsResources', () => {
   let sheetsResources: SheetsResources;
@@ -159,14 +161,10 @@ describe('SheetsResources', () => {
 
     test('should handle invalid spreadsheet ID', async () => {
       mockSheetsService.getSpreadsheetMetadata.mockImplementationOnce(() => {
-        return Promise.resolve({
-          isOk: () => false,
-          isErr: () => true,
-          error: { 
-            message: 'Spreadsheet not found',
-            toJSON: () => ({ message: 'Spreadsheet not found' })
-          }
-        });
+        return Promise.resolve(err(new GoogleSheetsError(
+          'Spreadsheet not found',
+          'GOOGLE_SHEETS_NOT_FOUND'
+        )));
       });
       await expect(sheetsResources.getSpreadsheetData('spreadsheet://invalid', 'invalid'))
         .rejects.toThrow();
@@ -235,14 +233,10 @@ describe('SheetsResources', () => {
   describe('error handling', () => {
     test('should handle auth service errors', async () => {
       mockSheetsService.getSpreadsheetMetadata.mockImplementationOnce(() => {
-        return Promise.resolve({
-          isOk: () => false,
-          isErr: () => true,
-          error: { 
-            message: 'Authentication failed',
-            toJSON: () => ({ message: 'Authentication failed' })
-          }
-        });
+        return Promise.resolve(err(new GoogleSheetsError(
+          'Authentication failed',
+          'GOOGLE_SHEETS_AUTH_FAILED'
+        )));
       });
       await expect(sheetsResources.getSpreadsheetData('spreadsheet://error-auth', 'error-auth'))
         .rejects.toThrow();
@@ -250,14 +244,10 @@ describe('SheetsResources', () => {
 
     test('should handle sheets service errors', async () => {
       mockSheetsService.getSpreadsheetMetadata.mockImplementationOnce(() => {
-        return Promise.resolve({
-          isOk: () => false,
-          isErr: () => true,
-          error: { 
-            message: 'Sheets service error',
-            toJSON: () => ({ message: 'Sheets service error' })
-          }
-        });
+        return Promise.resolve(err(new GoogleSheetsError(
+          'Sheets service error',
+          'GOOGLE_SHEETS_SERVICE_ERROR'
+        )));
       });
       await expect(sheetsResources.getSpreadsheetData('spreadsheet://error-sheets', 'error-sheets'))
         .rejects.toThrow();
@@ -265,14 +255,10 @@ describe('SheetsResources', () => {
 
     test('should handle network errors', async () => {
       mockSheetsService.getSpreadsheetMetadata.mockImplementationOnce(() => {
-        return Promise.resolve({
-          isOk: () => false,
-          isErr: () => true,
-          error: { 
-            message: 'Network error',
-            toJSON: () => ({ message: 'Network error' })
-          }
-        });
+        return Promise.resolve(err(new GoogleSheetsError(
+          'Network error',
+          'GOOGLE_SHEETS_NETWORK_ERROR'
+        )));
       });
       await expect(sheetsResources.getSpreadsheetData('spreadsheet://network-error', 'network-error'))
         .rejects.toThrow();

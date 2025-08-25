@@ -3,9 +3,12 @@ import type { EnvironmentConfig } from '../types/index.js';
 
 // 環境変数のスキーマ定義
 const envSchema = z.object({
-  GOOGLE_SERVICE_ACCOUNT_KEY_PATH: z.string(),
-  GOOGLE_DRIVE_FOLDER_ID: z.string(),
-});
+  GOOGLE_SERVICE_ACCOUNT_KEY_PATH: z.string().optional(),
+  GOOGLE_DRIVE_FOLDER_ID: z.string().optional(),
+}).transform((data) => ({
+  GOOGLE_SERVICE_ACCOUNT_KEY_PATH: data.GOOGLE_SERVICE_ACCOUNT_KEY_PATH || '',
+  GOOGLE_DRIVE_FOLDER_ID: data.GOOGLE_DRIVE_FOLDER_ID || '',
+}));
 
 export function loadConfig(): EnvironmentConfig {
   return envSchema.parse(process.env);

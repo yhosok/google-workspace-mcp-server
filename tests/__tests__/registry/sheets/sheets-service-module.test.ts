@@ -116,7 +116,7 @@ describe('SheetsServiceModule', () => {
     });
 
     it('should handle SheetsService initialization failure', async () => {
-      const error = new GoogleServiceError('Service init failed', 'sheets', {});
+      const error = new GoogleServiceError('Service init failed', 'sheets', 'SERVICE_INIT_FAILED');
       mockSheetsService.initialize.mockResolvedValue(err(error));
 
       const result = await module.initialize(mockAuthService);

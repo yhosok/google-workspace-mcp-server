@@ -172,7 +172,7 @@ describe('Service Registry Integration Tests', () => {
       const { SheetsService } = require('../../../src/services/sheets.service.js');
       SheetsService.mockImplementation(() => ({
         initialize: jest.fn().mockResolvedValue(
-          err(new GoogleServiceError('Service init failed', 'sheets', {}))
+          err(new GoogleServiceError('Service init failed', 'sheets', 'SERVICE_INIT_FAILED'))
         ),
         getServiceName: jest.fn().mockReturnValue('SheetsService'),
         getServiceVersion: jest.fn().mockReturnValue('v4')
@@ -216,7 +216,7 @@ describe('Service Registry Integration Tests', () => {
 
       // Mock cleanup failure for the module
       jest.spyOn(sheetsModule, 'cleanup').mockResolvedValue(
-        err(new GoogleServiceError('Cleanup failed', 'sheets', {}))
+        err(new GoogleServiceError('Cleanup failed', 'sheets', 'CLEANUP_FAILED'))
       );
 
       const cleanupResult = await localRegistry.cleanup();

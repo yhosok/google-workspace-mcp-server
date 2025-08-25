@@ -2,6 +2,8 @@ import { SheetsTools } from '../../src/tools/sheets-tools.js';
 import { AuthService } from '../../src/services/auth.service.js';
 import { SheetsService } from '../../src/services/sheets.service.js';
 import type { EnvironmentConfig } from '../../src/types/index.js';
+import { err, ok } from 'neverthrow';
+import { GoogleSheetsError } from '../../src/errors/index.js';
 
 describe('SheetsTools', () => {
   let sheetsTools: SheetsTools;

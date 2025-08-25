@@ -36,7 +36,7 @@ class MockServiceModule implements ServiceModule {
       return err(new GoogleServiceError(
         `Initialization failed for ${this.name}`,
         this.name,
-        {}
+        'INITIALIZATION_FAILED'
       ));
     }
     this.initialized = true;
@@ -48,7 +48,7 @@ class MockServiceModule implements ServiceModule {
       return err(new GoogleServiceError(
         `Tool registration failed for ${this.name}`,
         this.name,
-        {}
+        'TOOL_REGISTRATION_FAILED'
       ));
     }
     return ok(undefined);
@@ -59,7 +59,7 @@ class MockServiceModule implements ServiceModule {
       return err(new GoogleServiceError(
         `Resource registration failed for ${this.name}`,
         this.name,
-        {}
+        'RESOURCE_REGISTRATION_FAILED'
       ));
     }
     return ok(undefined);
@@ -368,10 +368,10 @@ describe('ServiceRegistry', () => {
       ];
 
       // Make middle service fail cleanup
-      modules[1].cleanup = jest.fn(async () => err(new GoogleServiceError(
+      (modules[1] as any).cleanup = jest.fn(async () => err(new GoogleServiceError(
         'Cleanup failed',
         'service2',
-        {}
+        'CLEANUP_FAILED'
       )));
 
       modules.forEach(module => registry.registerModule(module));

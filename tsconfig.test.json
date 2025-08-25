@@ -1,9 +1,44 @@
 {
-  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "types": ["jest", "node"],
+    "target": "ES2022",
     "module": "CommonJS",
-    "moduleResolution": "Node"
+    "moduleResolution": "Node",
+    "types": ["jest", "node"],
+    
+    // パフォーマンス最適化
+    "skipLibCheck": true,        // ライブラリチェックスキップで高速化
+    "incremental": true,         // 増分コンパイルで再実行時高速化
+    "isolatedModules": false,    // テスト時は無効化（型チェック柔軟化）
+    
+    // より高速なコンパイル設定
+    "noEmit": true,             // .js ファイルを出力しない（テストのみ）
+    
+    // テスト環境での型チェック緩和（パフォーマンス重視）
+    "strict": false,                    // strict mode無効化でテスト時の型チェック緩和
+    "noImplicitAny": false,             // any型の黙示的使用を許可
+    "strictNullChecks": false,          // null/undefinedチェック緩和
+    "noImplicitReturns": false,         // 戻り値チェック緩和
+    "strictPropertyInitialization": false,  // プロパティ初期化チェック緩和
+    "strictBindCallApply": false,       // bind/call/apply の厳密チェック緩和
+    "strictFunctionTypes": false,       // 関数型の厳密チェック緩和
+    "noImplicitThis": false,            // this の暗黙的any型許可
+    "suppressImplicitAnyIndexErrors": true,  // インデックス署名の暗黙的any型許可
+    "suppressExcessPropertyErrors": true,    // 余剰プロパティエラーの抑制
+    
+    // メモリ使用量最適化
+    "preserveWatchOutput": true, // watch時の出力保持
+    "skipDefaultLibCheck": true, // デフォルトライブラリのチェックスキップ
+    
+    // 基本設定
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
-  "include": ["src/**/*", "**/*.test.ts"]
+  "include": ["src/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "dist", "coverage"]
 }

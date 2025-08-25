@@ -13,6 +13,10 @@ if (!process.env.NODE_ENV) {
 // Disable debug mode during testing to reduce log output
 process.env.DEBUG = 'false';
 
+// Set required environment variables for tests
+process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH = '/mock/service-account.json';
+process.env.GOOGLE_DRIVE_FOLDER_ID = 'mock-folder-id';
+
 // Import logger types and utilities
 import { logger, LogLevel } from '../src/utils/logger.js';
 

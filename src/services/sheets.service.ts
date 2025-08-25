@@ -2,7 +2,7 @@ import { google, sheets_v4, drive_v3 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import type { AuthService } from './auth.service.js';
 import type { SpreadsheetInfo, SheetData } from '../types/index.js';
-import { GoogleService } from './base/google-service.js';
+import { GoogleService, type RetryConfig } from './base/google-service.js';
 import {
   GoogleWorkspaceResult,
   GoogleSheetsResult,
@@ -22,9 +22,9 @@ export class SheetsService extends GoogleService {
   private driveApi?: drive_v3.Drive;
   private isInitialized: boolean = false;
 
-  constructor(authService: AuthService, logger?: Logger) {
+  constructor(authService: AuthService, logger?: Logger, retryConfig?: RetryConfig) {
     const serviceLogger = logger || createServiceLogger('sheets-service');
-    super(new OAuth2Client(), serviceLogger); // Temporary client, will be replaced
+    super(new OAuth2Client(), serviceLogger, retryConfig); // Temporary client, will be replaced
     this.authService = authService;
   }
 

@@ -2,6 +2,10 @@ import { SheetsService } from '../../src/services/sheets.service.js';
 import { AuthService } from '../../src/services/auth.service.js';
 import type { EnvironmentConfig } from '../../src/types/index.js';
 import { google } from 'googleapis';
+import { TEST_RETRY_CONFIG } from '../test-config.js';
+import { GoogleAuthError } from '../../src/errors/index.js';
+import { err, ok } from 'neverthrow';
+import type { OAuth2Client } from 'google-auth-library';
 
 // googleapis のモック
 jest.mock('googleapis');
@@ -54,7 +58,8 @@ describe('SheetsService', () => {
       getGoogleAuth: jest.fn().mockResolvedValue({ isOk: () => true, isErr: () => false, value: mockAuth }),
     } as any;
 
-    sheetsService = new SheetsService(mockAuthService);
+    // Use fast retry config for testing to minimize execution time
+    sheetsService = new SheetsService(mockAuthService, undefined, TEST_RETRY_CONFIG);
   });
 
   afterEach(() => {
@@ -181,7 +186,7 @@ describe('SheetsService', () => {
 
     test('should return error for invalid spreadsheet ID', async () => {
       const invalidId = 'invalid-id';
-      const error = new Error('Invalid spreadsheet ID');
+      const error = new Error('Invalid spreadsheet ID') as Error & { code: number };
       error.code = 400;
       mockSheetsApi.spreadsheets.get.mockRejectedValue(error);
       
@@ -200,7 +205,7 @@ describe('SheetsService', () => {
 
     test('should handle spreadsheet not found error', async () => {
       const nonExistentId = 'non-existent-id';
-      const error = new Error('Spreadsheet not found');
+      const error = new Error('Spreadsheet not found') as Error & { code: number };
       error.code = 404;
       mockSheetsApi.spreadsheets.get.mockRejectedValue(error);
       
@@ -414,11 +419,9 @@ describe('SheetsService', () => {
   describe('error handling', () => {
     test('should handle authentication errors', async () => {
       // AuthServiceのモックがエラーを返すように設定
-      mockAuthService.getAuthClient.mockResolvedValue({
-        isOk: () => false,
-        isErr: () => true,
-        error: new Error('Auth failed')
-      });
+      mockAuthService.getAuthClient.mockResolvedValue(
+        err(new GoogleAuthError('Auth failed'))
+      );
       
       const result = await sheetsService.initialize();
       expect(result.isErr()).toBe(true);
@@ -457,23 +460,19 @@ describe('SheetsService', () => {
     });
 
     test('should handle AuthService initialization failure', async () => {
-      mockAuthService.getAuthClient.mockResolvedValue({
-        isOk: () => false,
-        isErr: () => true,
-        error: new Error('Auth init failed')
-      });
+      mockAuthService.getAuthClient.mockResolvedValue(
+        err(new GoogleAuthError('Auth init failed'))
+      );
       
       const result = await sheetsService.initialize();
       expect(result.isErr()).toBe(true);
     });
 
     test('should use authenticated client from AuthService', async () => {
-      const customAuth = { /* custom auth client */ };
-      mockAuthService.getAuthClient.mockResolvedValue({
-        isOk: () => true,
-        isErr: () => false,
-        value: customAuth
-      });
+      const customAuth = {} as OAuth2Client;
+      mockAuthService.getAuthClient.mockResolvedValue(
+        ok(customAuth)
+      );
       
       const result = await sheetsService.initialize();
       expect(result.isOk()).toBe(true);
