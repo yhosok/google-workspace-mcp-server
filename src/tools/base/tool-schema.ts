@@ -1,0 +1,242 @@
+import { z } from 'zod';
+
+/**
+ * Cache for compiled schemas to improve performance
+ */
+const schemaCache = new Map<string, z.ZodType>();
+
+/**
+ * Supported tool types for schema generation
+ */
+export type SupportedTool = 'sheets-list' | 'sheets-read' | 'sheets-write' | 'sheets-append';
+
+/**
+ * Factory class for creating standardized Zod schemas for Google Workspace MCP tools
+ * Implements caching and performance optimizations for schema creation
+ */
+export class SchemaFactory {
+  /**
+   * Creates a schema for spreadsheet ID validation
+   */
+  public static createSpreadsheetIdSchema(): z.ZodString {
+    return z.string()
+      .trim()
+      .min(1, 'Spreadsheet ID cannot be empty')
+      .describe('The ID of the Google Spreadsheet');
+  }
+
+  /**
+   * Creates a schema for range validation
+   */
+  public static createRangeSchema(): z.ZodString {
+    return z.string()
+      .trim()
+      .min(1, 'Range cannot be empty')
+      .describe('The A1 notation range (e.g., "Sheet1!A1:D10" or "A1:D10")');
+  }
+
+  /**
+   * Creates a schema for values (2D array of strings)
+   */
+  public static createValuesSchema(): z.ZodArray<z.ZodArray<z.ZodString>> {
+    return z.array(z.array(z.string()))
+      .describe('2D array of string values to write/append');
+  }
+
+  /**
+   * Creates an optional schema for values
+   */
+  public static createOptionalValuesSchema(): z.ZodOptional<z.ZodArray<z.ZodArray<z.ZodString>>> {
+    return SchemaFactory.createValuesSchema().optional();
+  }
+
+  /**
+   * Creates input schema for specific tools with caching
+   */
+  public static createToolInputSchema(tool: SupportedTool): z.ZodObject<Record<string, z.ZodType>> {
+    const cacheKey = `input-${tool}`;
+    const cached = schemaCache.get(cacheKey);
+    
+    if (cached) {
+      return cached as z.ZodObject<Record<string, z.ZodType>>;
+    }
+
+    let schema: z.ZodObject<Record<string, z.ZodType>>;
+
+    switch (tool) {
+      case 'sheets-list':
+        schema = z.object({});
+        break;
+
+      case 'sheets-read':
+        schema = z.object({
+          spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
+          range: SchemaFactory.createRangeSchema()
+        });
+        break;
+
+      case 'sheets-write':
+        schema = z.object({
+          spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
+          range: SchemaFactory.createRangeSchema(),
+          values: SchemaFactory.createValuesSchema()
+        });
+        break;
+
+      case 'sheets-append':
+        schema = z.object({
+          spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
+          range: SchemaFactory.createRangeSchema(),
+          values: SchemaFactory.createValuesSchema()
+        });
+        break;
+
+      default:
+        throw new Error(`Unknown tool: ${tool}`);
+    }
+
+    schemaCache.set(cacheKey, schema);
+    return schema;
+  }
+
+  /**
+   * Creates response schema for specific tools
+   */
+  public static createResponseSchema(tool: SupportedTool): z.ZodObject<Record<string, z.ZodType>> {
+    switch (tool) {
+      case 'sheets-list':
+        return z.object({
+          spreadsheets: z.array(z.object({
+            id: z.string(),
+            title: z.string(),
+            url: z.string(),
+            modifiedTime: z.string()
+          }))
+        });
+
+      case 'sheets-read':
+        return z.object({
+          range: z.string(),
+          values: z.array(z.array(z.string())),
+          majorDimension: z.enum(['ROWS', 'COLUMNS'])
+        });
+
+      case 'sheets-write':
+        return z.object({
+          updatedCells: z.number(),
+          updatedRows: z.number(),
+          updatedColumns: z.number()
+        });
+
+      case 'sheets-append':
+        return z.object({
+          updates: z.object({
+            updatedRows: z.number(),
+            updatedCells: z.number()
+          })
+        });
+
+      default:
+        throw new Error(`Unknown response schema: ${tool}`);
+    }
+  }
+
+  /**
+   * Validates tool input using the appropriate schema
+   */
+  public static validateToolInput(
+    tool: SupportedTool, 
+    input: unknown
+  ): z.SafeParseReturnType<Record<string, unknown>, Record<string, unknown>> {
+    const schema = SchemaFactory.createToolInputSchema(tool);
+    return schema.safeParse(input);
+  }
+
+  /**
+   * Formats validation errors into a readable string
+   */
+  public static formatValidationError(error: z.ZodError): string {
+    const issues = error.issues.map(issue => {
+      const path = issue.path.length > 0 ? issue.path.join('.') : 'root';
+      return `${path}: ${issue.message}`;
+    });
+    
+    return `Validation failed: ${issues.join(', ')}`;
+  }
+
+  /**
+   * Creates a complete tool metadata object with schema
+   */
+  public static createToolMetadata(tool: SupportedTool): {
+    title: string;
+    description: string;
+    inputSchema: Record<string, z.ZodType>;
+  } {
+    const inputSchema = SchemaFactory.createToolInputSchema(tool);
+    
+    const metadata = {
+      'sheets-list': {
+        title: 'List Spreadsheets',
+        description: 'List all spreadsheets in the configured Drive folder'
+      },
+      'sheets-read': {
+        title: 'Read Spreadsheet Range',
+        description: 'Read data from a specific spreadsheet range'
+      },
+      'sheets-write': {
+        title: 'Write to Spreadsheet Range',
+        description: 'Write data to a specific spreadsheet range'
+      },
+      'sheets-append': {
+        title: 'Append to Spreadsheet',
+        description: 'Append data to a spreadsheet'
+      }
+    };
+
+    return {
+      ...metadata[tool],
+      inputSchema: inputSchema.shape
+    };
+  }
+
+  /**
+   * Clears the schema cache (useful for testing)
+   */
+  public static clearCache(): void {
+    schemaCache.clear();
+  }
+
+  /**
+   * Gets cache statistics for monitoring
+   */
+  public static getCacheStats(): { size: number; keys: string[] } {
+    return {
+      size: schemaCache.size,
+      keys: Array.from(schemaCache.keys())
+    };
+  }
+
+  /**
+   * Advanced range validation with pattern matching
+   */
+  public static validateRangeFormat(range: string): { valid: boolean; error?: string } {
+    const patterns = [
+      /^[A-Z]+\d+$/, // Single cell: A1
+      /^[A-Z]+\d+:[A-Z]+\d+$/, // Range: A1:B10
+      /^[^!]+![A-Z]+\d+$/, // Sheet with single cell: Sheet1!A1
+      /^[^!]+![A-Z]+\d+:[A-Z]+\d+$/, // Sheet with range: Sheet1!A1:B10
+      /^[^!]+!$/ // Just sheet name: Sheet1!
+    ];
+
+    const valid = patterns.some(pattern => pattern.test(range));
+
+    if (!valid) {
+      return {
+        valid: false,
+        error: `Invalid range format: "${range}". Expected formats: A1, A1:B10, Sheet1!A1, Sheet1!A1:B10`
+      };
+    }
+
+    return { valid: true };
+  }
+}
