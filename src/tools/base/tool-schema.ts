@@ -28,11 +28,35 @@ export class SchemaFactory {
   /**
    * Creates a schema for range validation
    */
-  public static createRangeSchema(): z.ZodString {
+  public static createRangeSchema(): z.ZodEffects<z.ZodString, string, string> {
     return z.string()
       .trim()
       .min(1, 'Range cannot be empty')
+      .refine(
+        (range) => SchemaFactory.isValidA1Notation(range),
+        'Invalid range format: must be valid A1 notation (e.g., "A1", "A1:B10", "Sheet1!A1:B10")'
+      )
       .describe('The A1 notation range (e.g., "Sheet1!A1:D10" or "A1:D10")');
+  }
+
+  /**
+   * Validates if a string is in valid A1 notation format
+   */
+  private static isValidA1Notation(range: string): boolean {
+    if (!range || range.trim().length === 0) {
+      return false;
+    }
+    
+    // Handle sheet names with exclamation mark
+    const parts = range.split('!');
+    const rangeContent = parts.length > 1 ? parts[1] : parts[0];
+    
+    // A1 notation patterns:
+    // Single cell: A1, B5, AA10, etc.
+    // Range: A1:B10, C1:Z100, etc.
+    const a1Pattern = /^[A-Z]+[1-9]\d*(?::[A-Z]+[1-9]\d*)?$/i;
+    
+    return a1Pattern.test(rangeContent.trim());
   }
 
   /**
@@ -41,6 +65,18 @@ export class SchemaFactory {
   public static createValuesSchema(): z.ZodArray<z.ZodArray<z.ZodString>> {
     return z.array(z.array(z.string()))
       .describe('2D array of string values to write/append');
+  }
+
+  /**
+   * Creates a schema for values specifically for append operations (cannot be empty)
+   */
+  public static createAppendValuesSchema(): z.ZodArray<z.ZodArray<z.ZodString>> {
+    return z.array(z.array(z.string()), { 
+        required_error: 'Values must be an array',
+        invalid_type_error: 'Values must be an array'
+      })
+      .min(1, 'Values cannot be empty for append operation')
+      .describe('2D array of string values to append (must not be empty)');
   }
 
   /**
@@ -87,7 +123,7 @@ export class SchemaFactory {
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           range: SchemaFactory.createRangeSchema(),
-          values: SchemaFactory.createValuesSchema()
+          values: SchemaFactory.createAppendValuesSchema()
         });
         break;
 
@@ -113,6 +149,7 @@ export class SchemaFactory {
             .min(1, 'Spreadsheet title cannot be empty')
             .describe('The title of the new spreadsheet'),
           sheetTitles: z.array(z.string().trim().min(1, 'Sheet title cannot be empty'))
+            .min(1, 'Sheet titles array cannot be empty when provided')
             .optional()
             .describe('Optional array of titles for initial sheets. If not provided, a single "Sheet1" will be created')
         });

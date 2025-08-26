@@ -133,8 +133,11 @@ describe('SheetsAddSheetTool', () => {
 
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
-          expect(result.error).toBeInstanceOf(GoogleSheetsInvalidRangeError);
+          expect(result.error).toBeInstanceOf(GoogleSheetsError);
           expect(result.error.message).toContain('Spreadsheet ID cannot be empty');
+          expect(result.error.context?.validationErrors).toBeDefined();
+          const validationErrors = result.error.context?.validationErrors as any[];
+          expect(validationErrors.some(e => e.message === 'Spreadsheet ID cannot be empty')).toBe(true);
         }
         expect(mockSheetsService.addSheet).not.toHaveBeenCalled();
       });
@@ -146,8 +149,11 @@ describe('SheetsAddSheetTool', () => {
 
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
-          expect(result.error).toBeInstanceOf(GoogleSheetsInvalidRangeError);
+          expect(result.error).toBeInstanceOf(GoogleSheetsError);
           expect(result.error.message).toContain('Sheet title cannot be empty');
+          expect(result.error.context?.validationErrors).toBeDefined();
+          const validationErrors = result.error.context?.validationErrors as any[];
+          expect(validationErrors.some(e => e.message === 'Sheet title cannot be empty')).toBe(true);
         }
         expect(mockSheetsService.addSheet).not.toHaveBeenCalled();
       });
@@ -159,8 +165,11 @@ describe('SheetsAddSheetTool', () => {
 
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
-          expect(result.error).toBeInstanceOf(GoogleSheetsInvalidRangeError);
-          expect(result.error.message).toContain('Sheet index cannot be negative');
+          expect(result.error).toBeInstanceOf(GoogleSheetsError);
+          expect(result.error.message).toContain('Sheet index must be non-negative');
+          expect(result.error.context?.validationErrors).toBeDefined();
+          const validationErrors = result.error.context?.validationErrors as any[];
+          expect(validationErrors.some(e => e.message === 'Sheet index must be non-negative')).toBe(true);
         }
         expect(mockSheetsService.addSheet).not.toHaveBeenCalled();
       });
@@ -172,8 +181,11 @@ describe('SheetsAddSheetTool', () => {
 
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
-          expect(result.error).toBeInstanceOf(GoogleSheetsInvalidRangeError);
+          expect(result.error).toBeInstanceOf(GoogleSheetsError);
           expect(result.error.message).toContain('Sheet title cannot be empty');
+          expect(result.error.context?.validationErrors).toBeDefined();
+          const validationErrors = result.error.context?.validationErrors as any[];
+          expect(validationErrors.some(e => e.message === 'Sheet title cannot be empty')).toBe(true);
         }
         expect(mockSheetsService.addSheet).not.toHaveBeenCalled();
       });

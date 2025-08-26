@@ -2,7 +2,7 @@ import { SheetsCreateSpreadsheetTool } from '../../../../src/tools/sheets/create
 import { SheetsService } from '../../../../src/services/sheets.service.js';
 import { AuthService } from '../../../../src/services/auth.service.js';
 import { ok, err } from 'neverthrow';
-import { GoogleSheetsError, GoogleSheetsInvalidRangeError, GoogleAuthError } from '../../../../src/errors/index.js';
+import { GoogleSheetsError, GoogleAuthError } from '../../../../src/errors/index.js';
 import type { SheetsCreateSpreadsheetResult, MCPToolResult } from '../../../../src/types/index.js';
 
 describe('SheetsCreateSpreadsheetTool', () => {
@@ -169,8 +169,19 @@ describe('SheetsCreateSpreadsheetTool', () => {
 
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
-          expect(result.error).toBeInstanceOf(GoogleSheetsInvalidRangeError);
-          expect(result.error.message).toContain('Spreadsheet title cannot be empty');
+          expect(result.error).toBeInstanceOf(GoogleSheetsError);
+          expect(result.error.code).toBe('GOOGLE_SHEETS_VALIDATION_ERROR');
+          expect(result.error.statusCode).toBe(400);
+          
+          // Check validation errors structure
+          expect(result.error.context).toHaveProperty('validationErrors');
+          const validationErrors = result.error.context?.validationErrors as any[];
+          expect(Array.isArray(validationErrors)).toBe(true);
+          expect(validationErrors).toHaveLength(1);
+          expect(validationErrors[0]).toMatchObject({
+            code: 'too_small',
+            path: ['title']
+          });
         }
         expect(mockSheetsService.createSpreadsheet).not.toHaveBeenCalled();
       });
@@ -182,8 +193,19 @@ describe('SheetsCreateSpreadsheetTool', () => {
 
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
-          expect(result.error).toBeInstanceOf(GoogleSheetsInvalidRangeError);
-          expect(result.error.message).toContain('Spreadsheet title cannot be empty');
+          expect(result.error).toBeInstanceOf(GoogleSheetsError);
+          expect(result.error.code).toBe('GOOGLE_SHEETS_VALIDATION_ERROR');
+          expect(result.error.statusCode).toBe(400);
+          
+          // Check validation errors structure
+          expect(result.error.context).toHaveProperty('validationErrors');
+          const validationErrors = result.error.context?.validationErrors as any[];
+          expect(Array.isArray(validationErrors)).toBe(true);
+          expect(validationErrors).toHaveLength(1);
+          expect(validationErrors[0]).toMatchObject({
+            code: 'too_small',
+            path: ['title']
+          });
         }
         expect(mockSheetsService.createSpreadsheet).not.toHaveBeenCalled();
       });
@@ -195,8 +217,19 @@ describe('SheetsCreateSpreadsheetTool', () => {
 
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
-          expect(result.error).toBeInstanceOf(GoogleSheetsInvalidRangeError);
-          expect(result.error.message).toContain('Sheet titles array cannot be empty');
+          expect(result.error).toBeInstanceOf(GoogleSheetsError);
+          expect(result.error.code).toBe('GOOGLE_SHEETS_VALIDATION_ERROR');
+          expect(result.error.statusCode).toBe(400);
+          
+          // Check validation errors structure
+          expect(result.error.context).toHaveProperty('validationErrors');
+          const validationErrors = result.error.context?.validationErrors as any[];
+          expect(Array.isArray(validationErrors)).toBe(true);
+          expect(validationErrors).toHaveLength(1);
+          expect(validationErrors[0]).toMatchObject({
+            code: 'too_small',
+            path: ['sheetTitles']
+          });
         }
         expect(mockSheetsService.createSpreadsheet).not.toHaveBeenCalled();
       });
@@ -208,23 +241,42 @@ describe('SheetsCreateSpreadsheetTool', () => {
 
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
-          expect(result.error).toBeInstanceOf(GoogleSheetsInvalidRangeError);
-          expect(result.error.message).toContain('Sheet titles cannot be empty');
+          expect(result.error).toBeInstanceOf(GoogleSheetsError);
+          expect(result.error.code).toBe('GOOGLE_SHEETS_VALIDATION_ERROR');
+          expect(result.error.statusCode).toBe(400);
+          
+          // Check validation errors structure
+          expect(result.error.context).toHaveProperty('validationErrors');
+          const validationErrors = result.error.context?.validationErrors as any[];
+          expect(Array.isArray(validationErrors)).toBe(true);
+          expect(validationErrors).toHaveLength(1);
+          expect(validationErrors[0]).toMatchObject({
+            code: 'too_small',
+            path: ['sheetTitles', 1]  // Index 1 corresponds to the empty string in the array
+          });
         }
         expect(mockSheetsService.createSpreadsheet).not.toHaveBeenCalled();
       });
 
       test('should fail with duplicate sheet titles', async () => {
         const invalidParams = { ...validParams, sheetTitles: ['Sheet1', 'Sheet2', 'Sheet1'] };
+        
+        // Mock the service to return the duplicate error since validation is now at service level
+        const serviceError = new GoogleSheetsError(
+          'Sheet titles must be unique',
+          'GOOGLE_SHEETS_INVALID_RANGE_ERROR',
+          400
+        );
+        mockSheetsService.createSpreadsheet.mockResolvedValue(err(serviceError));
 
         const result = await tool.executeImpl(invalidParams);
 
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
-          expect(result.error).toBeInstanceOf(GoogleSheetsInvalidRangeError);
+          expect(result.error).toBeInstanceOf(GoogleSheetsError);
           expect(result.error.message).toContain('Sheet titles must be unique');
         }
-        expect(mockSheetsService.createSpreadsheet).not.toHaveBeenCalled();
+        expect(mockSheetsService.createSpreadsheet).toHaveBeenCalled();
       });
     });
 

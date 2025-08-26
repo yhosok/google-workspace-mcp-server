@@ -51,21 +51,22 @@ export class SheetsAppendTool extends BaseSheetsTools<SheetsAppendParams, MCPToo
     });
     
     // Parameter validation
-    const validationError = this.validateParameters(
-      params.spreadsheetId, 
-      params.range, 
-      'append',
-      params.values
+    const validationResult = this.validateWithSchema(
+      SchemaFactory.createToolInputSchema('sheets-append'), 
+      params,
+      { operation: 'append-sheets', requestId, useSpecificMessages: true }
     );
-    if (validationError) {
+    if (validationResult.isErr()) {
       this.logger.error('Parameter validation failed for sheetsAppend', {
-        error: validationError.toJSON(),
+        error: validationResult.error.toJSON(),
         spreadsheetId: params.spreadsheetId,
         range: params.range,
         requestId
       });
-      return err(validationError);
+      return err(validationResult.error);
     }
+    
+    const validatedParams = validationResult.value;
 
     // Validate authentication
     const authResult = await this.validateAuthentication(requestId);
@@ -76,23 +77,23 @@ export class SheetsAppendTool extends BaseSheetsTools<SheetsAppendParams, MCPToo
     try {
       // Use SheetsService to append data
       const appendResult = await this.sheetsService.appendData(
-        params.spreadsheetId, 
-        params.range, 
-        params.values
+        validatedParams.spreadsheetId, 
+        validatedParams.range, 
+        validatedParams.values
       );
       if (appendResult.isErr()) {
         this.logger.error('Failed to append spreadsheet data', {
           error: appendResult.error.toJSON(),
-          spreadsheetId: params.spreadsheetId,
-          range: params.range,
+          spreadsheetId: validatedParams.spreadsheetId,
+          range: validatedParams.range,
           requestId
         });
         return err(appendResult.error);
       }
       
       // Calculate result statistics
-      const updatedRows = params.values.length;
-      const updatedCells = params.values.reduce((total, row) => total + row.length, 0);
+      const updatedRows = validatedParams.values.length;
+      const updatedCells = validatedParams.values.reduce((total: number, row: string[]) => total + row.length, 0);
 
       const result: SheetsAppendResult = {
         updates: {
@@ -102,8 +103,8 @@ export class SheetsAppendTool extends BaseSheetsTools<SheetsAppendParams, MCPToo
       };
 
       this.logger.info('Successfully appended spreadsheet data', {
-        spreadsheetId: params.spreadsheetId,
-        range: params.range,
+        spreadsheetId: validatedParams.spreadsheetId,
+        range: validatedParams.range,
         updatedRows,
         updatedCells,
         requestId
@@ -119,15 +120,15 @@ export class SheetsAppendTool extends BaseSheetsTools<SheetsAppendParams, MCPToo
     } catch (error) {
       const sheetsError = GoogleErrorFactory.createSheetsError(
         error instanceof Error ? error : new Error(String(error)),
-        params.spreadsheetId,
-        params.range,
+        validatedParams.spreadsheetId,
+        validatedParams.range,
         { operation: 'sheets-append', requestId }
       );
       
       this.logger.error('Unexpected error in sheetsAppend', {
         error: sheetsError.toJSON(),
-        spreadsheetId: params.spreadsheetId,
-        range: params.range,
+        spreadsheetId: validatedParams.spreadsheetId,
+        range: validatedParams.range,
         requestId
       });
       

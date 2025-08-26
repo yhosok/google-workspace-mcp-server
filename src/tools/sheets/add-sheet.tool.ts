@@ -51,54 +51,33 @@ export class SheetsAddSheetTool extends BaseSheetsTools<SheetsAddSheetParams, MC
       requestId 
     });
     
-    // Validate spreadsheet ID only (no range needed for add sheet)
-    let validationError: GoogleSheetsInvalidRangeError | null = null;
-    if (!params.spreadsheetId || params.spreadsheetId.trim() === '') {
-      validationError = new GoogleSheetsInvalidRangeError('', params.spreadsheetId, {
-        reason: 'Spreadsheet ID cannot be empty',
-        operation: 'add-sheet'
-      });
-    }
-    if (validationError) {
+    // Validate parameters using schema validation
+    const validationResult = this.validateWithSchema(
+      SchemaFactory.createToolInputSchema('sheets-add-sheet'),
+      params,
+      { operation: 'add-sheet' }
+    );
+    
+    if (validationResult.isErr()) {
       this.logger.error('Parameter validation failed for sheetsAddSheet', {
-        error: validationError.toJSON(),
-        spreadsheetId: params.spreadsheetId,
-        title: params.title,
-        requestId
-      });
-      return err(validationError);
-    }
-
-    // Validate title is not empty
-    if (!params.title || params.title.trim() === '') {
-      const error = new GoogleSheetsInvalidRangeError('', params.spreadsheetId, {
-        reason: 'Sheet title cannot be empty',
-        operation: 'add-sheet'
-      });
-      this.logger.error('Parameter validation failed for sheetsAddSheet', {
-        error: error.toJSON(),
-        spreadsheetId: params.spreadsheetId,
-        title: params.title,
-        requestId
-      });
-      return err(error);
-    }
-
-    // Validate index is not negative
-    if (params.index !== undefined && params.index < 0) {
-      const error = new GoogleSheetsInvalidRangeError('', params.spreadsheetId, {
-        reason: 'Sheet index cannot be negative',
-        operation: 'add-sheet'
-      });
-      this.logger.error('Parameter validation failed for sheetsAddSheet', {
-        error: error.toJSON(),
+        error: validationResult.error.toJSON(),
         spreadsheetId: params.spreadsheetId,
         title: params.title,
         index: params.index,
         requestId
       });
-      return err(error);
+      return err(validationResult.error);
     }
+    
+    // Use validated parameters
+    const validatedParams = validationResult.value;
+    
+    this.logger.debug('Parameters validated successfully', {
+      spreadsheetId: validatedParams.spreadsheetId,
+      title: validatedParams.title,
+      index: validatedParams.index,
+      requestId
+    });
 
     // Validate authentication
     const authResult = await this.validateAuthentication(requestId);
@@ -109,16 +88,16 @@ export class SheetsAddSheetTool extends BaseSheetsTools<SheetsAddSheetParams, MC
     try {
       // Use SheetsService to add sheet
       const addSheetResult = await this.sheetsService.addSheet(
-        params.spreadsheetId, 
-        params.title.trim(),
-        params.index
+        validatedParams.spreadsheetId, 
+        validatedParams.title,
+        validatedParams.index
       );
       
       if (addSheetResult.isErr()) {
         this.logger.error('Failed to add sheet', {
           error: addSheetResult.error.toJSON(),
-          spreadsheetId: params.spreadsheetId,
-          title: params.title,
+          spreadsheetId: validatedParams.spreadsheetId,
+          title: validatedParams.title,
           requestId
         });
         return err(addSheetResult.error);
@@ -127,7 +106,7 @@ export class SheetsAddSheetTool extends BaseSheetsTools<SheetsAddSheetParams, MC
       const responseData = addSheetResult.value;
       
       this.logger.info('Sheet added successfully', { 
-        spreadsheetId: params.spreadsheetId,
+        spreadsheetId: validatedParams.spreadsheetId,
         sheetId: responseData.sheetId,
         title: responseData.title,
         index: responseData.index,
@@ -141,7 +120,7 @@ export class SheetsAddSheetTool extends BaseSheetsTools<SheetsAddSheetParams, MC
             sheetId: responseData.sheetId,
             title: responseData.title,
             index: responseData.index,
-            spreadsheetId: params.spreadsheetId
+            spreadsheetId: validatedParams.spreadsheetId
           }, null, 2)
         }]
       });
@@ -149,7 +128,7 @@ export class SheetsAddSheetTool extends BaseSheetsTools<SheetsAddSheetParams, MC
     } catch (error) {
       const wrappedError = GoogleErrorFactory.createSheetsError(
         error instanceof Error ? error : new Error(String(error)),
-        params.spreadsheetId,
+        validatedParams.spreadsheetId,
         '',
         {
           operation: 'sheets-add-sheet',
@@ -159,8 +138,8 @@ export class SheetsAddSheetTool extends BaseSheetsTools<SheetsAddSheetParams, MC
       
       this.logger.error('Unexpected error in add sheet operation', {
         error: wrappedError.toJSON(),
-        spreadsheetId: params.spreadsheetId,
-        title: params.title,
+        spreadsheetId: validatedParams.spreadsheetId,
+        title: validatedParams.title,
         requestId
       });
       

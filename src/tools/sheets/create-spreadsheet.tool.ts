@@ -3,7 +3,7 @@ import type { Logger } from '../../utils/logger.js';
 import { SchemaFactory } from '../base/tool-schema.js';
 import type { ToolExecutionContext, ToolMetadata } from '../base/tool-registry.js';
 import { BaseSheetsTools } from './base-sheets-tool.js';
-import { GoogleErrorFactory, GoogleSheetsInvalidRangeError } from '../../errors/index.js';
+import { GoogleErrorFactory } from '../../errors/index.js';
 import type { 
   SheetsCreateSpreadsheetResult, 
   MCPToolResult
@@ -63,56 +63,25 @@ export class SheetsCreateSpreadsheetTool extends BaseSheetsTools<SheetsCreateSpr
       return err(authResult.error);
     }
 
+    // Parameter validation using unified schema approach
+    const validationResult = this.validateWithSchema(
+      SchemaFactory.createToolInputSchema('sheets-create'),
+      params,
+      { operation: 'sheets-create', requestId }
+    );
+    
+    if (validationResult.isErr()) {
+      return err(validationResult.error);
+    }
+    
+    const validatedParams = validationResult.value;
+
     try {
-      // Parameter validation
-      if (!params.title || params.title.trim() === '') {
-        const error = new GoogleSheetsInvalidRangeError('', '', {
-          reason: 'Spreadsheet title cannot be empty',
-          operation: 'sheets-create',
-          requestId
-        });
-        return err(error);
-      }
-
-      if (params.sheetTitles) {
-        if (params.sheetTitles.length === 0) {
-          const error = new GoogleSheetsInvalidRangeError('', '', {
-            reason: 'Sheet titles array cannot be empty',
-            operation: 'sheets-create',
-            requestId
-          });
-          return err(error);
-        }
-
-        // Check for empty sheet titles
-        const hasEmptyTitles = params.sheetTitles.some(sheetTitle => 
-          !sheetTitle || sheetTitle.trim() === ''
-        );
-        if (hasEmptyTitles) {
-          const error = new GoogleSheetsInvalidRangeError('', '', {
-            reason: 'Sheet titles cannot be empty',
-            operation: 'sheets-create',
-            requestId
-          });
-          return err(error);
-        }
-
-        // Check for duplicate sheet titles
-        const uniqueTitles = new Set(params.sheetTitles.map(t => t.trim()));
-        if (uniqueTitles.size !== params.sheetTitles.length) {
-          const error = new GoogleSheetsInvalidRangeError('', '', {
-            reason: 'Sheet titles must be unique',
-            operation: 'sheets-create',
-            requestId
-          });
-          return err(error);
-        }
-      }
 
       // Use SheetsService to create spreadsheet
       const createResult = await this.sheetsService.createSpreadsheet(
-        params.title.trim(),
-        params.sheetTitles?.map(t => t.trim())
+        validatedParams.title,
+        validatedParams.sheetTitles
       );
       
       if (createResult.isErr()) {
