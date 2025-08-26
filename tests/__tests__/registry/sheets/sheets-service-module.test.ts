@@ -100,7 +100,7 @@ describe('SheetsServiceModule', () => {
       expect(mockSheetsService.initialize).toHaveBeenCalled();
       
       // Check that tools and resources are created
-      expect(module.getTools()).toHaveLength(4); // List, Read, Write, Append
+      expect(module.getTools()).toHaveLength(6); // List, Read, Write, Append, AddSheet, CreateSpreadsheet
       expect(module.getSheetsService()).toBeDefined();
       expect(module.getSheetsResources()).toBeDefined();
     });
@@ -289,7 +289,7 @@ describe('SheetsServiceModule', () => {
 
       expect(healthStatus.status).toBe('healthy');
       expect(healthStatus.message).toBeUndefined();
-      expect(healthStatus.metrics?.toolsRegistered).toBe(4);
+      expect(healthStatus.metrics?.toolsRegistered).toBe(6);
       expect(healthStatus.metrics?.resourcesRegistered).toBe(2);
       expect(healthStatus.metrics?.initializationTime).toBeDefined();
     });
@@ -313,7 +313,7 @@ describe('SheetsServiceModule', () => {
     it('should provide access to internal services for testing', () => {
       expect(module.getSheetsService()).toBeDefined();
       expect(module.getSheetsResources()).toBeDefined();
-      expect(module.getTools()).toHaveLength(4);
+      expect(module.getTools()).toHaveLength(6);
     });
 
     it('should return undefined for services when not initialized', async () => {

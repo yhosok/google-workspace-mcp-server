@@ -8,7 +8,9 @@ import {
   SheetsListTool,
   SheetsReadTool, 
   SheetsWriteTool,
-  SheetsAppendTool 
+  SheetsAppendTool,
+  SheetsAddSheetTool,
+  SheetsCreateSpreadsheetTool
 } from '../../tools/sheets/index.js';
 import type { ToolRegistry } from '../../tools/base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
@@ -74,7 +76,9 @@ export class SheetsServiceModule implements ServiceModule {
         new SheetsListTool(this.sheetsService, authService),
         new SheetsReadTool(this.sheetsService, authService),
         new SheetsWriteTool(this.sheetsService, authService),
-        new SheetsAppendTool(this.sheetsService, authService)
+        new SheetsAppendTool(this.sheetsService, authService),
+        new SheetsAddSheetTool(this.sheetsService, authService),
+        new SheetsCreateSpreadsheetTool(this.sheetsService, authService)
       ];
 
       this.initialized = true;

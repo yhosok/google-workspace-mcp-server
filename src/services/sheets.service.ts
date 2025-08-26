@@ -1,7 +1,7 @@
 import { google, sheets_v4, drive_v3 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import type { AuthService } from './auth.service.js';
-import type { SpreadsheetInfo, SheetData } from '../types/index.js';
+import type { SpreadsheetInfo, SheetData, SheetsAddSheetResult, SheetsCreateSpreadsheetResult } from '../types/index.js';
 import { GoogleService, type RetryConfig } from './base/google-service.js';
 import {
   GoogleWorkspaceResult,
@@ -15,6 +15,7 @@ import {
   sheetsErr
 } from '../errors/index.js';
 import { Logger, createServiceLogger } from '../utils/logger.js';
+import { loadConfig } from '../config/index.js';
 
 export class SheetsService extends GoogleService {
   private authService: AuthService;
@@ -508,6 +509,263 @@ export class SheetsService extends GoogleService {
       result = result * 26 + (column.charCodeAt(i) - 'A'.charCodeAt(0) + 1);
     }
     return result - 1;
+  }
+
+  /**
+   * Add a new sheet to the spreadsheet
+   */
+  public async addSheet(
+    spreadsheetId: string,
+    title: string,
+    index?: number
+  ): Promise<GoogleSheetsResult<SheetsAddSheetResult>> {
+    // Spreadsheet ID validation (do NOT call validateInputs with a fake range – that caused invalid range errors)
+    if (!spreadsheetId || spreadsheetId.trim() === '') {
+      return sheetsErr(new GoogleSheetsInvalidRangeError('', spreadsheetId, {
+        reason: 'Spreadsheet ID cannot be empty'
+      }));
+    }
+
+    if (!title || title.trim() === '') {
+      return sheetsErr(new GoogleSheetsInvalidRangeError('', spreadsheetId, {
+        reason: 'Sheet title cannot be empty'
+      }));
+    }
+
+    if (index !== undefined && index < 0) {
+      return sheetsErr(new GoogleSheetsInvalidRangeError('', spreadsheetId, {
+        reason: 'Sheet index cannot be negative'
+      }));
+    }
+
+    const context = this.createContext('addSheet', { spreadsheetId, title, index });
+    
+    return this.executeAsyncWithRetry(async () => {
+      await this.ensureInitialized();
+
+      if (!this.sheetsApi) {
+        throw new GoogleSheetsError(
+          'Sheets API not initialized',
+          'GOOGLE_SHEETS_NOT_INITIALIZED',
+          500,
+          spreadsheetId
+        );
+      }
+
+      // Prepare the AddSheetRequest
+      const addSheetRequest: sheets_v4.Schema$AddSheetRequest = {
+        properties: {
+          title: title.trim(),
+          ...(index !== undefined && { index }),
+          sheetType: 'GRID'
+        }
+      };
+
+      // Execute batchUpdate with AddSheetRequest
+      const response = await this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              addSheet: addSheetRequest
+            }
+          ]
+        }
+      });
+
+      // Extract the response
+      const addSheetResponse = response.data.replies?.[0]?.addSheet;
+      if (!addSheetResponse || !addSheetResponse.properties) {
+        throw new GoogleSheetsError(
+          'Failed to get sheet information from API response',
+          'GOOGLE_SHEETS_INVALID_RESPONSE',
+          500,
+          spreadsheetId
+        );
+      }
+
+      const result: SheetsAddSheetResult = {
+        sheetId: addSheetResponse.properties.sheetId || 0,
+        title: addSheetResponse.properties.title || title.trim(),
+        index: addSheetResponse.properties.index || 0,
+        spreadsheetId
+      };
+
+      this.logger.info('Successfully added new sheet', {
+        spreadsheetId,
+        sheetId: result.sheetId,
+        title: result.title,
+        index: result.index,
+        requestId: context.requestId
+      });
+
+      return result;
+
+    }, context).andThen((result) => sheetsOk(result));
+  }
+
+  /**
+   * Create a new spreadsheet in the configured Drive folder
+   */
+  public async createSpreadsheet(
+    title: string,
+    sheetTitles?: string[]
+  ): Promise<GoogleSheetsResult<SheetsCreateSpreadsheetResult>> {
+    // Input validation
+    if (!title || title.trim() === '') {
+      return sheetsErr(new GoogleSheetsInvalidRangeError('', '', {
+        reason: 'Spreadsheet title cannot be empty'
+      }));
+    }
+
+    if (sheetTitles) {
+      if (sheetTitles.length === 0) {
+        return sheetsErr(new GoogleSheetsInvalidRangeError('', '', {
+          reason: 'Sheet titles array cannot be empty'
+        }));
+      }
+      
+      // Check for empty sheet titles
+      const hasEmptyTitles = sheetTitles.some(sheetTitle => !sheetTitle || sheetTitle.trim() === '');
+      if (hasEmptyTitles) {
+        return sheetsErr(new GoogleSheetsInvalidRangeError('', '', {
+          reason: 'Sheet titles cannot be empty'
+        }));
+      }
+      
+      // Check for duplicate sheet titles
+      const uniqueTitles = new Set(sheetTitles.map(t => t.trim()));
+      if (uniqueTitles.size !== sheetTitles.length) {
+        return sheetsErr(new GoogleSheetsInvalidRangeError('', '', {
+          reason: 'Sheet titles must be unique'
+        }));
+      }
+    }
+
+    // Check for GOOGLE_DRIVE_FOLDER_ID
+    const config = loadConfig();
+    if (!config.GOOGLE_DRIVE_FOLDER_ID || config.GOOGLE_DRIVE_FOLDER_ID.trim() === '') {
+      return sheetsErr(new GoogleSheetsError(
+        'GOOGLE_DRIVE_FOLDER_ID environment variable is required',
+        'GOOGLE_SHEETS_CONFIG_ERROR',
+        500
+      ));
+    }
+
+    const context = this.createContext('createSpreadsheet', { title, sheetTitles });
+    
+    return this.executeAsyncWithRetry(async () => {
+      await this.ensureInitialized();
+
+      if (!this.sheetsApi || !this.driveApi) {
+        throw new GoogleSheetsError(
+          'Sheets or Drive API not initialized',
+          'GOOGLE_SHEETS_NOT_INITIALIZED',
+          500
+        );
+      }
+
+      // Prepare the spreadsheet properties
+      const spreadsheetProperties: sheets_v4.Schema$SpreadsheetProperties = {
+        title: title.trim()
+      };
+
+      // Prepare sheets if provided
+      let sheetsToCreate: sheets_v4.Schema$Sheet[] = [];
+      if (sheetTitles && sheetTitles.length > 0) {
+        sheetsToCreate = sheetTitles.map((sheetTitle, index) => ({
+          properties: {
+            title: sheetTitle.trim(),
+            index,
+            sheetType: 'GRID',
+            gridProperties: {
+              rowCount: 1000,
+              columnCount: 26
+            }
+          }
+        }));
+      } else {
+        // Default single sheet
+        sheetsToCreate = [{
+          properties: {
+            title: 'Sheet1',
+            index: 0,
+            sheetType: 'GRID',
+            gridProperties: {
+              rowCount: 1000,
+              columnCount: 26
+            }
+          }
+        }];
+      }
+
+      // Create the spreadsheet
+      const createResponse = await this.sheetsApi.spreadsheets.create({
+        requestBody: {
+          properties: spreadsheetProperties,
+          sheets: sheetsToCreate
+        }
+      });
+
+      if (!createResponse.data.spreadsheetId) {
+        throw new GoogleSheetsError(
+          'Failed to create spreadsheet - no spreadsheet ID returned',
+          'GOOGLE_SHEETS_CREATE_FAILED',
+          500
+        );
+      }
+
+      const spreadsheetId = createResponse.data.spreadsheetId;
+      const spreadsheetUrl = createResponse.data.spreadsheetUrl || 
+        `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
+
+      // Move the spreadsheet to the configured Drive folder
+      try {
+        await this.driveApi.files.update({
+          fileId: spreadsheetId,
+          addParents: config.GOOGLE_DRIVE_FOLDER_ID,
+          removeParents: 'root',
+          fields: 'id, parents'
+        });
+      } catch (driveError) {
+        // Log the Drive API error but don't fail the entire operation
+        this.logger.warn('Failed to move spreadsheet to Drive folder, but spreadsheet was created', {
+          spreadsheetId,
+          folderId: config.GOOGLE_DRIVE_FOLDER_ID,
+          error: driveError instanceof Error ? driveError.message : String(driveError),
+          requestId: context.requestId
+        });
+      }
+
+      // Prepare the result
+      const sheets = createResponse.data.sheets?.map((sheet) => ({
+        sheetId: sheet.properties?.sheetId || 0,
+        title: sheet.properties?.title || 'Sheet1',
+        index: sheet.properties?.index || 0
+      })) || [{
+        sheetId: 0,
+        title: 'Sheet1',
+        index: 0
+      }];
+
+      const result: SheetsCreateSpreadsheetResult = {
+        spreadsheetId,
+        spreadsheetUrl,
+        title: createResponse.data.properties?.title || title.trim(),
+        sheets
+      };
+
+      this.logger.info('Successfully created new spreadsheet', {
+        spreadsheetId,
+        title: result.title,
+        sheetsCount: sheets.length,
+        folderId: config.GOOGLE_DRIVE_FOLDER_ID,
+        requestId: context.requestId
+      });
+
+      return result;
+
+    }, context).andThen((result) => sheetsOk(result));
   }
 
   /**

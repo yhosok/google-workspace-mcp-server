@@ -33,7 +33,7 @@ describe('Config', () => {
   describe('GOOGLE_SCOPES', () => {
     test('should contain required Google API scopes', () => {
       expect(GOOGLE_SCOPES).toContain('https://www.googleapis.com/auth/spreadsheets');
-      expect(GOOGLE_SCOPES).toContain('https://www.googleapis.com/auth/drive.readonly');
+      expect(GOOGLE_SCOPES).toContain('https://www.googleapis.com/auth/drive.file');
     });
   });
 });

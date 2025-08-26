@@ -8,7 +8,7 @@ const schemaCache = new Map<string, z.ZodType>();
 /**
  * Supported tool types for schema generation
  */
-export type SupportedTool = 'sheets-list' | 'sheets-read' | 'sheets-write' | 'sheets-append';
+export type SupportedTool = 'sheets-list' | 'sheets-read' | 'sheets-write' | 'sheets-append' | 'sheets-add-sheet' | 'sheets-create';
 
 /**
  * Factory class for creating standardized Zod schemas for Google Workspace MCP tools
@@ -91,6 +91,33 @@ export class SchemaFactory {
         });
         break;
 
+      case 'sheets-add-sheet':
+        schema = z.object({
+          spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
+          title: z.string()
+            .trim()
+            .min(1, 'Sheet title cannot be empty')
+            .describe('The title of the new sheet to add'),
+          index: z.number()
+            .int()
+            .min(0, 'Sheet index must be non-negative')
+            .optional()
+            .describe('Zero-based index where the sheet should be inserted (optional)')
+        });
+        break;
+
+      case 'sheets-create':
+        schema = z.object({
+          title: z.string()
+            .trim()
+            .min(1, 'Spreadsheet title cannot be empty')
+            .describe('The title of the new spreadsheet'),
+          sheetTitles: z.array(z.string().trim().min(1, 'Sheet title cannot be empty'))
+            .optional()
+            .describe('Optional array of titles for initial sheets. If not provided, a single "Sheet1" will be created')
+        });
+        break;
+
       default:
         throw new Error(`Unknown tool: ${tool}`);
     }
@@ -134,6 +161,26 @@ export class SchemaFactory {
             updatedRows: z.number(),
             updatedCells: z.number()
           })
+        });
+
+      case 'sheets-add-sheet':
+        return z.object({
+          sheetId: z.number(),
+          title: z.string(),
+          index: z.number(),
+          spreadsheetId: z.string()
+        });
+
+      case 'sheets-create':
+        return z.object({
+          spreadsheetId: z.string(),
+          spreadsheetUrl: z.string(),
+          title: z.string(),
+          sheets: z.array(z.object({
+            sheetId: z.number(),
+            title: z.string(),
+            index: z.number()
+          }))
         });
 
       default:
@@ -190,6 +237,14 @@ export class SchemaFactory {
       'sheets-append': {
         title: 'Append to Spreadsheet',
         description: 'Append data to a spreadsheet'
+      },
+      'sheets-add-sheet': {
+        title: 'Add Sheet to Spreadsheet',
+        description: 'Add a new sheet (tab) to an existing spreadsheet'
+      },
+      'sheets-create': {
+        title: 'Create New Spreadsheet',
+        description: 'Create a new spreadsheet in the configured Google Drive folder'
       }
     };
 

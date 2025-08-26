@@ -60,6 +60,24 @@ export interface SheetsAppendResult {
   };
 }
 
+export interface SheetsAddSheetResult {
+  sheetId: number;
+  title: string;
+  index: number;
+  spreadsheetId: string;
+}
+
+export interface SheetsCreateSpreadsheetResult {
+  spreadsheetId: string;
+  spreadsheetUrl: string;
+  title: string;
+  sheets: Array<{
+    sheetId: number;
+    title: string;
+    index: number;
+  }>;
+}
+
 // MCPリソース関連の型定義
 export interface MCPResourceContent {
   uri: string;

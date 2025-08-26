@@ -17,5 +17,6 @@ export function loadConfig(): EnvironmentConfig {
 // Google APIスコープの定義
 export const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets',
-  'https://www.googleapis.com/auth/drive.readonly',
+  // Need write access to create/move spreadsheets into folders; drive.readonly blocks create
+  'https://www.googleapis.com/auth/drive.file',
 ] as const;
