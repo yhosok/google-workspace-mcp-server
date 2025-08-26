@@ -3,7 +3,11 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { AuthService } from './services/auth.service.js';
 import { ServiceRegistry, SheetsServiceModule } from './registry/index.js';
 import { loadConfig } from './config/index.js';
+import { createServiceLogger } from './utils/logger.js';
 import type { EnvironmentConfig } from './types/index.js';
+
+// Logger instance for main server
+const logger = createServiceLogger('MainServer');
 
 // Service registry and authentication
 let authService: AuthService;
@@ -47,14 +51,14 @@ function registerToolsAndResources(): void {
   // ツールの登録
   const toolsResult = serviceRegistry.registerAllTools(server);
   if (toolsResult.isErr()) {
-    console.error('Failed to register tools:', toolsResult.error.toJSON());
+    logger.error('Failed to register tools', { error: toolsResult.error.toJSON() });
     throw toolsResult.error;
   }
 
   // リソースの登録  
   const resourcesResult = serviceRegistry.registerAllResources(server);
   if (resourcesResult.isErr()) {
-    console.error('Failed to register resources:', resourcesResult.error.toJSON());
+    logger.error('Failed to register resources', { error: resourcesResult.error.toJSON() });
     throw resourcesResult.error;
   }
 }
@@ -63,34 +67,34 @@ async function main(): Promise<void> {
   try {
     // サービスの初期化
     await initializeServices();
-    console.log('Services initialized successfully');
+    logger.info('Services initialized successfully');
     
     // ヘルスステータスのログ出力
     const healthStatus = serviceRegistry.getOverallHealthStatus();
-    console.log('Service registry health status:', {
+    logger.info('Service registry health status', {
       status: healthStatus.status,
       summary: healthStatus.summary
     });
     
     // ツールとリソースの登録
     registerToolsAndResources();
-    console.log('Tools and resources registered successfully');
+    logger.info('Tools and resources registered successfully');
     
     // トランスポートの設定と接続
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.log('Google Workspace MCP Server is running...');
+    logger.info('Google Workspace MCP Server is running...');
     
   } catch (error) {
-    console.error('Failed to start server:', error);
+    logger.error('Failed to start server', {}, error instanceof Error ? error : new Error(String(error)));
     
     // クリーンアップの実行
     if (serviceRegistry) {
       try {
         await serviceRegistry.cleanup();
-        console.log('Cleanup completed successfully');
+        logger.info('Cleanup completed successfully');
       } catch (cleanupError) {
-        console.error('Cleanup failed:', cleanupError);
+        logger.error('Cleanup failed', {}, cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)));
       }
     }
     
@@ -100,14 +104,14 @@ async function main(): Promise<void> {
 
 // Graceful shutdown handling
 process.on('SIGINT', async () => {
-  console.log('\nReceived SIGINT, shutting down gracefully...');
+  logger.info('Received SIGINT, shutting down gracefully...');
   
   if (serviceRegistry) {
     try {
       await serviceRegistry.cleanup();
-      console.log('Cleanup completed successfully');
+      logger.info('Cleanup completed successfully');
     } catch (error) {
-      console.error('Cleanup failed:', error);
+      logger.error('Cleanup failed', {}, error instanceof Error ? error : new Error(String(error)));
     }
   }
   
@@ -115,18 +119,21 @@ process.on('SIGINT', async () => {
 });
 
 process.on('SIGTERM', async () => {
-  console.log('\nReceived SIGTERM, shutting down gracefully...');
+  logger.info('Received SIGTERM, shutting down gracefully...');
   
   if (serviceRegistry) {
     try {
       await serviceRegistry.cleanup();
-      console.log('Cleanup completed successfully'); 
+      logger.info('Cleanup completed successfully'); 
     } catch (error) {
-      console.error('Cleanup failed:', error);
+      logger.error('Cleanup failed', {}, error instanceof Error ? error : new Error(String(error)));
     }
   }
   
   process.exit(0);
 });
 
-main().catch(console.error);
+main().catch((error) => {
+  logger.error('Unhandled error in main function', {}, error instanceof Error ? error : new Error(String(error)));
+  process.exit(1);
+});

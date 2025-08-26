@@ -129,7 +129,11 @@ export const DEFAULT_LOGGER_CONFIG: LoggerConfig = {
     (process.env.NODE_ENV === 'development'),  // Simplified condition
   serviceName: 'google-workspace-mcp',
   includePerformanceMetrics: process.env.NODE_ENV === 'development',
-  prettyPrint: process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test'
+  prettyPrint: false,  // Always use compact JSON to prevent stdout pollution
+  outputFn: (entry: LogEntry) => {
+    // Always write logs to stderr to prevent JSON-RPC stdout pollution
+    process.stderr.write(JSON.stringify(entry) + '\n');
+  }
 };
 
 /**
