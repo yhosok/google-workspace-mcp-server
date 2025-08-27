@@ -7,7 +7,10 @@ import type {
   SheetsAddSheetResult,
   SheetsCreateSpreadsheetResult,
 } from '../types/index.js';
-import { GoogleService, type RetryConfig } from './base/google-service.js';
+import {
+  GoogleService,
+  type GoogleServiceRetryConfig,
+} from './base/google-service.js';
 import {
   GoogleWorkspaceResult,
   GoogleSheetsResult,
@@ -31,7 +34,7 @@ export class SheetsService extends GoogleService {
   constructor(
     authService: AuthService,
     logger?: Logger,
-    retryConfig?: RetryConfig
+    retryConfig?: GoogleServiceRetryConfig
   ) {
     const serviceLogger = logger || createServiceLogger('sheets-service');
     super(new OAuth2Client(), serviceLogger, retryConfig); // Temporary client, will be replaced

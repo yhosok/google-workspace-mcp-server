@@ -2,6 +2,11 @@
 export interface EnvironmentConfig {
   GOOGLE_SERVICE_ACCOUNT_KEY_PATH: string;
   GOOGLE_DRIVE_FOLDER_ID: string;
+  GOOGLE_RETRY_MAX_ATTEMPTS?: number;
+  GOOGLE_RETRY_BASE_DELAY?: number;
+  GOOGLE_RETRY_MAX_DELAY?: number;
+  GOOGLE_RETRY_JITTER?: number;
+  GOOGLE_RETRY_RETRIABLE_CODES?: number[];
 }
 
 // Google Sheets関連の型定義
@@ -86,5 +91,68 @@ export interface MCPResourceContent {
 }
 
 export interface MCPResourceResponse {
+  /** Array of resource contents */
   contents: MCPResourceContent[];
+}
+
+/**
+ * Configuration interface for retry behavior.
+ * Used by GoogleService for handling transient failures.
+ */
+export interface RetryConfig {
+  /** Maximum number of retry attempts (default: 3) */
+  maxAttempts: number;
+
+  /** Base delay in milliseconds between attempts (default: 1000) */
+  baseDelay: number;
+
+  /** Maximum delay in milliseconds (default: 30000) */
+  maxDelay: number;
+
+  /** Jitter factor to randomize delays (0-1, default: 0.1) */
+  jitter: number;
+
+  /** HTTP status codes that should trigger retry attempts */
+  retriableCodes: number[];
+}
+
+/**
+ * HTTP status codes commonly used in Google API error handling.
+ */
+export enum HttpStatusCode {
+  /** Request succeeded */
+  OK = 200,
+
+  /** Bad request - client error */
+  BAD_REQUEST = 400,
+
+  /** Authentication failed */
+  UNAUTHORIZED = 401,
+
+  /** Access denied */
+  FORBIDDEN = 403,
+
+  /** Resource not found */
+  NOT_FOUND = 404,
+
+  /** Request method not allowed */
+  METHOD_NOT_ALLOWED = 405,
+
+  /** Request timeout */
+  REQUEST_TIMEOUT = 408,
+
+  /** Rate limit exceeded */
+  TOO_MANY_REQUESTS = 429,
+
+  /** Internal server error */
+  INTERNAL_SERVER_ERROR = 500,
+
+  /** Bad gateway */
+  BAD_GATEWAY = 502,
+
+  /** Service unavailable */
+  SERVICE_UNAVAILABLE = 503,
+
+  /** Gateway timeout */
+  GATEWAY_TIMEOUT = 504,
 }

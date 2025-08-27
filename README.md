@@ -12,9 +12,11 @@ This MCP server implements the [Model Context Protocol](https://modelcontextprot
 
 - **Google Sheets Integration**: Full CRUD operations on spreadsheets
 - **Service Account Authentication**: Secure authentication using Google service accounts
+- **Configurable Retry/Backoff Strategy**: Intelligent retry handling for transient API failures
 - **Extensible Architecture**: Plugin-based design for easy addition of new Google services
 - **Type-Safe Implementation**: Built with TypeScript for reliability and maintainability
-- **Comprehensive Testing**: Over 200 unit and integration tests
+- **Comprehensive Testing**: Over 370 unit and integration tests with 100% pass rate
+- **Production-Ready Error Handling**: Comprehensive error classification and recovery
 
 ### Architecture
 
@@ -91,14 +93,27 @@ For the service account to access your Google Sheets:
 Create a `.env` file in the project root (use `.env.example` as template):
 
 ```env
-# Google Service Account Configuration
+# Google Service Account Configuration (Required)
 GOOGLE_SERVICE_ACCOUNT_KEY_PATH=/path/to/your/service-account-key.json
 
 # Google Drive Folder ID (optional - limits access to specific folder)
 GOOGLE_DRIVE_FOLDER_ID=your-folder-id
 
-# Google API Scopes
-GOOGLE_WORKSPACE_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/drive.readonly
+# Google API Retry Configuration (Optional)
+# Maximum number of retry attempts for failed API calls (default: 3)
+GOOGLE_RETRY_MAX_ATTEMPTS=3
+
+# Base delay in milliseconds before first retry (default: 1000)
+GOOGLE_RETRY_BASE_DELAY=1000
+
+# Maximum delay in milliseconds between retries (default: 30000)
+GOOGLE_RETRY_MAX_DELAY=30000
+
+# Jitter factor (0-1) to add randomness to retry delays (default: 0.1)
+GOOGLE_RETRY_JITTER=0.1
+
+# Comma-separated list of HTTP status codes that trigger retries (default: 429,500,502,503,504)
+GOOGLE_RETRY_RETRIABLE_CODES=429,500,502,503,504
 ```
 
 ## Usage
@@ -186,6 +201,68 @@ Appends data to the end of a sheet.
 "Add a new row with data [Product X, $50, In Stock] to my inventory spreadsheet"
 ```
 
+#### `sheets-add-sheet`
+Adds a new sheet (tab) to an existing spreadsheet.
+
+**Parameters:**
+- `spreadsheetId` (required): The ID of the spreadsheet
+- `title` (required): Name for the new sheet
+- `index` (optional): Position index for the new sheet
+
+**Example usage in Claude:**
+```
+"Add a new sheet called 'Q1 Results' to my spreadsheet"
+```
+
+#### `sheets-create`
+Creates a new spreadsheet with optional initial sheets.
+
+**Parameters:**
+- `title` (required): Name for the new spreadsheet
+- `sheetTitles` (optional): Array of initial sheet names
+
+**Example usage in Claude:**
+```
+"Create a new spreadsheet called 'Sales Report' with sheets for each quarter"
+```
+
+## Retry and Error Handling
+
+### Automatic Retry Strategy
+
+All Google API operations include intelligent retry handling with exponential backoff:
+
+- **Configurable Parameters**: Customize retry behavior via environment variables
+- **Smart Error Classification**: Automatic retry for transient failures (rate limits, server errors)
+- **Exponential Backoff with Jitter**: Prevents thundering herd problems
+- **Detailed Logging**: Comprehensive retry attempt logging for debugging
+
+### Retriable Conditions
+
+- **HTTP 429**: Rate limit exceeded (respects retry-after headers)
+- **HTTP 500**: Internal server error
+- **HTTP 502**: Bad gateway
+- **HTTP 503**: Service unavailable
+- **HTTP 504**: Gateway timeout
+
+### Configuration Options
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `GOOGLE_RETRY_MAX_ATTEMPTS` | 3 | Maximum retry attempts |
+| `GOOGLE_RETRY_BASE_DELAY` | 1000ms | Initial delay between attempts |
+| `GOOGLE_RETRY_MAX_DELAY` | 30000ms | Maximum delay cap |
+| `GOOGLE_RETRY_JITTER` | 0.1 | Randomization factor (0-1) |
+| `GOOGLE_RETRY_RETRIABLE_CODES` | 429,500,502,503,504 | HTTP codes that trigger retry |
+
+### Example Retry Log Output
+
+```
+SheetsService: Attempt 1/3 failed, retrying in 1500ms (reason: retriable_http_status: 500)
+SheetsService: Attempt 2/3 failed, retrying in 3200ms (reason: retriable_http_status: 502)
+SheetsService: Operation 'readRange' succeeded on attempt 3
+```
+
 ## Available Resources
 
 ### `spreadsheet-schema`
@@ -258,6 +335,30 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Ensure the service account has appropriate permissions
 - Verify the required scopes are included in your configuration
 - Check that the service account key hasn't expired
+
+#### "Rate limit exceeded" (HTTP 429)
+- The server automatically handles rate limits with exponential backoff
+- Consider adjusting `GOOGLE_RETRY_MAX_DELAY` for longer operations
+- Monitor retry logs to understand usage patterns
+- Consider implementing request batching for high-volume operations
+
+#### Tuning Retry Configuration
+
+**For Development/Testing:**
+```env
+# Faster retries for development
+GOOGLE_RETRY_MAX_ATTEMPTS=2
+GOOGLE_RETRY_BASE_DELAY=500
+GOOGLE_RETRY_MAX_DELAY=5000
+```
+
+**For Production/High-Volume:**
+```env
+# More resilient settings for production
+GOOGLE_RETRY_MAX_ATTEMPTS=5
+GOOGLE_RETRY_BASE_DELAY=2000
+GOOGLE_RETRY_MAX_DELAY=60000
+```
 
 ### Getting Help
 

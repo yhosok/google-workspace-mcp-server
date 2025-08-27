@@ -5,7 +5,7 @@
  * including high-speed retry configurations to minimize test execution time.
  */
 
-import type { RetryConfig } from '../src/services/base/google-service.js';
+import type { GoogleServiceRetryConfig } from '../src/services/base/google-service.js';
 
 /**
  * High-speed retry configuration for testing
@@ -18,9 +18,15 @@ import type { RetryConfig } from '../src/services/base/google-service.js';
  * 
  * Speed improvement: ~280x faster
  */
-export const TEST_RETRY_CONFIG: RetryConfig = {
+export const TEST_RETRY_CONFIG: GoogleServiceRetryConfig = {
   // Reduce retry attempts from 3 to 2 (still tests retry logic)
   maxAttempts: 2,
+  
+  // Base properties
+  baseDelay: 10,
+  maxDelay: 50,
+  jitter: 0,
+  retriableCodes: [429, 500, 502, 503, 504],
   
   // Drastically reduce initial delay from 1000ms to 10ms (100x faster)
   initialDelayMs: 10,
@@ -38,8 +44,12 @@ export const TEST_RETRY_CONFIG: RetryConfig = {
 /**
  * Alternative ultra-fast retry config for specific tests that need even faster execution
  */
-export const ULTRA_FAST_RETRY_CONFIG: RetryConfig = {
+export const ULTRA_FAST_RETRY_CONFIG: GoogleServiceRetryConfig = {
   maxAttempts: 1, // No retries for ultra-fast tests
+  baseDelay: 1,
+  maxDelay: 1,
+  jitter: 0,
+  retriableCodes: [429, 500, 502, 503, 504],
   initialDelayMs: 1,
   maxDelayMs: 1,
   backoffMultiplier: 1,
@@ -50,8 +60,12 @@ export const ULTRA_FAST_RETRY_CONFIG: RetryConfig = {
  * Configuration for testing retry behavior with more realistic timing
  * (still faster than production but allows testing of backoff logic)
  */
-export const REALISTIC_TEST_RETRY_CONFIG: RetryConfig = {
+export const REALISTIC_TEST_RETRY_CONFIG: GoogleServiceRetryConfig = {
   maxAttempts: 3,
+  baseDelay: 50,
+  maxDelay: 500,
+  jitter: 0.1,
+  retriableCodes: [429, 500, 502, 503, 504],
   initialDelayMs: 50,   // 50ms instead of 1000ms
   maxDelayMs: 500,      // 500ms instead of 30000ms
   backoffMultiplier: 2,
