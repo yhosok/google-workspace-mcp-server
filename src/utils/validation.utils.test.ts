@@ -1,6 +1,6 @@
 /**
  * Test suite for validation utilities (TDD Red Phase)
- * 
+ *
  * This test file defines the specification for a common validation utility system
  * that eliminates duplication between input schema and runtime validation using Zod's safeParse.
  */
@@ -8,13 +8,13 @@
 import { describe, it, expect } from '@jest/globals';
 import { z } from 'zod';
 import { Result } from 'neverthrow';
-import { 
-  validateToolInput, 
-  convertZodErrorToGoogleSheetsError
+import {
+  validateToolInput,
+  convertZodErrorToGoogleSheetsError,
 } from './validation.utils.js';
-import { 
+import {
   GoogleSheetsError,
-  GoogleSheetsInvalidRangeError
+  GoogleSheetsInvalidRangeError,
 } from '../errors/index.js';
 import { SchemaFactory, SupportedTool } from '../tools/base/tool-schema.js';
 
@@ -25,45 +25,48 @@ const testSchemas = {
   simple: z.object({
     name: z.string().min(1, 'Name must not be empty'),
     age: z.number().int().min(0, 'Age must be a non-negative integer'),
-    active: z.boolean()
+    active: z.boolean(),
   }),
-  
+
   spreadsheet: z.object({
-    spreadsheetId: z.string()
+    spreadsheetId: z
+      .string()
       .min(1, 'Spreadsheet ID cannot be empty')
       .describe('The ID of the Google Spreadsheet'),
-    range: z.string()
+    range: z
+      .string()
       .min(1, 'Range cannot be empty')
       .describe('The A1 notation range'),
-    values: z.array(z.array(z.string()))
-      .describe('2D array of string values')
+    values: z.array(z.array(z.string())).describe('2D array of string values'),
   }),
-  
+
   nested: z.object({
     user: z.object({
       email: z.string().email('Invalid email format'),
       profile: z.object({
-        displayName: z.string().min(1, 'Display name required')
-      })
+        displayName: z.string().min(1, 'Display name required'),
+      }),
     }),
     settings: z.object({
       notifications: z.boolean(),
       theme: z.enum(['light', 'dark'], {
-        errorMap: () => ({ message: 'Theme must be light or dark' })
-      })
-    })
+        errorMap: () => ({ message: 'Theme must be light or dark' }),
+      }),
+    }),
   }),
-  
+
   constraints: z.object({
-    title: z.string()
+    title: z
+      .string()
       .min(3, 'Title must be at least 3 characters')
       .max(50, 'Title must be at most 50 characters'),
-    count: z.number()
+    count: z
+      .number()
       .min(1, 'Count must be at least 1')
       .max(100, 'Count must be at most 100'),
     url: z.string().url('Must be a valid URL'),
-    optional: z.string().optional()
-  })
+    optional: z.string().optional(),
+  }),
 };
 
 describe('ValidationUtils', () => {
@@ -73,11 +76,11 @@ describe('ValidationUtils', () => {
         const validData = {
           name: 'John Doe',
           age: 30,
-          active: true
+          active: true,
         };
-        
+
         const result = validateToolInput(testSchemas.simple, validData);
-        
+
         expect(result.isOk()).toBe(true);
         if (result.isOk()) {
           expect(result.value).toEqual(validData);
@@ -88,11 +91,14 @@ describe('ValidationUtils', () => {
         const validData = {
           spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
           range: 'Sheet1!A1:B10',
-          values: [['A', 'B'], ['C', 'D']]
+          values: [
+            ['A', 'B'],
+            ['C', 'D'],
+          ],
         };
-        
+
         const result = validateToolInput(testSchemas.spreadsheet, validData);
-        
+
         expect(result.isOk()).toBe(true);
         if (result.isOk()) {
           expect(result.value).toEqual(validData);
@@ -104,17 +110,17 @@ describe('ValidationUtils', () => {
           user: {
             email: 'john@example.com',
             profile: {
-              displayName: 'John Doe'
-            }
+              displayName: 'John Doe',
+            },
           },
           settings: {
             notifications: true,
-            theme: 'dark'
-          }
+            theme: 'dark',
+          },
         };
-        
+
         const result = validateToolInput(testSchemas.nested, validData);
-        
+
         expect(result.isOk()).toBe(true);
         if (result.isOk()) {
           expect(result.value).toEqual(validData);
@@ -126,18 +132,24 @@ describe('ValidationUtils', () => {
           title: 'Test Title',
           count: 5,
           url: 'https://example.com',
-          optional: 'present'
+          optional: 'present',
         };
-        
+
         const dataWithoutOptional = {
           title: 'Test Title',
           count: 5,
-          url: 'https://example.com'
+          url: 'https://example.com',
         };
-        
-        const result1 = validateToolInput(testSchemas.constraints, dataWithOptional);
-        const result2 = validateToolInput(testSchemas.constraints, dataWithoutOptional);
-        
+
+        const result1 = validateToolInput(
+          testSchemas.constraints,
+          dataWithOptional
+        );
+        const result2 = validateToolInput(
+          testSchemas.constraints,
+          dataWithoutOptional
+        );
+
         expect(result1.isOk()).toBe(true);
         expect(result2.isOk()).toBe(true);
       });
@@ -148,11 +160,11 @@ describe('ValidationUtils', () => {
         const invalidData = {
           name: 123, // Should be string
           age: '30', // Should be number
-          active: 'true' // Should be boolean
+          active: 'true', // Should be boolean
         };
-        
+
         const result = validateToolInput(testSchemas.simple, invalidData);
-        
+
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
           const error = result.error;
@@ -160,12 +172,26 @@ describe('ValidationUtils', () => {
           expect(error.code).toBe('GOOGLE_SHEETS_VALIDATION_ERROR');
           expect(error.message).toContain('Invalid input data');
           expect(error.context).toHaveProperty('validationErrors');
-          
-          const validationErrors = error.context?.validationErrors as Array<Record<string, unknown>>;
+
+          const validationErrors = error.context?.validationErrors as Array<
+            Record<string, unknown>
+          >;
           expect(validationErrors).toHaveLength(3);
-          expect(validationErrors.some(e => (e.path as (string | number)[]).includes('name'))).toBe(true);
-          expect(validationErrors.some(e => (e.path as (string | number)[]).includes('age'))).toBe(true);
-          expect(validationErrors.some(e => (e.path as (string | number)[]).includes('active'))).toBe(true);
+          expect(
+            validationErrors.some(e =>
+              (e.path as (string | number)[]).includes('name')
+            )
+          ).toBe(true);
+          expect(
+            validationErrors.some(e =>
+              (e.path as (string | number)[]).includes('age')
+            )
+          ).toBe(true);
+          expect(
+            validationErrors.some(e =>
+              (e.path as (string | number)[]).includes('active')
+            )
+          ).toBe(true);
         }
       });
 
@@ -173,25 +199,35 @@ describe('ValidationUtils', () => {
         const invalidData = {
           title: 'ab', // Too short (min 3)
           count: 150, // Too big (max 100)
-          url: 'https://example.com'
+          url: 'https://example.com',
         };
-        
+
         const result = validateToolInput(testSchemas.constraints, invalidData);
-        
+
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
           const error = result.error;
           expect(error).toBeInstanceOf(GoogleSheetsError);
           expect(error.message).toContain('Invalid input data');
           expect(error.context?.validationErrors).toBeDefined();
-          
-          const validationErrors = error.context?.validationErrors as Array<Record<string, unknown>>;
-          expect(validationErrors.some(e => 
-            e.code === 'too_small' && (e.path as (string | number)[]).includes('title')
-          )).toBe(true);
-          expect(validationErrors.some(e => 
-            e.code === 'too_big' && (e.path as (string | number)[]).includes('count')
-          )).toBe(true);
+
+          const validationErrors = error.context?.validationErrors as Array<
+            Record<string, unknown>
+          >;
+          expect(
+            validationErrors.some(
+              e =>
+                e.code === 'too_small' &&
+                (e.path as (string | number)[]).includes('title')
+            )
+          ).toBe(true);
+          expect(
+            validationErrors.some(
+              e =>
+                e.code === 'too_big' &&
+                (e.path as (string | number)[]).includes('count')
+            )
+          ).toBe(true);
         }
       });
 
@@ -200,30 +236,36 @@ describe('ValidationUtils', () => {
           user: {
             email: 'not-an-email', // Invalid email format
             profile: {
-              displayName: 'John Doe'
-            }
+              displayName: 'John Doe',
+            },
           },
           settings: {
             notifications: true,
-            theme: 'invalid-theme' // Invalid enum value
-          }
+            theme: 'invalid-theme', // Invalid enum value
+          },
         };
-        
+
         const result = validateToolInput(testSchemas.nested, invalidData);
-        
+
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
           const error = result.error;
           expect(error).toBeInstanceOf(GoogleSheetsError);
           expect(error.context?.validationErrors).toBeDefined();
-          
-          const validationErrors = error.context?.validationErrors as Array<Record<string, unknown>>;
-          expect(validationErrors.some(e => 
-            (e.path as (string | number)[]).includes('email')
-          )).toBe(true);
-          expect(validationErrors.some(e => 
-            (e.path as (string | number)[]).includes('theme')
-          )).toBe(true);
+
+          const validationErrors = error.context?.validationErrors as Array<
+            Record<string, unknown>
+          >;
+          expect(
+            validationErrors.some(e =>
+              (e.path as (string | number)[]).includes('email')
+            )
+          ).toBe(true);
+          expect(
+            validationErrors.some(e =>
+              (e.path as (string | number)[]).includes('theme')
+            )
+          ).toBe(true);
         }
       });
 
@@ -231,17 +273,19 @@ describe('ValidationUtils', () => {
         const invalidData = {
           name: '', // Too short
           age: -5, // Too small
-          active: 'not-boolean' // Wrong type
+          active: 'not-boolean', // Wrong type
         };
-        
+
         const result = validateToolInput(testSchemas.simple, invalidData);
-        
+
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
           const error = result.error;
           expect(error.context?.validationErrors).toBeDefined();
-          
-          const validationErrors = error.context?.validationErrors as Array<Record<string, unknown>>;
+
+          const validationErrors = error.context?.validationErrors as Array<
+            Record<string, unknown>
+          >;
           expect(validationErrors).toHaveLength(3);
         }
       });
@@ -251,55 +295,75 @@ describe('ValidationUtils', () => {
           user: {
             email: 'invalid-email',
             profile: {
-              displayName: '' // Empty display name
-            }
+              displayName: '', // Empty display name
+            },
           },
           settings: {
             notifications: 'not-boolean', // Wrong type
-            theme: 'invalid'
-          }
+            theme: 'invalid',
+          },
         };
-        
+
         const result = validateToolInput(testSchemas.nested, invalidData);
-        
+
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
           const error = result.error;
-          const validationErrors = error.context?.validationErrors as Array<Record<string, unknown>>;
-          
-          expect(validationErrors.some(e => 
-            (e.path as (string | number)[]).includes('email')
-          )).toBe(true);
-          expect(validationErrors.some(e => 
-            (e.path as (string | number)[]).includes('displayName')
-          )).toBe(true);
-          expect(validationErrors.some(e => 
-            (e.path as (string | number)[]).includes('notifications')
-          )).toBe(true);
-          expect(validationErrors.some(e => 
-            (e.path as (string | number)[]).includes('theme')
-          )).toBe(true);
+          const validationErrors = error.context?.validationErrors as Array<
+            Record<string, unknown>
+          >;
+
+          expect(
+            validationErrors.some(e =>
+              (e.path as (string | number)[]).includes('email')
+            )
+          ).toBe(true);
+          expect(
+            validationErrors.some(e =>
+              (e.path as (string | number)[]).includes('displayName')
+            )
+          ).toBe(true);
+          expect(
+            validationErrors.some(e =>
+              (e.path as (string | number)[]).includes('notifications')
+            )
+          ).toBe(true);
+          expect(
+            validationErrors.some(e =>
+              (e.path as (string | number)[]).includes('theme')
+            )
+          ).toBe(true);
         }
       });
 
       it('should handle missing required fields', async () => {
         const incompleteData = {
-          name: 'John' // Missing age and active fields
+          name: 'John', // Missing age and active fields
         };
-        
+
         const result = validateToolInput(testSchemas.simple, incompleteData);
-        
+
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
           const error = result.error;
-          const validationErrors = error.context?.validationErrors as Array<Record<string, unknown>>;
-          
-          expect(validationErrors.some(e => 
-            e.code === 'invalid_type' && (e.path as (string | number)[]).includes('age')
-          )).toBe(true);
-          expect(validationErrors.some(e => 
-            e.code === 'invalid_type' && (e.path as (string | number)[]).includes('active')
-          )).toBe(true);
+          const validationErrors = error.context?.validationErrors as Array<
+            Record<string, unknown>
+          >;
+
+          expect(
+            validationErrors.some(
+              e =>
+                e.code === 'invalid_type' &&
+                (e.path as (string | number)[]).includes('age')
+            )
+          ).toBe(true);
+          expect(
+            validationErrors.some(
+              e =>
+                e.code === 'invalid_type' &&
+                (e.path as (string | number)[]).includes('active')
+            )
+          ).toBe(true);
         }
       });
     });
@@ -309,11 +373,11 @@ describe('ValidationUtils', () => {
         const validData = {
           name: 'John Doe',
           age: 30,
-          active: true
+          active: true,
         };
-        
+
         const result = validateToolInput(testSchemas.simple, validData);
-        
+
         if (result.isOk()) {
           // These should be type-safe accesses
           expect(typeof result.value.name).toBe('string');
@@ -323,12 +387,19 @@ describe('ValidationUtils', () => {
       });
 
       it('should work with generic schema types', async () => {
-        const genericValidate = <T>(schema: z.ZodType<T>, data: unknown): ValidationResult<T> => {
+        const genericValidate = <T>(
+          schema: z.ZodType<T>,
+          data: unknown
+        ): ValidationResult<T> => {
           return validateToolInput(schema, data);
         };
-        
-        const result = genericValidate(testSchemas.simple, { name: 'John', age: 30, active: true });
-        
+
+        const result = genericValidate(testSchemas.simple, {
+          name: 'John',
+          age: 30,
+          active: true,
+        });
+
         expect(result.isOk()).toBe(true);
       });
     });
@@ -342,25 +413,25 @@ describe('ValidationUtils', () => {
           expected: 'string',
           received: 'number',
           path: ['name'],
-          message: 'Expected string, received number'
-        }
+          message: 'Expected string, received number',
+        },
       ]);
-      
+
       const result = convertZodErrorToGoogleSheetsError(zodError);
-      
+
       expect(result).toBeInstanceOf(GoogleSheetsError);
       expect(result.code).toBe('GOOGLE_SHEETS_VALIDATION_ERROR');
       expect(result.message).toBe('Expected string, received number'); // Single error uses specific message
       expect(result.statusCode).toBe(400);
       expect(result.context).toHaveProperty('validationErrors');
-      
+
       const validationErrors = result.context?.validationErrors as any[];
       expect(Array.isArray(validationErrors)).toBe(true);
       expect(validationErrors).toHaveLength(1);
       expect(validationErrors[0]).toMatchObject({
         code: 'invalid_type',
         path: ['name'],
-        message: 'Expected string, received number'
+        message: 'Expected string, received number',
       });
     });
 
@@ -371,7 +442,7 @@ describe('ValidationUtils', () => {
           expected: 'string',
           received: 'number',
           path: ['name'],
-          message: 'Expected string, received number'
+          message: 'Expected string, received number',
         },
         {
           code: 'too_small',
@@ -380,14 +451,16 @@ describe('ValidationUtils', () => {
           inclusive: true,
           exact: false,
           path: ['age'],
-          message: 'Number must be greater than or equal to 0'
-        }
+          message: 'Number must be greater than or equal to 0',
+        },
       ]);
-      
+
       const result = convertZodErrorToGoogleSheetsError(zodError);
-      
+
       expect(result.context?.validationErrors).toBeDefined();
-      const validationErrors = result.context?.validationErrors as Array<Record<string, unknown>>;
+      const validationErrors = result.context?.validationErrors as Array<
+        Record<string, unknown>
+      >;
       expect(validationErrors).toHaveLength(2);
     });
 
@@ -397,13 +470,15 @@ describe('ValidationUtils', () => {
           code: 'invalid_string',
           validation: 'email',
           path: ['user', 'email'],
-          message: 'Invalid email'
-        }
+          message: 'Invalid email',
+        },
       ]);
-      
+
       const result = convertZodErrorToGoogleSheetsError(zodError);
-      
-      const validationErrors = result.context?.validationErrors as Array<Record<string, unknown>>;
+
+      const validationErrors = result.context?.validationErrors as Array<
+        Record<string, unknown>
+      >;
       expect(validationErrors[0]).toHaveProperty('path', ['user', 'email']);
       expect(validationErrors[0]).toHaveProperty('message', 'Invalid email');
     });
@@ -415,7 +490,7 @@ describe('ValidationUtils', () => {
           expected: 'string' as const,
           received: 'number' as const,
           path: ['field'],
-          message: 'Expected string, received number'
+          message: 'Expected string, received number',
         },
         {
           code: 'too_small' as const,
@@ -424,7 +499,7 @@ describe('ValidationUtils', () => {
           inclusive: true,
           exact: false,
           path: ['field'],
-          message: 'String must contain at least 5 character(s)'
+          message: 'String must contain at least 5 character(s)',
         },
         {
           code: 'too_big' as const,
@@ -433,33 +508,35 @@ describe('ValidationUtils', () => {
           inclusive: true,
           exact: false,
           path: ['field'],
-          message: 'String must contain at most 10 character(s)'
+          message: 'String must contain at most 10 character(s)',
         },
         {
           code: 'invalid_string' as const,
           validation: 'email' as const,
           path: ['field'],
-          message: 'Invalid email'
+          message: 'Invalid email',
         },
         {
           code: 'custom' as const,
           path: ['field'],
-          message: 'Custom validation failed'
-        }
+          message: 'Custom validation failed',
+        },
       ];
 
       for (const testCase of testCases) {
         const zodError = new z.ZodError([testCase]);
         const result = convertZodErrorToGoogleSheetsError(zodError);
-        
+
         expect(result).toBeInstanceOf(GoogleSheetsError);
         expect(result.code).toBe('GOOGLE_SHEETS_VALIDATION_ERROR');
-        
-        const validationErrors = result.context?.validationErrors as Array<Record<string, unknown>>;
+
+        const validationErrors = result.context?.validationErrors as Array<
+          Record<string, unknown>
+        >;
         expect(validationErrors[0]).toMatchObject({
           code: testCase.code,
           path: testCase.path,
-          message: testCase.message
+          message: testCase.message,
         });
       }
     });
@@ -471,28 +548,33 @@ describe('ValidationUtils', () => {
           expected: 'string',
           received: 'number',
           path: ['spreadsheetId'],
-          message: 'Expected string, received number'
-        }
+          message: 'Expected string, received number',
+        },
       ]);
-      
+
       const contextData = {
         operation: 'sheets-read',
-        requestId: 'req-123'
+        requestId: 'req-123',
       };
-      
-      const result = convertZodErrorToGoogleSheetsError(zodError, undefined, undefined, contextData);
-      
+
+      const result = convertZodErrorToGoogleSheetsError(
+        zodError,
+        undefined,
+        undefined,
+        contextData
+      );
+
       expect(result.context).toMatchObject({
         ...contextData,
-        validationErrors: expect.any(Array)
+        validationErrors: expect.any(Array),
       });
     });
 
     it('should handle empty ZodError issues array', async () => {
       const zodError = new z.ZodError([]);
-      
+
       const result = convertZodErrorToGoogleSheetsError(zodError);
-      
+
       expect(result).toBeInstanceOf(GoogleSheetsError);
       expect(result.context?.validationErrors).toEqual([]);
     });
@@ -502,19 +584,19 @@ describe('ValidationUtils', () => {
     it('should work with SchemaFactory generated schemas', async () => {
       const supportedTools: SupportedTool[] = [
         'sheets-list',
-        'sheets-read', 
+        'sheets-read',
         'sheets-write',
         'sheets-append',
         'sheets-add-sheet',
-        'sheets-create'
+        'sheets-create',
       ];
 
       for (const tool of supportedTools) {
         const schema = SchemaFactory.createToolInputSchema(tool);
-        
+
         // Test with empty data (should fail for most tools except sheets-list)
         const result = validateToolInput(schema, {});
-        
+
         if (tool === 'sheets-list') {
           expect(result.isOk()).toBe(true);
         } else {
@@ -530,11 +612,11 @@ describe('ValidationUtils', () => {
       const schema = SchemaFactory.createToolInputSchema('sheets-read');
       const validData = {
         spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-        range: 'Sheet1!A1:B10'
+        range: 'Sheet1!A1:B10',
       };
-      
+
       const result = validateToolInput(schema, validData);
-      
+
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         expect(result.value).toEqual(validData);
@@ -546,21 +628,31 @@ describe('ValidationUtils', () => {
       const invalidData = {
         spreadsheetId: '', // Empty string
         range: 'A1:B10',
-        values: 'not-an-array' // Should be array
+        values: 'not-an-array', // Should be array
       };
-      
+
       const result = validateToolInput(schema, invalidData);
-      
+
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         const error = result.error;
         // spreadsheetId errors in range-based tools are treated as GOOGLE_SHEETS_INVALID_RANGE
         expect(error.code).toBe('GOOGLE_SHEETS_INVALID_RANGE');
-        
-        const validationErrors = error.context?.validationErrors as Array<Record<string, unknown>>;
+
+        const validationErrors = error.context?.validationErrors as Array<
+          Record<string, unknown>
+        >;
         expect(Array.isArray(validationErrors)).toBe(true);
-        expect(validationErrors.some(e => (e.path as (string | number)[]).includes('spreadsheetId'))).toBe(true);
-        expect(validationErrors.some(e => (e.path as (string | number)[]).includes('values'))).toBe(true);
+        expect(
+          validationErrors.some(e =>
+            (e.path as (string | number)[]).includes('spreadsheetId')
+          )
+        ).toBe(true);
+        expect(
+          validationErrors.some(e =>
+            (e.path as (string | number)[]).includes('values')
+          )
+        ).toBe(true);
       }
     });
   });
@@ -573,15 +665,19 @@ describe('ValidationUtils', () => {
           expected: 'string',
           received: 'number',
           path: ['spreadsheetId'],
-          message: 'Expected string, received number'
-        }
+          message: 'Expected string, received number',
+        },
       ]);
-      
+
       const spreadsheetId = 'test-sheet-id';
       const range = 'A1:B10';
-      
-      const result = convertZodErrorToGoogleSheetsError(zodError, spreadsheetId, range);
-      
+
+      const result = convertZodErrorToGoogleSheetsError(
+        zodError,
+        spreadsheetId,
+        range
+      );
+
       expect(result).toBeInstanceOf(GoogleSheetsError);
       expect(result.spreadsheetId).toBe(spreadsheetId);
       expect(result.range).toBe(range);
@@ -597,12 +693,12 @@ describe('ValidationUtils', () => {
           code: 'invalid_string',
           validation: 'url',
           path: ['webhookUrl'],
-          message: 'Invalid url'
-        }
+          message: 'Invalid url',
+        },
       ]);
-      
+
       const result = convertZodErrorToGoogleSheetsError(zodError);
-      
+
       // Should be compatible with GoogleWorkspaceError methods
       expect(result.toJSON()).toMatchObject({
         name: 'GoogleSheetsError',
@@ -610,9 +706,9 @@ describe('ValidationUtils', () => {
         statusCode: 400,
         message: 'Invalid url', // Single error uses specific message
         context: expect.objectContaining({
-          validationErrors: expect.any(Array)
+          validationErrors: expect.any(Array),
         }),
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
@@ -625,15 +721,15 @@ describe('ValidationUtils', () => {
             expected: 'string',
             received: 'number',
             path: ['test'],
-            message: 'Invalid type'
-          }
+            message: 'Invalid type',
+          },
         ])
       );
-      
+
       expect(validationError.code).toBe('GOOGLE_SHEETS_VALIDATION_ERROR');
       expect(validationError.statusCode).toBe(400);
       expect(validationError.isRetryable()).toBe(false);
-      
+
       // Should be different from other Google Sheets errors
       const notFoundError = new GoogleSheetsInvalidRangeError('A1:B10');
       expect(validationError.code).not.toBe(notFoundError.code);
@@ -648,15 +744,15 @@ describe('ValidationUtils', () => {
         expected: 'string' as const,
         received: 'number' as const,
         path: [`field${i}`],
-        message: `Field ${i} is invalid`
+        message: `Field ${i} is invalid`,
       }));
-      
+
       const zodError = new z.ZodError(issues);
-      
+
       const startTime = Date.now();
       const result = convertZodErrorToGoogleSheetsError(zodError);
       const endTime = Date.now();
-      
+
       expect(endTime - startTime).toBeLessThan(100); // Should complete within 100ms
       expect(result.context?.validationErrors).toHaveLength(100);
     });
@@ -664,21 +760,18 @@ describe('ValidationUtils', () => {
     it('should validate large objects efficiently', async () => {
       const largeSchema = z.object({
         ...Object.fromEntries(
-          Array.from({ length: 50 }, (_, i) => [
-            `field${i}`,
-            z.string().min(1)
-          ])
-        )
+          Array.from({ length: 50 }, (_, i) => [`field${i}`, z.string().min(1)])
+        ),
       });
-      
+
       const largeValidData = Object.fromEntries(
         Array.from({ length: 50 }, (_, i) => [`field${i}`, `value${i}`])
       );
-      
+
       const startTime = Date.now();
       const result = validateToolInput(largeSchema, largeValidData);
       const endTime = Date.now();
-      
+
       expect(endTime - startTime).toBeLessThan(50); // Should complete within 50ms
       expect(result.isOk()).toBe(true);
     });
@@ -688,10 +781,10 @@ describe('ValidationUtils', () => {
     it('should handle null and undefined inputs gracefully', async () => {
       const result1 = validateToolInput(testSchemas.simple, null);
       const result2 = validateToolInput(testSchemas.simple, undefined);
-      
+
       expect(result1.isErr()).toBe(true);
       expect(result2.isErr()).toBe(true);
-      
+
       if (result1.isErr()) {
         expect(result1.error).toBeInstanceOf(GoogleSheetsError);
       }
@@ -706,9 +799,9 @@ describe('ValidationUtils', () => {
         123,
         [],
         true,
-        Symbol('test')
+        Symbol('test'),
       ];
-      
+
       for (const input of malformedInputs) {
         const result = validateToolInput(testSchemas.simple, input);
         expect(result.isErr()).toBe(true);
@@ -722,12 +815,12 @@ describe('ValidationUtils', () => {
           expected: 'string',
           received: 'number',
           path: ['test'],
-          message: 'Invalid'
-        }
+          message: 'Invalid',
+        },
       ]);
-      
+
       const result = convertZodErrorToGoogleSheetsError(zodError);
-      
+
       expect(result.stack).toBeDefined();
       expect(result.stack).toContain('convertZodErrorToGoogleSheetsError');
     });
@@ -739,12 +832,19 @@ describe('ValidationUtils class (if implemented)', () => {
     it('should provide static validation method', async () => {
       // This test defines the interface for a potential ValidationUtils class
       // Implementation should provide these static methods
-      
-      const mockValidate = (schema: z.ZodType, data: unknown): ValidationResult<unknown> => {
+
+      const mockValidate = (
+        schema: z.ZodType,
+        data: unknown
+      ): ValidationResult<unknown> => {
         return validateToolInput(schema, data);
       };
-      
-      const result = mockValidate(testSchemas.simple, { name: 'test', age: 25, active: true });
+
+      const result = mockValidate(testSchemas.simple, {
+        name: 'test',
+        age: 25,
+        active: true,
+      });
       expect(result.isOk()).toBe(true);
     });
 
@@ -755,7 +855,7 @@ describe('ValidationUtils class (if implemented)', () => {
         const result = schema.safeParse(id);
         return result.success;
       };
-      
+
       expect(isValidSpreadsheetId('valid-id')).toBe(true);
       expect(isValidSpreadsheetId('')).toBe(false);
     });
@@ -767,10 +867,10 @@ describe('ValidationUtils class (if implemented)', () => {
           expected: 'string',
           received: 'number',
           path: ['field'],
-          message: 'Expected string'
-        }
+          message: 'Expected string',
+        },
       ]);
-      
+
       const formatted = convertZodErrorToGoogleSheetsError(zodError);
       expect(formatted.message).toBe('Expected string'); // Single error uses specific message
     });
@@ -781,7 +881,6 @@ describe('ValidationUtils class (if implemented)', () => {
  * Type definitions for the validation utility system
  * These types should be implemented in the actual validation.utils.ts file
  */
-
 
 // Result type that should be used
 type ValidationResult<T> = Result<T, GoogleSheetsError>;
@@ -796,39 +895,42 @@ describe('Integration scenarios', () => {
         tool: 'sheets-read' as SupportedTool,
         validData: {
           spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-          range: 'Sheet1!A1:B10'
+          range: 'Sheet1!A1:B10',
         },
         invalidData: {
           spreadsheetId: '',
-          range: 123
-        }
+          range: 123,
+        },
       },
       {
         tool: 'sheets-write' as SupportedTool,
         validData: {
           spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
           range: 'Sheet1!A1:B10',
-          values: [['A', 'B'], ['C', 'D']]
+          values: [
+            ['A', 'B'],
+            ['C', 'D'],
+          ],
         },
         invalidData: {
           spreadsheetId: null,
           range: 'A1:B10',
-          values: 'not-array'
-        }
-      }
+          values: 'not-array',
+        },
+      },
     ];
 
     for (const scenario of scenarios) {
       const schema = SchemaFactory.createToolInputSchema(scenario.tool);
-      
+
       // Test valid data
       const validResult = validateToolInput(schema, scenario.validData);
       expect(validResult.isOk()).toBe(true);
-      
+
       // Test invalid data
       const invalidResult = validateToolInput(schema, scenario.invalidData);
       expect(invalidResult.isErr()).toBe(true);
-      
+
       if (invalidResult.isErr()) {
         expect(invalidResult.error).toBeInstanceOf(GoogleSheetsError);
         // spreadsheetId errors in range-based tools are treated as GOOGLE_SHEETS_INVALID_RANGE
@@ -840,19 +942,19 @@ describe('Integration scenarios', () => {
   it('should demonstrate elimination of validation duplication', async () => {
     // This test demonstrates how the validation utils eliminate the need
     // for separate input validation and schema validation
-    
+
     const schema = SchemaFactory.createToolInputSchema('sheets-append');
     const inputData = {
       spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
       range: 'Sheet1!A1',
-      values: [['New', 'Data']]
+      values: [['New', 'Data']],
     };
-    
+
     // Single validation call handles both schema validation and error conversion
     const result = validateToolInput(schema, inputData);
-    
+
     expect(result.isOk()).toBe(true);
-    
+
     // No need for separate validation steps - this replaces:
     // 1. Manual input checking
     // 2. Schema validation

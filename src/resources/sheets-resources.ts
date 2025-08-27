@@ -57,15 +57,15 @@ export class SheetsResources {
         {
           name: 'sheets-list',
           description: 'List all spreadsheets in the configured Drive folder',
-          parameters: {}
+          parameters: {},
         },
         {
           name: 'sheets-read',
           description: 'Read data from a specific spreadsheet range',
           parameters: {
             spreadsheetId: 'string',
-            range: 'string'
-          }
+            range: 'string',
+          },
         },
         {
           name: 'sheets-write',
@@ -73,8 +73,8 @@ export class SheetsResources {
           parameters: {
             spreadsheetId: 'string',
             range: 'string',
-            values: 'string[][]'
-          }
+            values: 'string[][]',
+          },
         },
         {
           name: 'sheets-append',
@@ -82,28 +82,32 @@ export class SheetsResources {
           parameters: {
             spreadsheetId: 'string',
             range: 'string',
-            values: 'string[][]'
-          }
-        }
+            values: 'string[][]',
+          },
+        },
       ],
       resources: [
         {
           name: 'spreadsheet-data',
-          description: 'Metadata and structure information for a specific spreadsheet',
-          uri: 'spreadsheet://{spreadsheetId}'
-        }
+          description:
+            'Metadata and structure information for a specific spreadsheet',
+          uri: 'spreadsheet://{spreadsheetId}',
+        },
       ],
-      version: '1.0.0'
+      version: '1.0.0',
     };
 
     return {
       uri,
       text: JSON.stringify(schema),
-      mimeType: 'application/json'
+      mimeType: 'application/json',
     };
   }
 
-  async getSpreadsheetData(uri: string, spreadsheetId: string): Promise<ResourceContent> {
+  async getSpreadsheetData(
+    uri: string,
+    spreadsheetId: string
+  ): Promise<ResourceContent> {
     if (!uri || uri.trim() === '') {
       throw new Error('Invalid URI provided');
     }
@@ -113,9 +117,12 @@ export class SheetsResources {
     }
 
     // Get spreadsheet metadata from the sheets service
-    const spreadsheetResult = await this.sheetsService.getSpreadsheetMetadata(spreadsheetId);
+    const spreadsheetResult =
+      await this.sheetsService.getSpreadsheetMetadata(spreadsheetId);
     if (spreadsheetResult.isErr()) {
-      throw new Error(`Failed to get spreadsheet metadata: ${spreadsheetResult.error.message}`);
+      throw new Error(
+        `Failed to get spreadsheet metadata: ${spreadsheetResult.error.message}`
+      );
     }
 
     const spreadsheet = spreadsheetResult.value;
@@ -124,22 +131,23 @@ export class SheetsResources {
       id: spreadsheet.spreadsheetId || '',
       title: spreadsheet.properties?.title || '',
       url: spreadsheet.spreadsheetUrl || '',
-      sheets: spreadsheet.sheets?.map((sheet: sheets_v4.Schema$Sheet) => ({
-        title: sheet.properties?.title || '',
-        index: sheet.properties?.index || 0,
-        sheetId: sheet.properties?.sheetId || 0
-      })) || [],
+      sheets:
+        spreadsheet.sheets?.map((sheet: sheets_v4.Schema$Sheet) => ({
+          title: sheet.properties?.title || '',
+          index: sheet.properties?.index || 0,
+          sheetId: sheet.properties?.sheetId || 0,
+        })) || [],
       properties: {
         title: spreadsheet.properties?.title || '',
         locale: spreadsheet.properties?.locale || '',
-        timeZone: spreadsheet.properties?.timeZone || ''
-      }
+        timeZone: spreadsheet.properties?.timeZone || '',
+      },
     };
 
     return {
       uri,
       text: JSON.stringify(data),
-      mimeType: 'application/json'
+      mimeType: 'application/json',
     };
   }
 
@@ -156,20 +164,20 @@ export class SheetsResources {
 
     // Extract the part after the protocol
     const afterProtocol = uri.substring('spreadsheet://'.length);
-    
+
     if (!afterProtocol) {
       throw new Error('Invalid URI: No spreadsheet ID provided');
     }
 
     // Remove query parameters and hash fragments
     let spreadsheetId = afterProtocol;
-    
+
     // Remove hash fragment if present
     const hashIndex = spreadsheetId.indexOf('#');
     if (hashIndex !== -1) {
       spreadsheetId = spreadsheetId.substring(0, hashIndex);
     }
-    
+
     // Remove query parameters if present
     const queryIndex = spreadsheetId.indexOf('?');
     if (queryIndex !== -1) {

@@ -1,6 +1,6 @@
 /**
  * Abstract base class for Google Workspace service implementations
- * 
+ *
  * This class provides common functionality for all Google service implementations:
  * - OAuth2Client management
  * - Retry logic with exponential backoff
@@ -17,7 +17,7 @@ import {
   GoogleErrorFactory,
   GoogleWorkspaceResult,
   googleOk,
-  googleErr
+  googleErr,
 } from '../../errors/index.js';
 import { Logger } from '../../utils/logger.js';
 
@@ -29,22 +29,22 @@ export interface RetryConfig {
    * Maximum number of retry attempts
    */
   maxAttempts: number;
-  
+
   /**
    * Initial delay in milliseconds
    */
   initialDelayMs: number;
-  
+
   /**
    * Maximum delay in milliseconds (for exponential backoff)
    */
   maxDelayMs: number;
-  
+
   /**
    * Backoff multiplier
    */
   backoffMultiplier: number;
-  
+
   /**
    * Jitter factor to prevent thundering herd (0-1)
    */
@@ -59,7 +59,7 @@ export const DEFAULT_RETRY_CONFIG: RetryConfig = {
   initialDelayMs: 1000,
   maxDelayMs: 30000,
   backoffMultiplier: 2,
-  jitterFactor: 0.1
+  jitterFactor: 0.1,
 };
 
 /**
@@ -70,12 +70,12 @@ export interface ServiceContext {
    * Operation identifier (e.g., 'listSpreadsheets', 'readRange')
    */
   operation: string;
-  
+
   /**
    * Additional context data
    */
   data?: Record<string, unknown>;
-  
+
   /**
    * Request ID for tracing
    */
@@ -128,63 +128,77 @@ export abstract class GoogleService {
     context: ServiceContext
   ): Promise<GoogleWorkspaceResult<T>> {
     const { operation: operationName, data, requestId } = context;
-    
-    this.logger.info(`${this.getServiceName()}: Starting operation '${operationName}'`, {
-      service: this.getServiceName(),
-      operation: operationName,
-      requestId,
-      data
-    });
+
+    this.logger.info(
+      `${this.getServiceName()}: Starting operation '${operationName}'`,
+      {
+        service: this.getServiceName(),
+        operation: operationName,
+        requestId,
+        data,
+      }
+    );
 
     let lastError: Error | null = null;
     let attempt = 0;
 
     while (attempt < this.retryConfig.maxAttempts) {
       attempt++;
-      
+
       try {
-        this.logger.debug(`${this.getServiceName()}: Attempt ${attempt}/${this.retryConfig.maxAttempts}`, {
-          service: this.getServiceName(),
-          operation: operationName,
-          attempt,
-          requestId
-        });
+        this.logger.debug(
+          `${this.getServiceName()}: Attempt ${attempt}/${this.retryConfig.maxAttempts}`,
+          {
+            service: this.getServiceName(),
+            operation: operationName,
+            attempt,
+            requestId,
+          }
+        );
 
         const result = await operation();
-        
-        this.logger.info(`${this.getServiceName()}: Operation '${operationName}' succeeded`, {
-          service: this.getServiceName(),
-          operation: operationName,
-          attempt,
-          requestId
-        });
+
+        this.logger.info(
+          `${this.getServiceName()}: Operation '${operationName}' succeeded`,
+          {
+            service: this.getServiceName(),
+            operation: operationName,
+            attempt,
+            requestId,
+          }
+        );
 
         return googleOk(result);
-
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        
-        this.logger.warn(`${this.getServiceName()}: Attempt ${attempt} failed`, {
-          service: this.getServiceName(),
-          operation: operationName,
-          attempt,
-          requestId,
-          error: lastError.message,
-          stack: lastError.stack
-        });
+
+        this.logger.warn(
+          `${this.getServiceName()}: Attempt ${attempt} failed`,
+          {
+            service: this.getServiceName(),
+            operation: operationName,
+            attempt,
+            requestId,
+            error: lastError.message,
+            stack: lastError.stack,
+          }
+        );
 
         // Convert to our custom error type
         const customError = this.convertError(lastError, context);
-        
+
         // Don't retry if the error is not retryable
         if (!customError.isRetryable()) {
-          this.logger.error(`${this.getServiceName()}: Non-retryable error encountered`, {
-            service: this.getServiceName(),
-            operation: operationName,
-            error: customError.toJSON(),
-            requestId
-          });
-          
+          this.logger.error(
+            `${this.getServiceName()}: Non-retryable error encountered`,
+            {
+              service: this.getServiceName(),
+              operation: operationName,
+              error: customError.toJSON(),
+              requestId,
+            }
+          );
+
           return googleErr(customError);
         }
 
@@ -195,13 +209,13 @@ export abstract class GoogleService {
 
         // Calculate delay for next attempt
         const delay = this.calculateRetryDelay(attempt, customError);
-        
+
         this.logger.info(`${this.getServiceName()}: Retrying in ${delay}ms`, {
           service: this.getServiceName(),
           operation: operationName,
           attempt,
           delayMs: delay,
-          requestId
+          requestId,
         });
 
         await this.sleep(delay);
@@ -210,14 +224,17 @@ export abstract class GoogleService {
 
     // All attempts failed
     const finalError = this.convertError(lastError!, context);
-    
-    this.logger.error(`${this.getServiceName()}: All retry attempts exhausted`, {
-      service: this.getServiceName(),
-      operation: operationName,
-      attempts: this.retryConfig.maxAttempts,
-      finalError: finalError.toJSON(),
-      requestId
-    });
+
+    this.logger.error(
+      `${this.getServiceName()}: All retry attempts exhausted`,
+      {
+        service: this.getServiceName(),
+        operation: operationName,
+        attempts: this.retryConfig.maxAttempts,
+        finalError: finalError.toJSON(),
+        requestId,
+      }
+    );
 
     return googleErr(finalError);
   }
@@ -231,16 +248,23 @@ export abstract class GoogleService {
   ): ResultAsync<T, GoogleWorkspaceError> {
     return ResultAsync.fromPromise(
       this.executeWithRetry(operation, context),
-      (error) => error instanceof GoogleWorkspaceError 
-        ? error 
-        : this.convertError(error instanceof Error ? error : new Error(String(error)), context)
-    ).andThen((result) => result);
+      error =>
+        error instanceof GoogleWorkspaceError
+          ? error
+          : this.convertError(
+              error instanceof Error ? error : new Error(String(error)),
+              context
+            )
+    ).andThen(result => result);
   }
 
   /**
    * Convert a generic error to our custom error type
    */
-  protected convertError(error: Error, context: ServiceContext): GoogleWorkspaceError {
+  protected convertError(
+    error: Error,
+    context: ServiceContext
+  ): GoogleWorkspaceError {
     // Try service-specific error conversion first
     const serviceError = this.convertServiceSpecificError(error, context);
     if (serviceError) {
@@ -254,9 +278,17 @@ export abstract class GoogleService {
 
     // Try to identify common Google API errors
     const message = error.message.toLowerCase();
-    
-    if (message.includes('auth') || message.includes('credential') || message.includes('token')) {
-      return GoogleErrorFactory.createAuthError(error, 'service-account', context.data);
+
+    if (
+      message.includes('auth') ||
+      message.includes('credential') ||
+      message.includes('token')
+    ) {
+      return GoogleErrorFactory.createAuthError(
+        error,
+        'service-account',
+        context.data
+      );
     }
 
     // Default to generic service error
@@ -273,7 +305,10 @@ export abstract class GoogleService {
   /**
    * Convert service-specific errors (to be implemented by subclasses)
    */
-  protected convertServiceSpecificError(error: Error, context: ServiceContext): GoogleWorkspaceError | null {
+  protected convertServiceSpecificError(
+    error: Error,
+    context: ServiceContext
+  ): GoogleWorkspaceError | null {
     // Base implementation returns null - subclasses should override
     return null;
   }
@@ -281,14 +316,22 @@ export abstract class GoogleService {
   /**
    * Calculate retry delay with exponential backoff and jitter
    */
-  protected calculateRetryDelay(attempt: number, error: GoogleWorkspaceError): number {
+  protected calculateRetryDelay(
+    attempt: number,
+    error: GoogleWorkspaceError
+  ): number {
     // Some errors (like rate limits) may specify a retry-after time
-    if (error instanceof Error && 'retryAfterMs' in error && typeof error.retryAfterMs === 'number') {
+    if (
+      error instanceof Error &&
+      'retryAfterMs' in error &&
+      typeof error.retryAfterMs === 'number'
+    ) {
       return Math.min(error.retryAfterMs, this.retryConfig.maxDelayMs);
     }
 
     // Exponential backoff: initialDelay * (backoffMultiplier ^ (attempt - 1))
-    const exponentialDelay = this.retryConfig.initialDelayMs * 
+    const exponentialDelay =
+      this.retryConfig.initialDelayMs *
       Math.pow(this.retryConfig.backoffMultiplier, attempt - 1);
 
     // Apply maximum delay limit
@@ -296,7 +339,7 @@ export abstract class GoogleService {
 
     // Add jitter to prevent thundering herd
     const jitter = cappedDelay * this.retryConfig.jitterFactor * Math.random();
-    
+
     return Math.floor(cappedDelay + jitter);
   }
 
@@ -304,33 +347,34 @@ export abstract class GoogleService {
    * Sleep for the specified number of milliseconds
    */
   protected sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
    * Validate that the OAuth2Client is properly authenticated
    */
-  protected async validateAuthentication(): Promise<GoogleWorkspaceResult<void>> {
+  protected async validateAuthentication(): Promise<
+    GoogleWorkspaceResult<void>
+  > {
     try {
       const accessToken = await this.auth.getAccessToken();
-      
+
       if (!accessToken.token) {
-        return googleErr(new GoogleAuthError(
-          'No access token available',
-          'service-account',
-          { service: this.getServiceName() }
-        ));
+        return googleErr(
+          new GoogleAuthError('No access token available', 'service-account', {
+            service: this.getServiceName(),
+          })
+        );
       }
 
       return googleOk(undefined);
-
     } catch (error) {
       const authError = GoogleErrorFactory.createAuthError(
         error instanceof Error ? error : new Error(String(error)),
         'service-account',
         { service: this.getServiceName() }
       );
-      
+
       return googleErr(authError);
     }
   }
@@ -338,21 +382,25 @@ export abstract class GoogleService {
   /**
    * Get current authentication status
    */
-  public async getAuthenticationStatus(): Promise<GoogleWorkspaceResult<{ 
-    authenticated: boolean; 
-    expiresAt?: Date;
-    scopes?: string[];
-  }>> {
+  public async getAuthenticationStatus(): Promise<
+    GoogleWorkspaceResult<{
+      authenticated: boolean;
+      expiresAt?: Date;
+      scopes?: string[];
+    }>
+  > {
     try {
       const accessToken = await this.auth.getAccessToken();
-      
+
       if (!accessToken.token) {
         return googleOk({ authenticated: false });
       }
 
       // Get token expiry if available
-      const expiresAt = (accessToken as any).expires_at ? new Date((accessToken as any).expires_at) : undefined;
-      
+      const expiresAt = (accessToken as any).expires_at
+        ? new Date((accessToken as any).expires_at)
+        : undefined;
+
       // Get scopes if available
       const credentials = this.auth.credentials;
       const scopes = credentials.scope?.split(' ');
@@ -360,16 +408,15 @@ export abstract class GoogleService {
       return googleOk({
         authenticated: true,
         expiresAt,
-        scopes
+        scopes,
       });
-
     } catch (error) {
       const authError = GoogleErrorFactory.createAuthError(
         error instanceof Error ? error : new Error(String(error)),
         'service-account',
         { service: this.getServiceName() }
       );
-      
+
       return googleErr(authError);
     }
   }
@@ -384,11 +431,14 @@ export abstract class GoogleService {
   /**
    * Create a service context for operations
    */
-  protected createContext(operation: string, data?: Record<string, unknown>): ServiceContext {
+  protected createContext(
+    operation: string,
+    data?: Record<string, unknown>
+  ): ServiceContext {
     return {
       operation,
       data,
-      requestId: this.generateRequestId()
+      requestId: this.generateRequestId(),
     };
   }
 }

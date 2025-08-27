@@ -10,42 +10,44 @@ import { GoogleWorkspaceError } from '../errors/index.js';
 export interface ServiceModule {
   /** Unique identifier for the service module */
   readonly name: string;
-  
+
   /** Display name for logging and debugging */
   readonly displayName: string;
-  
+
   /** Service version for compatibility checks */
   readonly version: string;
-  
+
   /**
    * Initialize the service module with required dependencies
    * @param authService - Authenticated service for Google APIs
    */
-  initialize(authService: AuthService): Promise<Result<void, GoogleWorkspaceError>>;
-  
+  initialize(
+    authService: AuthService
+  ): Promise<Result<void, GoogleWorkspaceError>>;
+
   /**
    * Register all tools provided by this service module
    * @param server - The MCP server instance
    */
   registerTools(server: McpServer): Result<void, GoogleWorkspaceError>;
-  
+
   /**
    * Register all resources provided by this service module
    * @param server - The MCP server instance
    */
   registerResources(server: McpServer): Result<void, GoogleWorkspaceError>;
-  
+
   /**
    * Optional cleanup method for resource disposal
    * Called when the service is being shut down
    */
   cleanup?(): Promise<Result<void, GoogleWorkspaceError>>;
-  
+
   /**
    * Check if the service module is properly initialized
    */
   isInitialized(): boolean;
-  
+
   /**
    * Get service module health status
    */

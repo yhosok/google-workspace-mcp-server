@@ -1,6 +1,6 @@
 /**
  * Custom error class hierarchy for Google Workspace MCP Server
- * 
+ *
  * This module implements a comprehensive error handling system based on Context7 research
  * and TypeScript best practices for enterprise-grade error management.
  */
@@ -16,17 +16,17 @@ export abstract class GoogleWorkspaceError extends Error {
    * Error code for programmatic identification
    */
   public readonly code: string;
-  
+
   /**
    * HTTP status code equivalent (for API responses)
    */
   public readonly statusCode: number;
-  
+
   /**
    * Additional context information
    */
   public readonly context?: Record<string, unknown>;
-  
+
   /**
    * Timestamp when the error occurred
    */
@@ -45,15 +45,15 @@ export abstract class GoogleWorkspaceError extends Error {
     this.statusCode = statusCode;
     this.context = context;
     this.timestamp = new Date();
-    
+
     // Maintain proper prototype chain for instanceof checks
     Object.setPrototypeOf(this, new.target.prototype);
-    
+
     // Preserve original error's stack trace if available
     if (cause) {
       this.stack = `${this.stack}\nCaused by: ${cause.stack}`;
     }
-    
+
     // Ensure stack trace points to this error
     Error.captureStackTrace?.(this, this.constructor);
   }
@@ -69,7 +69,7 @@ export abstract class GoogleWorkspaceError extends Error {
       statusCode: this.statusCode,
       context: this.context,
       timestamp: this.timestamp.toISOString(),
-      stack: this.stack
+      stack: this.stack,
     };
   }
 
@@ -91,13 +91,7 @@ export class GoogleAuthError extends GoogleWorkspaceError {
     context?: Record<string, unknown>,
     cause?: Error
   ) {
-    super(
-      message,
-      'GOOGLE_AUTH_ERROR',
-      401,
-      { authType, ...context },
-      cause
-    );
+    super(message, 'GOOGLE_AUTH_ERROR', 401, { authType, ...context }, cause);
     this.authType = authType;
   }
 
@@ -111,17 +105,16 @@ export class GoogleAuthError extends GoogleWorkspaceError {
  * Specific authentication error subtypes
  */
 export class GoogleAuthTokenExpiredError extends GoogleAuthError {
-  constructor(authType: 'service-account' | 'oauth2' | 'api-key' = 'service-account', context?: Record<string, unknown>) {
-    super(
-      'Authentication token has expired',
-      authType,
-      context
-    );
+  constructor(
+    authType: 'service-account' | 'oauth2' | 'api-key' = 'service-account',
+    context?: Record<string, unknown>
+  ) {
+    super('Authentication token has expired', authType, context);
     // Override the code using Object.defineProperty to avoid readonly issues
     Object.defineProperty(this, 'code', {
       value: 'GOOGLE_AUTH_TOKEN_EXPIRED',
       writable: false,
-      configurable: false
+      configurable: false,
     });
   }
 
@@ -131,22 +124,21 @@ export class GoogleAuthTokenExpiredError extends GoogleAuthError {
 }
 
 export class GoogleAuthInvalidCredentialsError extends GoogleAuthError {
-  constructor(authType: 'service-account' | 'oauth2' | 'api-key' = 'service-account', context?: Record<string, unknown>) {
-    super(
-      'Invalid authentication credentials provided',
-      authType,
-      context
-    );
+  constructor(
+    authType: 'service-account' | 'oauth2' | 'api-key' = 'service-account',
+    context?: Record<string, unknown>
+  ) {
+    super('Invalid authentication credentials provided', authType, context);
     // Override the code and statusCode using Object.defineProperty
     Object.defineProperty(this, 'code', {
       value: 'GOOGLE_AUTH_INVALID_CREDENTIALS',
       writable: false,
-      configurable: false
+      configurable: false,
     });
     Object.defineProperty(this, 'statusCode', {
       value: 403,
       writable: false,
-      configurable: false
+      configurable: false,
     });
   }
 
@@ -156,22 +148,21 @@ export class GoogleAuthInvalidCredentialsError extends GoogleAuthError {
 }
 
 export class GoogleAuthMissingCredentialsError extends GoogleAuthError {
-  constructor(authType: 'service-account' | 'oauth2' | 'api-key' = 'service-account', context?: Record<string, unknown>) {
-    super(
-      'Missing required authentication credentials',
-      authType,
-      context
-    );
+  constructor(
+    authType: 'service-account' | 'oauth2' | 'api-key' = 'service-account',
+    context?: Record<string, unknown>
+  ) {
+    super('Missing required authentication credentials', authType, context);
     // Override the code and statusCode using Object.defineProperty
     Object.defineProperty(this, 'code', {
       value: 'GOOGLE_AUTH_MISSING_CREDENTIALS',
       writable: false,
-      configurable: false
+      configurable: false,
     });
     Object.defineProperty(this, 'statusCode', {
       value: 401,
       writable: false,
-      configurable: false
+      configurable: false,
     });
   }
 
@@ -209,9 +200,11 @@ export class GoogleSheetsError extends GoogleWorkspaceError {
 
   public isRetryable(): boolean {
     // Rate limit and quota errors are typically retryable
-    return this.code === 'GOOGLE_SHEETS_RATE_LIMIT' || 
-           this.code === 'GOOGLE_SHEETS_QUOTA_EXCEEDED' ||
-           this.statusCode >= 500; // Server errors are retryable
+    return (
+      this.code === 'GOOGLE_SHEETS_RATE_LIMIT' ||
+      this.code === 'GOOGLE_SHEETS_QUOTA_EXCEEDED' ||
+      this.statusCode >= 500
+    ); // Server errors are retryable
   }
 }
 
@@ -236,7 +229,11 @@ export class GoogleSheetsNotFoundError extends GoogleSheetsError {
 }
 
 export class GoogleSheetsPermissionError extends GoogleSheetsError {
-  constructor(spreadsheetId?: string, range?: string, context?: Record<string, unknown>) {
+  constructor(
+    spreadsheetId?: string,
+    range?: string,
+    context?: Record<string, unknown>
+  ) {
     super(
       'Insufficient permissions to access the requested spreadsheet or range',
       'GOOGLE_SHEETS_PERMISSION_DENIED',
@@ -290,10 +287,14 @@ export class GoogleSheetsQuotaExceededError extends GoogleSheetsError {
 }
 
 export class GoogleSheetsInvalidRangeError extends GoogleSheetsError {
-  constructor(range: string, spreadsheetId?: string, context?: Record<string, unknown>) {
+  constructor(
+    range: string,
+    spreadsheetId?: string,
+    context?: Record<string, unknown>
+  ) {
     const reason = context?.reason as string;
     const message = reason || `Invalid range specified: '${range}'`;
-    
+
     super(
       message,
       'GOOGLE_SHEETS_INVALID_RANGE',
@@ -341,13 +342,7 @@ export class GoogleConfigError extends GoogleWorkspaceError {
     context?: Record<string, unknown>,
     cause?: Error
   ) {
-    super(
-      message,
-      'GOOGLE_CONFIG_ERROR',
-      500,
-      context,
-      cause
-    );
+    super(message, 'GOOGLE_CONFIG_ERROR', 500, context, cause);
   }
 
   public isRetryable(): boolean {
@@ -365,14 +360,20 @@ export type GoogleSheetsResult<T> = Result<T, GoogleSheetsError>;
 /**
  * Helper functions for creating Results
  */
-export const googleOk = <T>(value: T): GoogleWorkspaceResult<T> => new Ok(value);
-export const googleErr = (error: GoogleWorkspaceError): GoogleWorkspaceResult<never> => new Err(error);
+export const googleOk = <T>(value: T): GoogleWorkspaceResult<T> =>
+  new Ok(value);
+export const googleErr = (
+  error: GoogleWorkspaceError
+): GoogleWorkspaceResult<never> => new Err(error);
 
 export const authOk = <T>(value: T): GoogleAuthResult<T> => new Ok(value);
-export const authErr = (error: GoogleAuthError): GoogleAuthResult<never> => new Err(error);
+export const authErr = (error: GoogleAuthError): GoogleAuthResult<never> =>
+  new Err(error);
 
 export const sheetsOk = <T>(value: T): GoogleSheetsResult<T> => new Ok(value);
-export const sheetsErr = (error: GoogleSheetsError): GoogleSheetsResult<never> => new Err(error);
+export const sheetsErr = (
+  error: GoogleSheetsError
+): GoogleSheetsResult<never> => new Err(error);
 
 /**
  * Error factory functions for common error scenarios
@@ -389,15 +390,21 @@ export class GoogleErrorFactory {
     if (cause.message.includes('token') && cause.message.includes('expired')) {
       return new GoogleAuthTokenExpiredError(authType, context);
     }
-    
-    if (cause.message.includes('credential') || cause.message.includes('invalid')) {
+
+    if (
+      cause.message.includes('credential') ||
+      cause.message.includes('invalid')
+    ) {
       return new GoogleAuthInvalidCredentialsError(authType, context);
     }
-    
-    if (cause.message.includes('missing') || cause.message.includes('required')) {
+
+    if (
+      cause.message.includes('missing') ||
+      cause.message.includes('required')
+    ) {
       return new GoogleAuthMissingCredentialsError(authType, context);
     }
-    
+
     return new GoogleAuthError(cause.message, authType, context, cause);
   }
 
@@ -411,33 +418,39 @@ export class GoogleErrorFactory {
     context?: Record<string, unknown>
   ): GoogleSheetsError {
     const message = cause.message.toLowerCase();
-    
+
     if (message.includes('not found') || message.includes('404')) {
       return new GoogleSheetsNotFoundError(spreadsheetId || '', context);
     }
-    
+
     if (message.includes('permission') || message.includes('403')) {
       return new GoogleSheetsPermissionError(spreadsheetId, range, context);
     }
-    
+
     if (message.includes('rate limit') || message.includes('429')) {
       const retryAfterMatch = cause.message.match(/retry after (\d+)/i);
-      const retryAfterMs = retryAfterMatch ? parseInt(retryAfterMatch[1]) * 1000 : undefined;
+      const retryAfterMs = retryAfterMatch
+        ? parseInt(retryAfterMatch[1]) * 1000
+        : undefined;
       return new GoogleSheetsRateLimitError(retryAfterMs, context);
     }
-    
+
     if (message.includes('quota') || message.includes('exceeded')) {
       return new GoogleSheetsQuotaExceededError(context);
     }
-    
+
     if (message.includes('range') || message.includes('invalid')) {
-      return new GoogleSheetsInvalidRangeError(range || 'unknown', spreadsheetId, context);
+      return new GoogleSheetsInvalidRangeError(
+        range || 'unknown',
+        spreadsheetId,
+        context
+      );
     }
-    
+
     // Extract status code from HTTP errors
     const statusMatch = cause.message.match(/(\d{3})/);
     const statusCode = statusMatch ? parseInt(statusMatch[1]) : 500;
-    
+
     return new GoogleSheetsError(
       cause.message,
       'GOOGLE_SHEETS_ERROR',

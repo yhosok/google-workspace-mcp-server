@@ -1,7 +1,12 @@
 import { google, sheets_v4, drive_v3 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import type { AuthService } from './auth.service.js';
-import type { SpreadsheetInfo, SheetData, SheetsAddSheetResult, SheetsCreateSpreadsheetResult } from '../types/index.js';
+import type {
+  SpreadsheetInfo,
+  SheetData,
+  SheetsAddSheetResult,
+  SheetsCreateSpreadsheetResult,
+} from '../types/index.js';
 import { GoogleService, type RetryConfig } from './base/google-service.js';
 import {
   GoogleWorkspaceResult,
@@ -12,7 +17,7 @@ import {
   googleOk,
   googleErr,
   sheetsOk,
-  sheetsErr
+  sheetsErr,
 } from '../errors/index.js';
 import { Logger, createServiceLogger } from '../utils/logger.js';
 import { loadConfig } from '../config/index.js';
@@ -23,7 +28,11 @@ export class SheetsService extends GoogleService {
   private driveApi?: drive_v3.Drive;
   private isInitialized: boolean = false;
 
-  constructor(authService: AuthService, logger?: Logger, retryConfig?: RetryConfig) {
+  constructor(
+    authService: AuthService,
+    logger?: Logger,
+    retryConfig?: RetryConfig
+  ) {
     const serviceLogger = logger || createServiceLogger('sheets-service');
     super(new OAuth2Client(), serviceLogger, retryConfig); // Temporary client, will be replaced
     this.authService = authService;
@@ -42,7 +51,7 @@ export class SheetsService extends GoogleService {
    */
   public async initialize(): Promise<GoogleWorkspaceResult<void>> {
     const context = this.createContext('initialize');
-    
+
     return this.executeWithRetry(async () => {
       // Get authenticated client from AuthService
       const authResult = await this.authService.getAuthClient();
@@ -51,21 +60,20 @@ export class SheetsService extends GoogleService {
       }
 
       const authClient = authResult.value;
-      
+
       // Replace the temporary auth client in base class
       (this.auth as OAuth2Client) = authClient;
-      
+
       // Create Google API instances
       this.sheetsApi = google.sheets({ version: 'v4', auth: authClient });
       this.driveApi = google.drive({ version: 'v3', auth: authClient });
-      
+
       this.isInitialized = true;
-      
+
       this.logger.info('Sheets service initialized successfully', {
         service: this.getServiceName(),
-        version: this.getServiceVersion()
+        version: this.getServiceVersion(),
       });
-
     }, context);
   }
 
@@ -74,32 +82,33 @@ export class SheetsService extends GoogleService {
    */
   public async healthCheck(): Promise<GoogleWorkspaceResult<boolean>> {
     const context = this.createContext('healthCheck');
-    
+
     try {
       // Ensure service is initialized
       await this.ensureInitialized();
-      
+
       // Test basic operation - list a few files to verify API access
       if (!this.driveApi) {
-        return googleErr(new GoogleSheetsError(
-          'Drive API not available',
-          'GOOGLE_SHEETS_API_UNAVAILABLE',
-          500
-        ));
+        return googleErr(
+          new GoogleSheetsError(
+            'Drive API not available',
+            'GOOGLE_SHEETS_API_UNAVAILABLE',
+            500
+          )
+        );
       }
 
       await this.driveApi.files.list({
         q: "mimeType='application/vnd.google-apps.spreadsheet'",
-        pageSize: 1
+        pageSize: 1,
       });
 
       this.logger.info('Sheets health check passed', {
         service: this.getServiceName(),
-        requestId: context.requestId
+        requestId: context.requestId,
       });
 
       return googleOk(true);
-
     } catch (error) {
       const sheetsError = this.convertToSheetsError(
         error instanceof Error ? error : new Error(String(error))
@@ -107,7 +116,7 @@ export class SheetsService extends GoogleService {
 
       this.logger.error('Sheets health check failed', {
         error: sheetsError.toJSON(),
-        requestId: context.requestId
+        requestId: context.requestId,
       });
 
       return googleErr(sheetsError);
@@ -129,9 +138,11 @@ export class SheetsService extends GoogleService {
   /**
    * List spreadsheets
    */
-  public async listSpreadsheets(): Promise<GoogleSheetsResult<SpreadsheetInfo[]>> {
+  public async listSpreadsheets(): Promise<
+    GoogleSheetsResult<SpreadsheetInfo[]>
+  > {
     const context = this.createContext('listSpreadsheets');
-    
+
     return this.executeAsyncWithRetry(async () => {
       await this.ensureInitialized();
 
@@ -145,43 +156,51 @@ export class SheetsService extends GoogleService {
 
       // Drive API query for spreadsheets
       const query = "mimeType='application/vnd.google-apps.spreadsheet'";
-      
+
       const response = await this.driveApi.files.list({
         q: query,
         fields: 'files(id,name,modifiedTime,webViewLink)',
         orderBy: 'modifiedTime desc',
       });
 
-      const spreadsheets = response.data.files?.map((file: drive_v3.Schema$File): SpreadsheetInfo => ({
-        id: file.id || '',
-        title: file.name || '',
-        url: file.webViewLink || `https://docs.google.com/spreadsheets/d/${file.id}`,
-        modifiedTime: file.modifiedTime || undefined
-      })) || [];
+      const spreadsheets =
+        response.data.files?.map(
+          (file: drive_v3.Schema$File): SpreadsheetInfo => ({
+            id: file.id || '',
+            title: file.name || '',
+            url:
+              file.webViewLink ||
+              `https://docs.google.com/spreadsheets/d/${file.id}`,
+            modifiedTime: file.modifiedTime || undefined,
+          })
+        ) || [];
 
       this.logger.debug(`Listed ${spreadsheets.length} spreadsheets`, {
         count: spreadsheets.length,
-        requestId: context.requestId
+        requestId: context.requestId,
       });
 
       return spreadsheets;
-
-    }, context).andThen((result) => sheetsOk(result));
+    }, context).andThen(result => sheetsOk(result));
   }
 
   /**
    * Get spreadsheet information
    */
-  public async getSpreadsheet(spreadsheetId: string): Promise<GoogleSheetsResult<SpreadsheetInfo>> {
+  public async getSpreadsheet(
+    spreadsheetId: string
+  ): Promise<GoogleSheetsResult<SpreadsheetInfo>> {
     // Input validation
     if (!spreadsheetId || spreadsheetId.trim() === '') {
-      return sheetsErr(new GoogleSheetsInvalidRangeError('', spreadsheetId, {
-        reason: 'Spreadsheet ID cannot be empty'
-      }));
+      return sheetsErr(
+        new GoogleSheetsInvalidRangeError('', spreadsheetId, {
+          reason: 'Spreadsheet ID cannot be empty',
+        })
+      );
     }
 
     const context = this.createContext('getSpreadsheet', { spreadsheetId });
-    
+
     return this.executeAsyncWithRetry(async () => {
       await this.ensureInitialized();
 
@@ -201,33 +220,40 @@ export class SheetsService extends GoogleService {
       const info: SpreadsheetInfo = {
         id: response.data.spreadsheetId || spreadsheetId,
         title: response.data.properties?.title || 'Unknown',
-        url: response.data.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+        url:
+          response.data.spreadsheetUrl ||
+          `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
       };
 
       this.logger.debug('Retrieved spreadsheet info', {
         spreadsheetId,
         title: info.title,
-        requestId: context.requestId
+        requestId: context.requestId,
       });
 
       return info;
-
-    }, context).andThen((result) => sheetsOk(result));
+    }, context).andThen(result => sheetsOk(result));
   }
 
   /**
    * Get complete spreadsheet metadata (for resources)
    */
-  public async getSpreadsheetMetadata(spreadsheetId: string): Promise<GoogleSheetsResult<sheets_v4.Schema$Spreadsheet>> {
+  public async getSpreadsheetMetadata(
+    spreadsheetId: string
+  ): Promise<GoogleSheetsResult<sheets_v4.Schema$Spreadsheet>> {
     // Input validation
     if (!spreadsheetId || spreadsheetId.trim() === '') {
-      return sheetsErr(new GoogleSheetsInvalidRangeError('', spreadsheetId, {
-        reason: 'Spreadsheet ID cannot be empty'
-      }));
+      return sheetsErr(
+        new GoogleSheetsInvalidRangeError('', spreadsheetId, {
+          reason: 'Spreadsheet ID cannot be empty',
+        })
+      );
     }
 
-    const context = this.createContext('getSpreadsheetMetadata', { spreadsheetId });
-    
+    const context = this.createContext('getSpreadsheetMetadata', {
+      spreadsheetId,
+    });
+
     return this.executeAsyncWithRetry(async () => {
       await this.ensureInitialized();
 
@@ -247,18 +273,20 @@ export class SheetsService extends GoogleService {
       this.logger.debug('Retrieved spreadsheet metadata', {
         spreadsheetId,
         sheetsCount: response.data.sheets?.length || 0,
-        requestId: context.requestId
+        requestId: context.requestId,
       });
 
       return response.data;
-
-    }, context).andThen((result) => sheetsOk(result));
+    }, context).andThen(result => sheetsOk(result));
   }
 
   /**
    * Read data from a range
    */
-  public async readRange(spreadsheetId: string, range: string): Promise<GoogleSheetsResult<SheetData>> {
+  public async readRange(
+    spreadsheetId: string,
+    range: string
+  ): Promise<GoogleSheetsResult<SheetData>> {
     // Input validation
     const validationError = this.validateInputs(spreadsheetId, range);
     if (validationError) {
@@ -266,7 +294,7 @@ export class SheetsService extends GoogleService {
     }
 
     const context = this.createContext('readRange', { spreadsheetId, range });
-    
+
     return this.executeAsyncWithRetry(async () => {
       await this.ensureInitialized();
 
@@ -295,20 +323,19 @@ export class SheetsService extends GoogleService {
         spreadsheetId,
         range,
         rowCount: data.values?.length || 0,
-        requestId: context.requestId
+        requestId: context.requestId,
       });
 
       return data;
-
-    }, context).andThen((result) => sheetsOk(result));
+    }, context).andThen(result => sheetsOk(result));
   }
 
   /**
    * Write data to a range
    */
   public async writeRange(
-    spreadsheetId: string, 
-    range: string, 
+    spreadsheetId: string,
+    range: string,
     values: string[][]
   ): Promise<GoogleSheetsResult<void>> {
     // Input validation
@@ -316,21 +343,23 @@ export class SheetsService extends GoogleService {
     if (validationError) {
       return sheetsErr(validationError);
     }
-    
+
     // Range and data dimension check
     if (values.length > 0 && !this.validateRangeAndValues(range, values)) {
-      return sheetsErr(new GoogleSheetsInvalidRangeError(range, spreadsheetId, {
-        reason: 'Range and values dimensions do not match'
-      }));
+      return sheetsErr(
+        new GoogleSheetsInvalidRangeError(range, spreadsheetId, {
+          reason: 'Range and values dimensions do not match',
+        })
+      );
     }
 
-    const context = this.createContext('writeRange', { 
-      spreadsheetId, 
-      range, 
+    const context = this.createContext('writeRange', {
+      spreadsheetId,
+      range,
       rowCount: values.length,
-      colCount: values[0]?.length || 0
+      colCount: values[0]?.length || 0,
     });
-    
+
     return this.executeAsyncWithRetry(async () => {
       await this.ensureInitialized();
 
@@ -358,9 +387,8 @@ export class SheetsService extends GoogleService {
         spreadsheetId,
         range,
         rowCount: values.length,
-        requestId: context.requestId
+        requestId: context.requestId,
       });
-
     }, context).andThen(() => sheetsOk(undefined));
   }
 
@@ -368,8 +396,8 @@ export class SheetsService extends GoogleService {
    * Append data to a range
    */
   public async appendData(
-    spreadsheetId: string, 
-    range: string, 
+    spreadsheetId: string,
+    range: string,
     values: string[][]
   ): Promise<GoogleSheetsResult<void>> {
     // Input validation
@@ -377,20 +405,22 @@ export class SheetsService extends GoogleService {
     if (validationError) {
       return sheetsErr(validationError);
     }
-    
+
     if (!values || values.length === 0) {
-      return sheetsErr(new GoogleSheetsInvalidRangeError(range, spreadsheetId, {
-        reason: 'Values cannot be empty for append operation'
-      }));
+      return sheetsErr(
+        new GoogleSheetsInvalidRangeError(range, spreadsheetId, {
+          reason: 'Values cannot be empty for append operation',
+        })
+      );
     }
 
-    const context = this.createContext('appendData', { 
-      spreadsheetId, 
-      range, 
+    const context = this.createContext('appendData', {
+      spreadsheetId,
+      range,
       rowCount: values.length,
-      colCount: values[0]?.length || 0
+      colCount: values[0]?.length || 0,
     });
-    
+
     return this.executeAsyncWithRetry(async () => {
       await this.ensureInitialized();
 
@@ -419,25 +449,31 @@ export class SheetsService extends GoogleService {
         spreadsheetId,
         range,
         rowCount: values.length,
-        requestId: context.requestId
+        requestId: context.requestId,
       });
-
     }, context).andThen(() => sheetsOk(undefined));
   }
 
   /**
    * Convert service-specific errors
    */
-  protected convertServiceSpecificError(error: Error, context: { data?: { spreadsheetId?: string; range?: string } }): GoogleSheetsError | null {
-    return this.convertToSheetsError(error, context.data?.spreadsheetId, context.data?.range);
+  protected convertServiceSpecificError(
+    error: Error,
+    context: { data?: { spreadsheetId?: string; range?: string } }
+  ): GoogleSheetsError | null {
+    return this.convertToSheetsError(
+      error,
+      context.data?.spreadsheetId,
+      context.data?.range
+    );
   }
 
   /**
    * Convert a generic error to SheetsError
    */
   private convertToSheetsError(
-    error: Error, 
-    spreadsheetId?: string, 
+    error: Error,
+    spreadsheetId?: string,
     range?: string
   ): GoogleSheetsError {
     return GoogleErrorFactory.createSheetsError(error, spreadsheetId, range);
@@ -446,19 +482,22 @@ export class SheetsService extends GoogleService {
   /**
    * Validate common inputs
    */
-  private validateInputs(spreadsheetId: string, range: string): GoogleSheetsError | null {
+  private validateInputs(
+    spreadsheetId: string,
+    range: string
+  ): GoogleSheetsError | null {
     if (!spreadsheetId || spreadsheetId.trim() === '') {
       return new GoogleSheetsInvalidRangeError('', spreadsheetId, {
-        reason: 'Spreadsheet ID cannot be empty'
+        reason: 'Spreadsheet ID cannot be empty',
       });
     }
-    
+
     if (!range || range.trim() === '' || !this.isValidRange(range)) {
       return new GoogleSheetsInvalidRangeError(range, spreadsheetId, {
-        reason: 'Invalid range format'
+        reason: 'Invalid range format',
       });
     }
-    
+
     return null;
   }
 
@@ -478,17 +517,21 @@ export class SheetsService extends GoogleService {
   private validateRangeAndValues(range: string, values: string[][]): boolean {
     // Simple dimension check - actual implementation would need more detailed validation
     if (values.length === 0) return true;
-    
+
     // Estimate column count from range
     const rangeParts = range.split(':');
     if (rangeParts.length === 2) {
       // Remove sheet name
-      const startPart = rangeParts[0].includes('!') ? rangeParts[0].split('!')[1] : rangeParts[0];
-      const endPart = rangeParts[1].includes('!') ? rangeParts[1].split('!')[1] : rangeParts[1];
-      
+      const startPart = rangeParts[0].includes('!')
+        ? rangeParts[0].split('!')[1]
+        : rangeParts[0];
+      const endPart = rangeParts[1].includes('!')
+        ? rangeParts[1].split('!')[1]
+        : rangeParts[1];
+
       const startCol = startPart.match(/[A-Z]+/)?.[0];
       const endCol = endPart.match(/[A-Z]+/)?.[0];
-      
+
       if (startCol && endCol) {
         const startColIndex = this.columnToIndex(startCol);
         const endColIndex = this.columnToIndex(endCol);
@@ -521,25 +564,35 @@ export class SheetsService extends GoogleService {
   ): Promise<GoogleSheetsResult<SheetsAddSheetResult>> {
     // Spreadsheet ID validation (do NOT call validateInputs with a fake range – that caused invalid range errors)
     if (!spreadsheetId || spreadsheetId.trim() === '') {
-      return sheetsErr(new GoogleSheetsInvalidRangeError('', spreadsheetId, {
-        reason: 'Spreadsheet ID cannot be empty'
-      }));
+      return sheetsErr(
+        new GoogleSheetsInvalidRangeError('', spreadsheetId, {
+          reason: 'Spreadsheet ID cannot be empty',
+        })
+      );
     }
 
     if (!title || title.trim() === '') {
-      return sheetsErr(new GoogleSheetsInvalidRangeError('', spreadsheetId, {
-        reason: 'Sheet title cannot be empty'
-      }));
+      return sheetsErr(
+        new GoogleSheetsInvalidRangeError('', spreadsheetId, {
+          reason: 'Sheet title cannot be empty',
+        })
+      );
     }
 
     if (index !== undefined && index < 0) {
-      return sheetsErr(new GoogleSheetsInvalidRangeError('', spreadsheetId, {
-        reason: 'Sheet index cannot be negative'
-      }));
+      return sheetsErr(
+        new GoogleSheetsInvalidRangeError('', spreadsheetId, {
+          reason: 'Sheet index cannot be negative',
+        })
+      );
     }
 
-    const context = this.createContext('addSheet', { spreadsheetId, title, index });
-    
+    const context = this.createContext('addSheet', {
+      spreadsheetId,
+      title,
+      index,
+    });
+
     return this.executeAsyncWithRetry(async () => {
       await this.ensureInitialized();
 
@@ -557,8 +610,8 @@ export class SheetsService extends GoogleService {
         properties: {
           title: title.trim(),
           ...(index !== undefined && { index }),
-          sheetType: 'GRID'
-        }
+          sheetType: 'GRID',
+        },
       };
 
       // Execute batchUpdate with AddSheetRequest
@@ -567,10 +620,10 @@ export class SheetsService extends GoogleService {
         requestBody: {
           requests: [
             {
-              addSheet: addSheetRequest
-            }
-          ]
-        }
+              addSheet: addSheetRequest,
+            },
+          ],
+        },
       });
 
       // Extract the response
@@ -588,7 +641,7 @@ export class SheetsService extends GoogleService {
         sheetId: addSheetResponse.properties.sheetId || 0,
         title: addSheetResponse.properties.title || title.trim(),
         index: addSheetResponse.properties.index || 0,
-        spreadsheetId
+        spreadsheetId,
       };
 
       this.logger.info('Successfully added new sheet', {
@@ -596,12 +649,11 @@ export class SheetsService extends GoogleService {
         sheetId: result.sheetId,
         title: result.title,
         index: result.index,
-        requestId: context.requestId
+        requestId: context.requestId,
       });
 
       return result;
-
-    }, context).andThen((result) => sheetsOk(result));
+    }, context).andThen(result => sheetsOk(result));
   }
 
   /**
@@ -613,47 +665,65 @@ export class SheetsService extends GoogleService {
   ): Promise<GoogleSheetsResult<SheetsCreateSpreadsheetResult>> {
     // Input validation
     if (!title || title.trim() === '') {
-      return sheetsErr(new GoogleSheetsInvalidRangeError('', '', {
-        reason: 'Spreadsheet title cannot be empty'
-      }));
+      return sheetsErr(
+        new GoogleSheetsInvalidRangeError('', '', {
+          reason: 'Spreadsheet title cannot be empty',
+        })
+      );
     }
 
     if (sheetTitles) {
       if (sheetTitles.length === 0) {
-        return sheetsErr(new GoogleSheetsInvalidRangeError('', '', {
-          reason: 'Sheet titles array cannot be empty'
-        }));
+        return sheetsErr(
+          new GoogleSheetsInvalidRangeError('', '', {
+            reason: 'Sheet titles array cannot be empty',
+          })
+        );
       }
-      
+
       // Check for empty sheet titles
-      const hasEmptyTitles = sheetTitles.some(sheetTitle => !sheetTitle || sheetTitle.trim() === '');
+      const hasEmptyTitles = sheetTitles.some(
+        sheetTitle => !sheetTitle || sheetTitle.trim() === ''
+      );
       if (hasEmptyTitles) {
-        return sheetsErr(new GoogleSheetsInvalidRangeError('', '', {
-          reason: 'Sheet titles cannot be empty'
-        }));
+        return sheetsErr(
+          new GoogleSheetsInvalidRangeError('', '', {
+            reason: 'Sheet titles cannot be empty',
+          })
+        );
       }
-      
+
       // Check for duplicate sheet titles
       const uniqueTitles = new Set(sheetTitles.map(t => t.trim()));
       if (uniqueTitles.size !== sheetTitles.length) {
-        return sheetsErr(new GoogleSheetsInvalidRangeError('', '', {
-          reason: 'Sheet titles must be unique'
-        }));
+        return sheetsErr(
+          new GoogleSheetsInvalidRangeError('', '', {
+            reason: 'Sheet titles must be unique',
+          })
+        );
       }
     }
 
     // Check for GOOGLE_DRIVE_FOLDER_ID
     const config = loadConfig();
-    if (!config.GOOGLE_DRIVE_FOLDER_ID || config.GOOGLE_DRIVE_FOLDER_ID.trim() === '') {
-      return sheetsErr(new GoogleSheetsError(
-        'GOOGLE_DRIVE_FOLDER_ID environment variable is required',
-        'GOOGLE_SHEETS_CONFIG_ERROR',
-        500
-      ));
+    if (
+      !config.GOOGLE_DRIVE_FOLDER_ID ||
+      config.GOOGLE_DRIVE_FOLDER_ID.trim() === ''
+    ) {
+      return sheetsErr(
+        new GoogleSheetsError(
+          'GOOGLE_DRIVE_FOLDER_ID environment variable is required',
+          'GOOGLE_SHEETS_CONFIG_ERROR',
+          500
+        )
+      );
     }
 
-    const context = this.createContext('createSpreadsheet', { title, sheetTitles });
-    
+    const context = this.createContext('createSpreadsheet', {
+      title,
+      sheetTitles,
+    });
+
     return this.executeAsyncWithRetry(async () => {
       await this.ensureInitialized();
 
@@ -667,7 +737,7 @@ export class SheetsService extends GoogleService {
 
       // Prepare the spreadsheet properties
       const spreadsheetProperties: sheets_v4.Schema$SpreadsheetProperties = {
-        title: title.trim()
+        title: title.trim(),
       };
 
       // Prepare sheets if provided
@@ -680,31 +750,33 @@ export class SheetsService extends GoogleService {
             sheetType: 'GRID',
             gridProperties: {
               rowCount: 1000,
-              columnCount: 26
-            }
-          }
+              columnCount: 26,
+            },
+          },
         }));
       } else {
         // Default single sheet
-        sheetsToCreate = [{
-          properties: {
-            title: 'Sheet1',
-            index: 0,
-            sheetType: 'GRID',
-            gridProperties: {
-              rowCount: 1000,
-              columnCount: 26
-            }
-          }
-        }];
+        sheetsToCreate = [
+          {
+            properties: {
+              title: 'Sheet1',
+              index: 0,
+              sheetType: 'GRID',
+              gridProperties: {
+                rowCount: 1000,
+                columnCount: 26,
+              },
+            },
+          },
+        ];
       }
 
       // Create the spreadsheet
       const createResponse = await this.sheetsApi.spreadsheets.create({
         requestBody: {
           properties: spreadsheetProperties,
-          sheets: sheetsToCreate
-        }
+          sheets: sheetsToCreate,
+        },
       });
 
       if (!createResponse.data.spreadsheetId) {
@@ -716,7 +788,8 @@ export class SheetsService extends GoogleService {
       }
 
       const spreadsheetId = createResponse.data.spreadsheetId;
-      const spreadsheetUrl = createResponse.data.spreadsheetUrl || 
+      const spreadsheetUrl =
+        createResponse.data.spreadsheetUrl ||
         `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
 
       // Move the spreadsheet to the configured Drive folder
@@ -725,34 +798,42 @@ export class SheetsService extends GoogleService {
           fileId: spreadsheetId,
           addParents: config.GOOGLE_DRIVE_FOLDER_ID,
           removeParents: 'root',
-          fields: 'id, parents'
+          fields: 'id, parents',
         });
       } catch (driveError) {
         // Log the Drive API error but don't fail the entire operation
-        this.logger.warn('Failed to move spreadsheet to Drive folder, but spreadsheet was created', {
-          spreadsheetId,
-          folderId: config.GOOGLE_DRIVE_FOLDER_ID,
-          error: driveError instanceof Error ? driveError.message : String(driveError),
-          requestId: context.requestId
-        });
+        this.logger.warn(
+          'Failed to move spreadsheet to Drive folder, but spreadsheet was created',
+          {
+            spreadsheetId,
+            folderId: config.GOOGLE_DRIVE_FOLDER_ID,
+            error:
+              driveError instanceof Error
+                ? driveError.message
+                : String(driveError),
+            requestId: context.requestId,
+          }
+        );
       }
 
       // Prepare the result
-      const sheets = createResponse.data.sheets?.map((sheet) => ({
+      const sheets = createResponse.data.sheets?.map(sheet => ({
         sheetId: sheet.properties?.sheetId || 0,
         title: sheet.properties?.title || 'Sheet1',
-        index: sheet.properties?.index || 0
-      })) || [{
-        sheetId: 0,
-        title: 'Sheet1',
-        index: 0
-      }];
+        index: sheet.properties?.index || 0,
+      })) || [
+        {
+          sheetId: 0,
+          title: 'Sheet1',
+          index: 0,
+        },
+      ];
 
       const result: SheetsCreateSpreadsheetResult = {
         spreadsheetId,
         spreadsheetUrl,
         title: createResponse.data.properties?.title || title.trim(),
-        sheets
+        sheets,
       };
 
       this.logger.info('Successfully created new spreadsheet', {
@@ -760,48 +841,49 @@ export class SheetsService extends GoogleService {
         title: result.title,
         sheetsCount: sheets.length,
         folderId: config.GOOGLE_DRIVE_FOLDER_ID,
-        requestId: context.requestId
+        requestId: context.requestId,
       });
 
       return result;
-
-    }, context).andThen((result) => sheetsOk(result));
+    }, context).andThen(result => sheetsOk(result));
   }
 
   /**
    * Get service statistics
    */
-  public async getServiceStats(): Promise<GoogleSheetsResult<{
-    initialized: boolean;
-    apiVersions: {
-      sheets: string;
-      drive: string;
-    };
-    authStatus: boolean;
-  }>> {
+  public async getServiceStats(): Promise<
+    GoogleSheetsResult<{
+      initialized: boolean;
+      apiVersions: {
+        sheets: string;
+        drive: string;
+      };
+      authStatus: boolean;
+    }>
+  > {
     const context = this.createContext('getServiceStats');
-    
+
     try {
       const authStatus = await this.validateAuthentication();
-      
+
       return sheetsOk({
         initialized: this.isInitialized,
         apiVersions: {
           sheets: this.getServiceVersion(),
-          drive: 'v3'
+          drive: 'v3',
         },
-        authStatus: authStatus.isOk()
+        authStatus: authStatus.isOk(),
       });
     } catch (error) {
       const sheetsError = this.convertToSheetsError(
         error instanceof Error ? error : new Error(String(error))
       );
-      
+
       this.logger.error('Failed to get service stats', {
         error: sheetsError.toJSON(),
-        requestId: context.requestId
+        requestId: context.requestId,
       });
-      
+
       return sheetsErr(sheetsError);
     }
   }

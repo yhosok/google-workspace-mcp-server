@@ -10,11 +10,11 @@ export { SheetsCreateSpreadsheetTool } from './create-spreadsheet.tool.js';
 export { BaseSheetsTools } from './base-sheets-tool.js';
 
 // Re-export types and utilities for convenience
-export type { 
+export type {
   SheetsListResult,
   SheetsReadResult,
   SheetsWriteResult,
   SheetsAppendResult,
   SheetsAddSheetResult,
-  SheetsCreateSpreadsheetResult
+  SheetsCreateSpreadsheetResult,
 } from '../../types/index.js';

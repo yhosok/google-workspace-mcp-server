@@ -8,7 +8,13 @@ const schemaCache = new Map<string, z.ZodType>();
 /**
  * Supported tool types for schema generation
  */
-export type SupportedTool = 'sheets-list' | 'sheets-read' | 'sheets-write' | 'sheets-append' | 'sheets-add-sheet' | 'sheets-create';
+export type SupportedTool =
+  | 'sheets-list'
+  | 'sheets-read'
+  | 'sheets-write'
+  | 'sheets-append'
+  | 'sheets-add-sheet'
+  | 'sheets-create';
 
 /**
  * Factory class for creating standardized Zod schemas for Google Workspace MCP tools
@@ -19,7 +25,8 @@ export class SchemaFactory {
    * Creates a schema for spreadsheet ID validation
    */
   public static createSpreadsheetIdSchema(): z.ZodString {
-    return z.string()
+    return z
+      .string()
       .trim()
       .min(1, 'Spreadsheet ID cannot be empty')
       .describe('The ID of the Google Spreadsheet');
@@ -29,11 +36,12 @@ export class SchemaFactory {
    * Creates a schema for range validation
    */
   public static createRangeSchema(): z.ZodEffects<z.ZodString, string, string> {
-    return z.string()
+    return z
+      .string()
       .trim()
       .min(1, 'Range cannot be empty')
       .refine(
-        (range) => SchemaFactory.isValidA1Notation(range),
+        range => SchemaFactory.isValidA1Notation(range),
         'Invalid range format: must be valid A1 notation (e.g., "A1", "A1:B10", "Sheet1!A1:B10")'
       )
       .describe('The A1 notation range (e.g., "Sheet1!A1:D10" or "A1:D10")');
@@ -46,16 +54,16 @@ export class SchemaFactory {
     if (!range || range.trim().length === 0) {
       return false;
     }
-    
+
     // Handle sheet names with exclamation mark
     const parts = range.split('!');
     const rangeContent = parts.length > 1 ? parts[1] : parts[0];
-    
+
     // A1 notation patterns:
     // Single cell: A1, B5, AA10, etc.
     // Range: A1:B10, C1:Z100, etc.
     const a1Pattern = /^[A-Z]+[1-9]\d*(?::[A-Z]+[1-9]\d*)?$/i;
-    
+
     return a1Pattern.test(rangeContent.trim());
   }
 
@@ -63,17 +71,21 @@ export class SchemaFactory {
    * Creates a schema for values (2D array of strings)
    */
   public static createValuesSchema(): z.ZodArray<z.ZodArray<z.ZodString>> {
-    return z.array(z.array(z.string()))
+    return z
+      .array(z.array(z.string()))
       .describe('2D array of string values to write/append');
   }
 
   /**
    * Creates a schema for values specifically for append operations (cannot be empty)
    */
-  public static createAppendValuesSchema(): z.ZodArray<z.ZodArray<z.ZodString>> {
-    return z.array(z.array(z.string()), { 
+  public static createAppendValuesSchema(): z.ZodArray<
+    z.ZodArray<z.ZodString>
+  > {
+    return z
+      .array(z.array(z.string()), {
         required_error: 'Values must be an array',
-        invalid_type_error: 'Values must be an array'
+        invalid_type_error: 'Values must be an array',
       })
       .min(1, 'Values cannot be empty for append operation')
       .describe('2D array of string values to append (must not be empty)');
@@ -82,17 +94,21 @@ export class SchemaFactory {
   /**
    * Creates an optional schema for values
    */
-  public static createOptionalValuesSchema(): z.ZodOptional<z.ZodArray<z.ZodArray<z.ZodString>>> {
+  public static createOptionalValuesSchema(): z.ZodOptional<
+    z.ZodArray<z.ZodArray<z.ZodString>>
+  > {
     return SchemaFactory.createValuesSchema().optional();
   }
 
   /**
    * Creates input schema for specific tools with caching
    */
-  public static createToolInputSchema(tool: SupportedTool): z.ZodObject<Record<string, z.ZodType>> {
+  public static createToolInputSchema(
+    tool: SupportedTool
+  ): z.ZodObject<Record<string, z.ZodType>> {
     const cacheKey = `input-${tool}`;
     const cached = schemaCache.get(cacheKey);
-    
+
     if (cached) {
       return cached as z.ZodObject<Record<string, z.ZodType>>;
     }
@@ -107,7 +123,7 @@ export class SchemaFactory {
       case 'sheets-read':
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
-          range: SchemaFactory.createRangeSchema()
+          range: SchemaFactory.createRangeSchema(),
         });
         break;
 
@@ -115,7 +131,7 @@ export class SchemaFactory {
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           range: SchemaFactory.createRangeSchema(),
-          values: SchemaFactory.createValuesSchema()
+          values: SchemaFactory.createValuesSchema(),
         });
         break;
 
@@ -123,35 +139,43 @@ export class SchemaFactory {
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           range: SchemaFactory.createRangeSchema(),
-          values: SchemaFactory.createAppendValuesSchema()
+          values: SchemaFactory.createAppendValuesSchema(),
         });
         break;
 
       case 'sheets-add-sheet':
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
-          title: z.string()
+          title: z
+            .string()
             .trim()
             .min(1, 'Sheet title cannot be empty')
             .describe('The title of the new sheet to add'),
-          index: z.number()
+          index: z
+            .number()
             .int()
             .min(0, 'Sheet index must be non-negative')
             .optional()
-            .describe('Zero-based index where the sheet should be inserted (optional)')
+            .describe(
+              'Zero-based index where the sheet should be inserted (optional)'
+            ),
         });
         break;
 
       case 'sheets-create':
         schema = z.object({
-          title: z.string()
+          title: z
+            .string()
             .trim()
             .min(1, 'Spreadsheet title cannot be empty')
             .describe('The title of the new spreadsheet'),
-          sheetTitles: z.array(z.string().trim().min(1, 'Sheet title cannot be empty'))
+          sheetTitles: z
+            .array(z.string().trim().min(1, 'Sheet title cannot be empty'))
             .min(1, 'Sheet titles array cannot be empty when provided')
             .optional()
-            .describe('Optional array of titles for initial sheets. If not provided, a single "Sheet1" will be created')
+            .describe(
+              'Optional array of titles for initial sheets. If not provided, a single "Sheet1" will be created'
+            ),
         });
         break;
 
@@ -166,38 +190,42 @@ export class SchemaFactory {
   /**
    * Creates response schema for specific tools
    */
-  public static createResponseSchema(tool: SupportedTool): z.ZodObject<Record<string, z.ZodType>> {
+  public static createResponseSchema(
+    tool: SupportedTool
+  ): z.ZodObject<Record<string, z.ZodType>> {
     switch (tool) {
       case 'sheets-list':
         return z.object({
-          spreadsheets: z.array(z.object({
-            id: z.string(),
-            title: z.string(),
-            url: z.string(),
-            modifiedTime: z.string()
-          }))
+          spreadsheets: z.array(
+            z.object({
+              id: z.string(),
+              title: z.string(),
+              url: z.string(),
+              modifiedTime: z.string(),
+            })
+          ),
         });
 
       case 'sheets-read':
         return z.object({
           range: z.string(),
           values: z.array(z.array(z.string())),
-          majorDimension: z.enum(['ROWS', 'COLUMNS'])
+          majorDimension: z.enum(['ROWS', 'COLUMNS']),
         });
 
       case 'sheets-write':
         return z.object({
           updatedCells: z.number(),
           updatedRows: z.number(),
-          updatedColumns: z.number()
+          updatedColumns: z.number(),
         });
 
       case 'sheets-append':
         return z.object({
           updates: z.object({
             updatedRows: z.number(),
-            updatedCells: z.number()
-          })
+            updatedCells: z.number(),
+          }),
         });
 
       case 'sheets-add-sheet':
@@ -205,7 +233,7 @@ export class SchemaFactory {
           sheetId: z.number(),
           title: z.string(),
           index: z.number(),
-          spreadsheetId: z.string()
+          spreadsheetId: z.string(),
         });
 
       case 'sheets-create':
@@ -213,11 +241,13 @@ export class SchemaFactory {
           spreadsheetId: z.string(),
           spreadsheetUrl: z.string(),
           title: z.string(),
-          sheets: z.array(z.object({
-            sheetId: z.number(),
-            title: z.string(),
-            index: z.number()
-          }))
+          sheets: z.array(
+            z.object({
+              sheetId: z.number(),
+              title: z.string(),
+              index: z.number(),
+            })
+          ),
         });
 
       default:
@@ -229,7 +259,7 @@ export class SchemaFactory {
    * Validates tool input using the appropriate schema
    */
   public static validateToolInput(
-    tool: SupportedTool, 
+    tool: SupportedTool,
     input: unknown
   ): z.SafeParseReturnType<Record<string, unknown>, Record<string, unknown>> {
     const schema = SchemaFactory.createToolInputSchema(tool);
@@ -244,7 +274,7 @@ export class SchemaFactory {
       const path = issue.path.length > 0 ? issue.path.join('.') : 'root';
       return `${path}: ${issue.message}`;
     });
-    
+
     return `Validation failed: ${issues.join(', ')}`;
   }
 
@@ -257,37 +287,38 @@ export class SchemaFactory {
     inputSchema: Record<string, z.ZodType>;
   } {
     const inputSchema = SchemaFactory.createToolInputSchema(tool);
-    
+
     const metadata = {
       'sheets-list': {
         title: 'List Spreadsheets',
-        description: 'List all spreadsheets in the configured Drive folder'
+        description: 'List all spreadsheets in the configured Drive folder',
       },
       'sheets-read': {
         title: 'Read Spreadsheet Range',
-        description: 'Read data from a specific spreadsheet range'
+        description: 'Read data from a specific spreadsheet range',
       },
       'sheets-write': {
         title: 'Write to Spreadsheet Range',
-        description: 'Write data to a specific spreadsheet range'
+        description: 'Write data to a specific spreadsheet range',
       },
       'sheets-append': {
         title: 'Append to Spreadsheet',
-        description: 'Append data to a spreadsheet'
+        description: 'Append data to a spreadsheet',
       },
       'sheets-add-sheet': {
         title: 'Add Sheet to Spreadsheet',
-        description: 'Add a new sheet (tab) to an existing spreadsheet'
+        description: 'Add a new sheet (tab) to an existing spreadsheet',
       },
       'sheets-create': {
         title: 'Create New Spreadsheet',
-        description: 'Create a new spreadsheet in the configured Google Drive folder'
-      }
+        description:
+          'Create a new spreadsheet in the configured Google Drive folder',
+      },
     };
 
     return {
       ...metadata[tool],
-      inputSchema: inputSchema.shape
+      inputSchema: inputSchema.shape,
     };
   }
 
@@ -304,20 +335,23 @@ export class SchemaFactory {
   public static getCacheStats(): { size: number; keys: string[] } {
     return {
       size: schemaCache.size,
-      keys: Array.from(schemaCache.keys())
+      keys: Array.from(schemaCache.keys()),
     };
   }
 
   /**
    * Advanced range validation with pattern matching
    */
-  public static validateRangeFormat(range: string): { valid: boolean; error?: string } {
+  public static validateRangeFormat(range: string): {
+    valid: boolean;
+    error?: string;
+  } {
     const patterns = [
       /^[A-Z]+\d+$/, // Single cell: A1
       /^[A-Z]+\d+:[A-Z]+\d+$/, // Range: A1:B10
       /^[^!]+![A-Z]+\d+$/, // Sheet with single cell: Sheet1!A1
       /^[^!]+![A-Z]+\d+:[A-Z]+\d+$/, // Sheet with range: Sheet1!A1:B10
-      /^[^!]+!$/ // Just sheet name: Sheet1!
+      /^[^!]+!$/, // Just sheet name: Sheet1!
     ];
 
     const valid = patterns.some(pattern => pattern.test(range));
@@ -325,7 +359,7 @@ export class SchemaFactory {
     if (!valid) {
       return {
         valid: false,
-        error: `Invalid range format: "${range}". Expected formats: A1, A1:B10, Sheet1!A1, Sheet1!A1:B10`
+        error: `Invalid range format: "${range}". Expected formats: A1, A1:B10, Sheet1!A1, Sheet1!A1:B10`,
       };
     }
 

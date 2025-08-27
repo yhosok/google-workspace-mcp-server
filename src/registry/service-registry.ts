@@ -1,5 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { ServiceModule, ServiceModuleHealthStatus } from './service-module.interface.js';
+import type {
+  ServiceModule,
+  ServiceModuleHealthStatus,
+} from './service-module.interface.js';
 import type { AuthService } from '../services/auth.service.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError, GoogleServiceError } from '../errors/index.js';
@@ -24,22 +27,26 @@ export class ServiceRegistry {
    * Register a service module
    * @param module - The service module to register
    */
-  public registerModule(module: ServiceModule): Result<void, GoogleWorkspaceError> {
+  public registerModule(
+    module: ServiceModule
+  ): Result<void, GoogleWorkspaceError> {
     if (this.modules.has(module.name)) {
-      return err(new GoogleServiceError(
-        `Service module '${module.name}' is already registered`,
-        'service-registry',
-        'MODULE_ALREADY_REGISTERED',
-        500,
-        { moduleName: module.name }
-      ));
+      return err(
+        new GoogleServiceError(
+          `Service module '${module.name}' is already registered`,
+          'service-registry',
+          'MODULE_ALREADY_REGISTERED',
+          500,
+          { moduleName: module.name }
+        )
+      );
     }
 
     this.modules.set(module.name, module);
     this.logger.info('Service module registered', {
       moduleName: module.name,
       displayName: module.displayName,
-      version: module.version
+      version: module.version,
     });
 
     return ok(undefined);
@@ -49,16 +56,20 @@ export class ServiceRegistry {
    * Unregister a service module
    * @param moduleName - Name of the module to unregister
    */
-  public async unregisterModule(moduleName: string): Promise<Result<void, GoogleWorkspaceError>> {
+  public async unregisterModule(
+    moduleName: string
+  ): Promise<Result<void, GoogleWorkspaceError>> {
     const module = this.modules.get(moduleName);
     if (!module) {
-      return err(new GoogleServiceError(
-        `Service module '${moduleName}' not found`,
-        'service-registry',
-        'MODULE_NOT_FOUND',
-        404,
-        { moduleName }
-      ));
+      return err(
+        new GoogleServiceError(
+          `Service module '${moduleName}' not found`,
+          'service-registry',
+          'MODULE_NOT_FOUND',
+          404,
+          { moduleName }
+        )
+      );
     }
 
     // Cleanup if method exists
@@ -67,15 +78,17 @@ export class ServiceRegistry {
       if (cleanupResult.isErr()) {
         this.logger.error('Module cleanup failed', {
           moduleName,
-          error: cleanupResult.error.toJSON()
+          error: cleanupResult.error.toJSON(),
         });
         return err(cleanupResult.error);
       }
     }
 
     this.modules.delete(moduleName);
-    this.initializationOrder = this.initializationOrder.filter(name => name !== moduleName);
-    
+    this.initializationOrder = this.initializationOrder.filter(
+      name => name !== moduleName
+    );
+
     this.logger.info('Service module unregistered', { moduleName });
     return ok(undefined);
   }
@@ -84,7 +97,9 @@ export class ServiceRegistry {
    * Initialize all registered service modules
    * @param authService - The authentication service instance
    */
-  public async initializeAll(authService: AuthService): Promise<Result<void, GoogleWorkspaceError>> {
+  public async initializeAll(
+    authService: AuthService
+  ): Promise<Result<void, GoogleWorkspaceError>> {
     if (this.isInitialized) {
       return ok(undefined);
     }
@@ -95,67 +110,71 @@ export class ServiceRegistry {
 
     this.logger.info('Starting service module initialization', {
       moduleCount: this.modules.size,
-      modules: Array.from(this.modules.keys())
+      modules: Array.from(this.modules.keys()),
     });
 
     // Initialize modules in registration order
     for (const [moduleName, module] of this.modules) {
       try {
         this.logger.debug('Initializing module', { moduleName });
-        
+
         const result = await module.initialize(authService);
-        
+
         if (result.isErr()) {
           failedModules.push(moduleName);
           this.logger.error('Module initialization failed', {
             moduleName,
-            error: result.error.toJSON()
+            error: result.error.toJSON(),
           });
-          
+
           // Return early on first failure for fail-fast behavior
-          return err(new GoogleServiceError(
-            `Failed to initialize service module '${moduleName}': ${result.error.message}`,
-            'service-registry',
-            'MODULE_INIT_FAILED',
-            500,
-            { 
-              moduleName,
-              failedModules,
-              originalError: result.error
-            }
-          ));
+          return err(
+            new GoogleServiceError(
+              `Failed to initialize service module '${moduleName}': ${result.error.message}`,
+              'service-registry',
+              'MODULE_INIT_FAILED',
+              500,
+              {
+                moduleName,
+                failedModules,
+                originalError: result.error,
+              }
+            )
+          );
         }
-        
+
         this.initializationOrder.push(moduleName);
         this.logger.info('Module initialized successfully', { moduleName });
-        
       } catch (error) {
         failedModules.push(moduleName);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+
         this.logger.error('Module initialization threw exception', {
           moduleName,
           error: errorMessage,
-          stack: error instanceof Error ? error.stack : undefined
+          stack: error instanceof Error ? error.stack : undefined,
         });
-        
-        return err(new GoogleServiceError(
-          `Failed to initialize service module '${moduleName}': ${errorMessage}`,
-          'service-registry',
-          'MODULE_INIT_EXCEPTION',
-          500,
-          { moduleName, failedModules }
-        ));
+
+        return err(
+          new GoogleServiceError(
+            `Failed to initialize service module '${moduleName}': ${errorMessage}`,
+            'service-registry',
+            'MODULE_INIT_EXCEPTION',
+            500,
+            { moduleName, failedModules }
+          )
+        );
       }
     }
 
     this.isInitialized = true;
     const initializationTime = Date.now() - startTime;
-    
+
     this.logger.info('All service modules initialized successfully', {
       moduleCount: this.modules.size,
       initializationTime,
-      initializationOrder: this.initializationOrder
+      initializationOrder: this.initializationOrder,
     });
 
     return ok(undefined);
@@ -165,15 +184,19 @@ export class ServiceRegistry {
    * Register all tools from all initialized modules
    * @param server - The MCP server instance
    */
-  public registerAllTools(server: McpServer): Result<void, GoogleWorkspaceError> {
+  public registerAllTools(
+    server: McpServer
+  ): Result<void, GoogleWorkspaceError> {
     if (!this.isInitialized) {
-      return err(new GoogleServiceError(
-        'Service registry not initialized. Call initializeAll() first.',
-        'service-registry',
-        'REGISTRY_NOT_INITIALIZED',
-        500,
-        {}
-      ));
+      return err(
+        new GoogleServiceError(
+          'Service registry not initialized. Call initializeAll() first.',
+          'service-registry',
+          'REGISTRY_NOT_INITIALIZED',
+          500,
+          {}
+        )
+      );
     }
 
     let totalToolsRegistered = 0;
@@ -185,55 +208,59 @@ export class ServiceRegistry {
 
       try {
         const result = module.registerTools(server);
-        
+
         if (result.isErr()) {
           failedModules.push(moduleName);
           this.logger.error('Tool registration failed', {
             moduleName,
-            error: result.error.toJSON()
+            error: result.error.toJSON(),
           });
-          
-          return err(new GoogleServiceError(
-            `Failed to register tools for module '${moduleName}': ${result.error.message}`,
-            'service-registry',
-            'TOOL_REGISTRATION_FAILED',
-            500,
-            { moduleName, failedModules, originalError: result.error }
-          ));
+
+          return err(
+            new GoogleServiceError(
+              `Failed to register tools for module '${moduleName}': ${result.error.message}`,
+              'service-registry',
+              'TOOL_REGISTRATION_FAILED',
+              500,
+              { moduleName, failedModules, originalError: result.error }
+            )
+          );
         }
-        
+
         // Get metrics if available
         const healthStatus = module.getHealthStatus();
         const toolsCount = healthStatus.metrics?.toolsRegistered || 0;
         totalToolsRegistered += toolsCount;
-        
+
         this.logger.info('Tools registered for module', {
           moduleName,
-          toolsRegistered: toolsCount
+          toolsRegistered: toolsCount,
         });
-        
       } catch (error) {
         failedModules.push(moduleName);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+
         this.logger.error('Tool registration threw exception', {
           moduleName,
-          error: errorMessage
+          error: errorMessage,
         });
-        
-        return err(new GoogleServiceError(
-          `Failed to register tools for module '${moduleName}': ${errorMessage}`,
-          'service-registry',
-          'TOOL_REGISTRATION_EXCEPTION',
-          500,
-          { moduleName, failedModules }
-        ));
+
+        return err(
+          new GoogleServiceError(
+            `Failed to register tools for module '${moduleName}': ${errorMessage}`,
+            'service-registry',
+            'TOOL_REGISTRATION_EXCEPTION',
+            500,
+            { moduleName, failedModules }
+          )
+        );
       }
     }
 
     this.logger.info('All tools registered successfully', {
       totalToolsRegistered,
-      moduleCount: this.initializationOrder.length
+      moduleCount: this.initializationOrder.length,
     });
 
     return ok(undefined);
@@ -243,15 +270,19 @@ export class ServiceRegistry {
    * Register all resources from all initialized modules
    * @param server - The MCP server instance
    */
-  public registerAllResources(server: McpServer): Result<void, GoogleWorkspaceError> {
+  public registerAllResources(
+    server: McpServer
+  ): Result<void, GoogleWorkspaceError> {
     if (!this.isInitialized) {
-      return err(new GoogleServiceError(
-        'Service registry not initialized. Call initializeAll() first.',
-        'service-registry',
-        'REGISTRY_NOT_INITIALIZED',
-        500,
-        {}
-      ));
+      return err(
+        new GoogleServiceError(
+          'Service registry not initialized. Call initializeAll() first.',
+          'service-registry',
+          'REGISTRY_NOT_INITIALIZED',
+          500,
+          {}
+        )
+      );
     }
 
     let totalResourcesRegistered = 0;
@@ -263,55 +294,59 @@ export class ServiceRegistry {
 
       try {
         const result = module.registerResources(server);
-        
+
         if (result.isErr()) {
           failedModules.push(moduleName);
           this.logger.error('Resource registration failed', {
             moduleName,
-            error: result.error.toJSON()
+            error: result.error.toJSON(),
           });
-          
-          return err(new GoogleServiceError(
-            `Failed to register resources for module '${moduleName}': ${result.error.message}`,
-            'service-registry',
-            'RESOURCE_REGISTRATION_FAILED',
-            500,
-            { moduleName, failedModules, originalError: result.error }
-          ));
+
+          return err(
+            new GoogleServiceError(
+              `Failed to register resources for module '${moduleName}': ${result.error.message}`,
+              'service-registry',
+              'RESOURCE_REGISTRATION_FAILED',
+              500,
+              { moduleName, failedModules, originalError: result.error }
+            )
+          );
         }
-        
+
         // Get metrics if available
         const healthStatus = module.getHealthStatus();
         const resourcesCount = healthStatus.metrics?.resourcesRegistered || 0;
         totalResourcesRegistered += resourcesCount;
-        
+
         this.logger.info('Resources registered for module', {
           moduleName,
-          resourcesRegistered: resourcesCount
+          resourcesRegistered: resourcesCount,
         });
-        
       } catch (error) {
         failedModules.push(moduleName);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+
         this.logger.error('Resource registration threw exception', {
           moduleName,
-          error: errorMessage
+          error: errorMessage,
         });
-        
-        return err(new GoogleServiceError(
-          `Failed to register resources for module '${moduleName}': ${errorMessage}`,
-          'service-registry',
-          'RESOURCE_REGISTRATION_EXCEPTION',
-          500,
-          { moduleName, failedModules }
-        ));
+
+        return err(
+          new GoogleServiceError(
+            `Failed to register resources for module '${moduleName}': ${errorMessage}`,
+            'service-registry',
+            'RESOURCE_REGISTRATION_EXCEPTION',
+            500,
+            { moduleName, failedModules }
+          )
+        );
       }
     }
 
     this.logger.info('All resources registered successfully', {
       totalResourcesRegistered,
-      moduleCount: this.initializationOrder.length
+      moduleCount: this.initializationOrder.length,
     });
 
     return ok(undefined);
@@ -355,9 +390,15 @@ export class ServiceRegistry {
       moduleStatuses[name] = status;
 
       switch (status.status) {
-        case 'healthy': healthy++; break;
-        case 'degraded': degraded++; break;
-        case 'unhealthy': unhealthy++; break;
+        case 'healthy':
+          healthy++;
+          break;
+        case 'degraded':
+          degraded++;
+          break;
+        case 'unhealthy':
+          unhealthy++;
+          break;
       }
     }
 
@@ -375,8 +416,8 @@ export class ServiceRegistry {
         healthy,
         degraded,
         unhealthy,
-        total: this.modules.size
-      }
+        total: this.modules.size,
+      },
     };
   }
 
@@ -385,10 +426,10 @@ export class ServiceRegistry {
    */
   public async cleanup(): Promise<Result<void, GoogleWorkspaceError>> {
     const errors: GoogleWorkspaceError[] = [];
-    
+
     // Cleanup in reverse initialization order
     const cleanupOrder = [...this.initializationOrder].reverse();
-    
+
     for (const moduleName of cleanupOrder) {
       const module = this.modules.get(moduleName);
       if (!module || !module.cleanup) continue;
@@ -399,11 +440,12 @@ export class ServiceRegistry {
           errors.push(result.error);
           this.logger.error('Module cleanup failed', {
             moduleName,
-            error: result.error.toJSON()
+            error: result.error.toJSON(),
           });
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         const cleanupError = new GoogleServiceError(
           `Module cleanup threw exception: ${errorMessage}`,
           'service-registry',
@@ -412,25 +454,27 @@ export class ServiceRegistry {
           { moduleName }
         );
         errors.push(cleanupError);
-        
+
         this.logger.error('Module cleanup threw exception', {
           moduleName,
-          error: errorMessage
+          error: errorMessage,
         });
       }
     }
 
     this.isInitialized = false;
     this.initializationOrder = [];
-    
+
     if (errors.length > 0) {
-      return err(new GoogleServiceError(
-        `Cleanup completed with ${errors.length} error(s)`,
-        'service-registry',
-        'CLEANUP_PARTIAL_FAILURE',
-        500,
-        { errors: errors.map(e => e.toJSON()) }
-      ));
+      return err(
+        new GoogleServiceError(
+          `Cleanup completed with ${errors.length} error(s)`,
+          'service-registry',
+          'CLEANUP_PARTIAL_FAILURE',
+          500,
+          { errors: errors.map(e => e.toJSON()) }
+        )
+      );
     }
 
     this.logger.info('Service registry cleanup completed successfully');

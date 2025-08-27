@@ -1,13 +1,16 @@
 import { Result, ok, err } from 'neverthrow';
 import { BaseSheetsTools } from './base-sheets-tool.js';
 import { SchemaFactory } from '../base/tool-schema.js';
-import type { ToolMetadata, ToolExecutionContext } from '../base/tool-registry.js';
+import type {
+  ToolMetadata,
+  ToolExecutionContext,
+} from '../base/tool-registry.js';
 import type { SheetsService } from '../../services/sheets.service.js';
 import type { AuthService } from '../../services/auth.service.js';
 import type { SheetsWriteResult, MCPToolResult } from '../../types/index.js';
-import { 
+import {
   GoogleWorkspaceError,
-  GoogleErrorFactory 
+  GoogleErrorFactory,
 } from '../../errors/index.js';
 import { Logger } from '../../utils/logger.js';
 
@@ -20,7 +23,10 @@ interface SheetsWriteParams {
 /**
  * Individual tool for writing data to spreadsheet ranges
  */
-export class SheetsWriteTool extends BaseSheetsTools<SheetsWriteParams, MCPToolResult> {
+export class SheetsWriteTool extends BaseSheetsTools<
+  SheetsWriteParams,
+  MCPToolResult
+> {
   constructor(
     sheetsService: SheetsService,
     authService: AuthService,
@@ -42,17 +48,17 @@ export class SheetsWriteTool extends BaseSheetsTools<SheetsWriteParams, MCPToolR
     context?: ToolExecutionContext
   ): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
     const requestId = context?.requestId || this.generateRequestId();
-    
-    this.logger.info('Starting spreadsheet write operation', { 
-      spreadsheetId: params.spreadsheetId, 
-      range: params.range, 
+
+    this.logger.info('Starting spreadsheet write operation', {
+      spreadsheetId: params.spreadsheetId,
+      range: params.range,
       rowCount: params.values.length,
-      requestId 
+      requestId,
     });
-    
+
     // Parameter validation
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema('sheets-write'), 
+      SchemaFactory.createToolInputSchema('sheets-write'),
       params,
       { operation: 'write-sheets', requestId }
     );
@@ -61,11 +67,11 @@ export class SheetsWriteTool extends BaseSheetsTools<SheetsWriteParams, MCPToolR
         error: validationResult.error.toJSON(),
         spreadsheetId: params.spreadsheetId,
         range: params.range,
-        requestId
+        requestId,
       });
       return err(validationResult.error);
     }
-    
+
     const validatedParams = validationResult.value;
 
     // Validate authentication
@@ -77,8 +83,8 @@ export class SheetsWriteTool extends BaseSheetsTools<SheetsWriteParams, MCPToolR
     try {
       // Use SheetsService to write data
       const writeResult = await this.sheetsService.writeRange(
-        validatedParams.spreadsheetId, 
-        validatedParams.range, 
+        validatedParams.spreadsheetId,
+        validatedParams.range,
         validatedParams.values
       );
       if (writeResult.isErr()) {
@@ -86,34 +92,35 @@ export class SheetsWriteTool extends BaseSheetsTools<SheetsWriteParams, MCPToolR
           error: writeResult.error.toJSON(),
           spreadsheetId: validatedParams.spreadsheetId,
           range: validatedParams.range,
-          requestId
+          requestId,
         });
         return err(writeResult.error);
       }
-      
+
       // Calculate result statistics
       const stats = this.calculateStatistics(validatedParams.values);
 
       const result: SheetsWriteResult = {
         updatedCells: stats.updatedCells,
         updatedRows: stats.updatedRows,
-        updatedColumns: stats.updatedColumns
+        updatedColumns: stats.updatedColumns,
       };
 
       this.logger.info('Successfully wrote spreadsheet data', {
         spreadsheetId: validatedParams.spreadsheetId,
         range: validatedParams.range,
         ...result,
-        requestId
+        requestId,
       });
-      
+
       return ok({
-        content: [{ 
-          type: 'text' as const, 
-          text: JSON.stringify(result, null, 2) 
-        }]
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
       });
-      
     } catch (error) {
       const sheetsError = GoogleErrorFactory.createSheetsError(
         error instanceof Error ? error : new Error(String(error)),
@@ -121,14 +128,14 @@ export class SheetsWriteTool extends BaseSheetsTools<SheetsWriteParams, MCPToolR
         validatedParams.range,
         { operation: 'sheets-write', requestId }
       );
-      
+
       this.logger.error('Unexpected error in sheetsWrite', {
         error: sheetsError.toJSON(),
         spreadsheetId: validatedParams.spreadsheetId,
         range: validatedParams.range,
-        requestId
+        requestId,
       });
-      
+
       return err(sheetsError);
     }
   }

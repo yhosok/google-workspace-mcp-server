@@ -1,6 +1,6 @@
 /**
  * Structured logging system for Google Workspace MCP Server
- * 
+ *
  * This module provides enterprise-grade logging capabilities with:
  * - Structured log format (JSON)
  * - Multiple log levels
@@ -20,7 +20,7 @@ export enum LogLevel {
   INFO = 1,
   WARN = 2,
   ERROR = 3,
-  FATAL = 4
+  FATAL = 4,
 }
 
 /**
@@ -31,27 +31,27 @@ export interface LogEntry {
    * Timestamp in ISO format
    */
   timestamp: string;
-  
+
   /**
    * Log level
    */
   level: LogLevel;
-  
+
   /**
    * Log level name
    */
   levelName: string;
-  
+
   /**
    * Log message
    */
   message: string;
-  
+
   /**
    * Additional context data
    */
   context?: Record<string, unknown>;
-  
+
   /**
    * Error information if applicable
    */
@@ -62,7 +62,7 @@ export interface LogEntry {
     code?: string;
     statusCode?: number;
   };
-  
+
   /**
    * Source information
    */
@@ -71,7 +71,7 @@ export interface LogEntry {
     operation?: string;
     requestId?: string;
   };
-  
+
   /**
    * Performance metrics
    */
@@ -89,27 +89,27 @@ export interface LoggerConfig {
    * Minimum log level to output
    */
   level: LogLevel;
-  
+
   /**
    * Whether to enable debug mode
    */
   debugMode: boolean;
-  
+
   /**
    * Service name for source identification
    */
   serviceName: string;
-  
+
   /**
    * Whether to include performance metrics
    */
   includePerformanceMetrics: boolean;
-  
+
   /**
    * Whether to pretty-print JSON output
    */
   prettyPrint: boolean;
-  
+
   /**
    * Custom output function (defaults to console)
    */
@@ -120,20 +120,21 @@ export interface LoggerConfig {
  * Default logger configuration
  */
 export const DEFAULT_LOGGER_CONFIG: LoggerConfig = {
-  level: process.env.NODE_ENV === 'production' 
-    ? LogLevel.INFO 
-    : process.env.NODE_ENV === 'test' 
-      ? LogLevel.ERROR  // Minimize log output during testing
-      : LogLevel.DEBUG,
-  debugMode: process.env.DEBUG === 'true' || 
-    (process.env.NODE_ENV === 'development'),  // Simplified condition
+  level:
+    process.env.NODE_ENV === 'production'
+      ? LogLevel.INFO
+      : process.env.NODE_ENV === 'test'
+        ? LogLevel.ERROR // Minimize log output during testing
+        : LogLevel.DEBUG,
+  debugMode:
+    process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development', // Simplified condition
   serviceName: 'google-workspace-mcp',
   includePerformanceMetrics: process.env.NODE_ENV === 'development',
-  prettyPrint: false,  // Always use compact JSON to prevent stdout pollution
+  prettyPrint: false, // Always use compact JSON to prevent stdout pollution
   outputFn: (entry: LogEntry) => {
     // Always write logs to stderr to prevent JSON-RPC stdout pollution
     process.stderr.write(JSON.stringify(entry) + '\n');
-  }
+  },
 };
 
 /**
@@ -168,7 +169,7 @@ export class Logger {
    * Add persistent context to all log entries
    */
   private additionalContext: Record<string, unknown> = {};
-  
+
   public addContext(context: Record<string, unknown>): void {
     Object.assign(this.additionalContext, context);
   }
@@ -197,14 +198,22 @@ export class Logger {
   /**
    * Log an error message
    */
-  public error(message: string, context?: Record<string, unknown>, error?: Error): void {
+  public error(
+    message: string,
+    context?: Record<string, unknown>,
+    error?: Error
+  ): void {
     this.log(LogLevel.ERROR, message, context, error);
   }
 
   /**
    * Log a fatal error message
    */
-  public fatal(message: string, context?: Record<string, unknown>, error?: Error): void {
+  public fatal(
+    message: string,
+    context?: Record<string, unknown>,
+    error?: Error
+  ): void {
     this.log(LogLevel.FATAL, message, context, error);
   }
 
@@ -224,18 +233,18 @@ export class Logger {
 
     const timestamp = new Date().toISOString();
     const levelName = LogLevel[level];
-    
+
     // Merge contexts
     const mergedContext = {
       ...this.additionalContext,
-      ...context
+      ...context,
     };
 
     // Extract source information
     const source = {
       service: this.config.serviceName,
       operation: mergedContext.operation as string | undefined,
-      requestId: mergedContext.requestId as string | undefined
+      requestId: mergedContext.requestId as string | undefined,
     };
 
     // Create base log entry
@@ -244,8 +253,9 @@ export class Logger {
       level,
       levelName,
       message,
-      context: Object.keys(mergedContext).length > 0 ? mergedContext : undefined,
-      source
+      context:
+        Object.keys(mergedContext).length > 0 ? mergedContext : undefined,
+      source,
     };
 
     // Add error information if provided
@@ -256,7 +266,7 @@ export class Logger {
     // Add performance metrics if enabled
     if (this.config.includePerformanceMetrics) {
       entry.performance = {
-        memoryUsage: process.memoryUsage()
+        memoryUsage: process.memoryUsage(),
       };
     }
 
@@ -271,7 +281,7 @@ export class Logger {
     const serialized: LogEntry['error'] = {
       name: error.name,
       message: error.message,
-      stack: this.config.debugMode ? error.stack : undefined
+      stack: this.config.debugMode ? error.stack : undefined,
     };
 
     // Add custom error properties if it's our GoogleWorkspaceError
@@ -290,7 +300,7 @@ export class Logger {
     if (this.config.outputFn) {
       this.config.outputFn(entry);
     } else {
-      const output = this.config.prettyPrint 
+      const output = this.config.prettyPrint
         ? JSON.stringify(entry, null, 2)
         : JSON.stringify(entry);
 
@@ -319,14 +329,18 @@ export class Logger {
   public startTimer(label: string): void {
     this.performanceTimers.set(label, {
       start: process.hrtime(),
-      label
+      label,
     });
   }
 
   /**
    * End a performance timer and log the duration
    */
-  public endTimer(label: string, message?: string, context?: Record<string, unknown>): void {
+  public endTimer(
+    label: string,
+    message?: string,
+    context?: Record<string, unknown>
+  ): void {
     const timer = this.performanceTimers.get(label);
     if (!timer) {
       this.warn(`Performance timer '${label}' not found`);
@@ -341,7 +355,7 @@ export class Logger {
     const timerMessage = message || `Operation '${label}' completed`;
     const timerContext = {
       ...context,
-      performance: { duration, label }
+      performance: { duration, label },
     };
 
     this.info(timerMessage, timerContext);
@@ -356,15 +370,19 @@ export class Logger {
     context?: Record<string, unknown>
   ): Promise<T> {
     this.startTimer(label);
-    
+
     try {
       const result = await operation();
-      this.endTimer(label, `Async operation '${label}' completed successfully`, context);
+      this.endTimer(
+        label,
+        `Async operation '${label}' completed successfully`,
+        context
+      );
       return result;
     } catch (error) {
       this.endTimer(label, `Async operation '${label}' failed`, {
         ...context,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
       throw error;
     }
@@ -379,15 +397,19 @@ export class Logger {
     context?: Record<string, unknown>
   ): T {
     this.startTimer(label);
-    
+
     try {
       const result = operation();
-      this.endTimer(label, `Operation '${label}' completed successfully`, context);
+      this.endTimer(
+        label,
+        `Operation '${label}' completed successfully`,
+        context
+      );
       return result;
     } catch (error) {
       this.endTimer(label, `Operation '${label}' failed`, {
         ...context,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
       throw error;
     }
@@ -405,15 +427,18 @@ export class Logger {
     const operationContext = { ...context, operation, requestId };
 
     this.info(`Starting operation: ${operation}`, operationContext);
-    
+
     return this.measureAsync(`operation-${operation}`, fn, operationContext)
-      .then((result) => {
+      .then(result => {
         this.info(`Completed operation: ${operation}`, operationContext);
         return result;
       })
-      .catch((error) => {
-        this.error(`Failed operation: ${operation}`, operationContext, 
-          error instanceof Error ? error : new Error(String(error)));
+      .catch(error => {
+        this.error(
+          `Failed operation: ${operation}`,
+          operationContext,
+          error instanceof Error ? error : new Error(String(error))
+        );
         throw error;
       });
   }
@@ -424,9 +449,9 @@ export class Logger {
   public forOperation(operation: string, requestId?: string): Logger {
     const childLogger = this.child({
       operation,
-      requestId: requestId || this.generateRequestId()
+      requestId: requestId || this.generateRequestId(),
     });
-    
+
     return childLogger;
   }
 
@@ -467,11 +492,14 @@ export const logger = new Logger();
 /**
  * Create a logger for a specific service
  */
-export function createServiceLogger(serviceName: string, config?: Partial<LoggerConfig>): Logger {
+export function createServiceLogger(
+  serviceName: string,
+  config?: Partial<LoggerConfig>
+): Logger {
   return new Logger({
     ...DEFAULT_LOGGER_CONFIG,
     ...config,
-    serviceName
+    serviceName,
   });
 }
 
@@ -482,7 +510,7 @@ export function formatErrorForLog(error: Error): Record<string, unknown> {
   const formatted: Record<string, unknown> = {
     name: error.name,
     message: error.message,
-    stack: error.stack
+    stack: error.stack,
   };
 
   if (error instanceof GoogleWorkspaceError) {
@@ -498,4 +526,6 @@ export function formatErrorForLog(error: Error): Record<string, unknown> {
 /**
  * Log level names for display/configuration
  */
-export const LOG_LEVEL_NAMES = Object.keys(LogLevel).filter(key => isNaN(Number(key)));
+export const LOG_LEVEL_NAMES = Object.keys(LogLevel).filter(key =>
+  isNaN(Number(key))
+);

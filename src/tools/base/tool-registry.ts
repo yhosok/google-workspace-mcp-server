@@ -51,7 +51,10 @@ export abstract class ToolRegistry<TInput = unknown, TOutput = unknown> {
    * @param context - Execution context for debugging and tracing
    * @returns Promise resolving to Result<TOutput, GoogleWorkspaceError>
    */
-  public abstract executeImpl(params: TInput, context?: ToolExecutionContext): Promise<Result<TOutput, GoogleWorkspaceError>>;
+  public abstract executeImpl(
+    params: TInput,
+    context?: ToolExecutionContext
+  ): Promise<Result<TOutput, GoogleWorkspaceError>>;
 
   /**
    * Registers the tool with the MCP server with enhanced error handling and context
@@ -60,9 +63,9 @@ export abstract class ToolRegistry<TInput = unknown, TOutput = unknown> {
     const toolName = this.getToolName();
     const metadata = this.getToolMetadata();
 
-    this.logger.info('Registering tool', { 
+    this.logger.info('Registering tool', {
       toolName,
-      title: metadata.title 
+      title: metadata.title,
     });
 
     server.registerTool(
@@ -70,62 +73,63 @@ export abstract class ToolRegistry<TInput = unknown, TOutput = unknown> {
       {
         title: metadata.title,
         description: metadata.description,
-        inputSchema: metadata.inputSchema
+        inputSchema: metadata.inputSchema,
       },
       async (params: unknown) => {
         const context: ToolExecutionContext = {
           toolName,
           startTime: Date.now(),
-          requestId: this.generateRequestId()
+          requestId: this.generateRequestId(),
         };
 
         try {
           this.logger.debug('Executing tool', {
             toolName,
             requestId: context.requestId,
-            params: this.sanitizeParams(params)
+            params: this.sanitizeParams(params),
           });
 
           const result = await this.executeImpl(params as TInput, context);
-          
+
           const executionTime = Date.now() - context.startTime;
-          
+
           return result.match(
-            (value) => {
+            value => {
               this.logger.info('Tool execution completed', {
                 toolName,
                 requestId: context.requestId,
-                executionTime
+                executionTime,
               });
-              
+
               // Convert result to MCPToolResult format
               return this.convertToMcpToolResult(value);
             },
-            (error) => {
+            error => {
               this.logger.error('Tool execution failed', {
                 toolName,
                 requestId: context.requestId,
                 executionTime,
-                error: error.toJSON()
+                error: error.toJSON(),
               });
-              
+
               // MCP server expects thrown errors for failures
               throw error;
             }
           );
         } catch (error) {
           const executionTime = Date.now() - context.startTime;
-          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
           const errorStack = error instanceof Error ? error.stack : undefined;
-          
+
           this.logger.error('Tool execution failed', {
             toolName,
             requestId: context.requestId,
             executionTime,
             error: errorMessage,
-            stack: errorStack
+            stack: errorStack,
           });
-          
+
           throw error;
         }
       }
@@ -147,13 +151,16 @@ export abstract class ToolRegistry<TInput = unknown, TOutput = unknown> {
     if (value && typeof value === 'object' && 'content' in value) {
       return value;
     }
-    
+
     // Convert plain values to MCPToolResult format
     return {
-      content: [{
-        type: 'text',
-        text: typeof value === 'string' ? value : JSON.stringify(value, null, 2)
-      }]
+      content: [
+        {
+          type: 'text',
+          text:
+            typeof value === 'string' ? value : JSON.stringify(value, null, 2),
+        },
+      ],
     };
   }
 
@@ -166,10 +173,10 @@ export abstract class ToolRegistry<TInput = unknown, TOutput = unknown> {
     }
 
     const sanitized = { ...params } as Record<string, unknown>;
-    
+
     // Remove or mask potentially sensitive fields
     const sensitiveFields = ['token', 'password', 'secret', 'key', 'auth'];
-    
+
     for (const field of sensitiveFields) {
       if (field in sanitized) {
         sanitized[field] = '***MASKED***';

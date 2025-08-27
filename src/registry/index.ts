@@ -1,8 +1,8 @@
 // Core registry interfaces and classes
-export type { 
-  ServiceModule, 
+export type {
+  ServiceModule,
   ServiceModuleHealthStatus,
-  ServiceModuleConfig 
+  ServiceModuleConfig,
 } from './service-module.interface.js';
 export { ServiceRegistry } from './service-registry.js';
 

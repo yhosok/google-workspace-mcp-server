@@ -1,14 +1,17 @@
 import { Result, ok, err } from 'neverthrow';
 import { BaseSheetsTools } from './base-sheets-tool.js';
 import { SchemaFactory } from '../base/tool-schema.js';
-import type { ToolMetadata, ToolExecutionContext } from '../base/tool-registry.js';
+import type {
+  ToolMetadata,
+  ToolExecutionContext,
+} from '../base/tool-registry.js';
 import type { SheetsService } from '../../services/sheets.service.js';
 import type { AuthService } from '../../services/auth.service.js';
 import type { SheetsAddSheetResult, MCPToolResult } from '../../types/index.js';
-import { 
+import {
   GoogleWorkspaceError,
   GoogleSheetsInvalidRangeError,
-  GoogleErrorFactory 
+  GoogleErrorFactory,
 } from '../../errors/index.js';
 import { Logger } from '../../utils/logger.js';
 
@@ -21,7 +24,10 @@ interface SheetsAddSheetParams {
 /**
  * Individual tool for adding new sheets to existing spreadsheets
  */
-export class SheetsAddSheetTool extends BaseSheetsTools<SheetsAddSheetParams, MCPToolResult> {
+export class SheetsAddSheetTool extends BaseSheetsTools<
+  SheetsAddSheetParams,
+  MCPToolResult
+> {
   constructor(
     sheetsService: SheetsService,
     authService: AuthService,
@@ -43,40 +49,40 @@ export class SheetsAddSheetTool extends BaseSheetsTools<SheetsAddSheetParams, MC
     context?: ToolExecutionContext
   ): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
     const requestId = context?.requestId || this.generateRequestId();
-    
-    this.logger.info('Starting add sheet operation', { 
-      spreadsheetId: params.spreadsheetId, 
-      title: params.title, 
+
+    this.logger.info('Starting add sheet operation', {
+      spreadsheetId: params.spreadsheetId,
+      title: params.title,
       index: params.index,
-      requestId 
+      requestId,
     });
-    
+
     // Validate parameters using schema validation
     const validationResult = this.validateWithSchema(
       SchemaFactory.createToolInputSchema('sheets-add-sheet'),
       params,
       { operation: 'add-sheet' }
     );
-    
+
     if (validationResult.isErr()) {
       this.logger.error('Parameter validation failed for sheetsAddSheet', {
         error: validationResult.error.toJSON(),
         spreadsheetId: params.spreadsheetId,
         title: params.title,
         index: params.index,
-        requestId
+        requestId,
       });
       return err(validationResult.error);
     }
-    
+
     // Use validated parameters
     const validatedParams = validationResult.value;
-    
+
     this.logger.debug('Parameters validated successfully', {
       spreadsheetId: validatedParams.spreadsheetId,
       title: validatedParams.title,
       index: validatedParams.index,
-      requestId
+      requestId,
     });
 
     // Validate authentication
@@ -88,43 +94,48 @@ export class SheetsAddSheetTool extends BaseSheetsTools<SheetsAddSheetParams, MC
     try {
       // Use SheetsService to add sheet
       const addSheetResult = await this.sheetsService.addSheet(
-        validatedParams.spreadsheetId, 
+        validatedParams.spreadsheetId,
         validatedParams.title,
         validatedParams.index
       );
-      
+
       if (addSheetResult.isErr()) {
         this.logger.error('Failed to add sheet', {
           error: addSheetResult.error.toJSON(),
           spreadsheetId: validatedParams.spreadsheetId,
           title: validatedParams.title,
-          requestId
+          requestId,
         });
         return err(addSheetResult.error);
       }
 
       const responseData = addSheetResult.value;
-      
-      this.logger.info('Sheet added successfully', { 
+
+      this.logger.info('Sheet added successfully', {
         spreadsheetId: validatedParams.spreadsheetId,
         sheetId: responseData.sheetId,
         title: responseData.title,
         index: responseData.index,
-        requestId 
+        requestId,
       });
 
       return ok({
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            sheetId: responseData.sheetId,
-            title: responseData.title,
-            index: responseData.index,
-            spreadsheetId: validatedParams.spreadsheetId
-          }, null, 2)
-        }]
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                sheetId: responseData.sheetId,
+                title: responseData.title,
+                index: responseData.index,
+                spreadsheetId: validatedParams.spreadsheetId,
+              },
+              null,
+              2
+            ),
+          },
+        ],
       });
-
     } catch (error) {
       const wrappedError = GoogleErrorFactory.createSheetsError(
         error instanceof Error ? error : new Error(String(error)),
@@ -132,17 +143,17 @@ export class SheetsAddSheetTool extends BaseSheetsTools<SheetsAddSheetParams, MC
         '',
         {
           operation: 'sheets-add-sheet',
-          requestId
+          requestId,
         }
       );
-      
+
       this.logger.error('Unexpected error in add sheet operation', {
         error: wrappedError.toJSON(),
         spreadsheetId: validatedParams.spreadsheetId,
         title: validatedParams.title,
-        requestId
+        requestId,
       });
-      
+
       return err(wrappedError);
     }
   }

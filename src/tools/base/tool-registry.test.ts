@@ -3,12 +3,18 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { Result, ok, err } from 'neverthrow';
 import { ToolRegistry } from './tool-registry.js';
-import { GoogleWorkspaceError, GoogleServiceError } from '../../errors/index.js';
+import {
+  GoogleWorkspaceError,
+  GoogleServiceError,
+} from '../../errors/index.js';
 import type { Logger } from '../../utils/logger.js';
 import type { MCPToolResult } from '../../types/index.js';
 
 // Mock concrete implementation for testing
-class TestToolRegistry extends ToolRegistry<{ testParam: string }, MCPToolResult> {
+class TestToolRegistry extends ToolRegistry<
+  { testParam: string },
+  MCPToolResult
+> {
   public getToolName(): string {
     return 'test-tool';
   }
@@ -18,31 +24,35 @@ class TestToolRegistry extends ToolRegistry<{ testParam: string }, MCPToolResult
       title: 'Test Tool',
       description: 'A test tool for unit testing',
       inputSchema: {
-        testParam: z.string().describe('A test parameter')
-      }
+        testParam: z.string().describe('A test parameter'),
+      },
     };
   }
 
-  public async executeImpl(params: { testParam: string }): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
+  public async executeImpl(params: {
+    testParam: string;
+  }): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
     return ok({
-      content: [{
-        type: 'text',
-        text: `Test executed with param: ${params.testParam}`
-      }]
+      content: [
+        {
+          type: 'text',
+          text: `Test executed with param: ${params.testParam}`,
+        },
+      ],
     });
   }
 }
 
 // Mock classes
 const mockMcpServer = {
-  registerTool: jest.fn()
+  registerTool: jest.fn(),
 } as unknown as McpServer;
 
 const mockLogger = {
   info: jest.fn(),
   error: jest.fn(),
   warn: jest.fn(),
-  debug: jest.fn()
+  debug: jest.fn(),
 } as unknown as Logger;
 
 describe('ToolRegistry', () => {
@@ -70,7 +80,9 @@ describe('ToolRegistry', () => {
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         expect(result.value.content).toHaveLength(1);
-        expect(result.value.content[0].text).toBe('Test executed with param: test');
+        expect(result.value.content[0].text).toBe(
+          'Test executed with param: test'
+        );
       }
     });
   });
@@ -84,7 +96,7 @@ describe('ToolRegistry', () => {
         {
           title: 'Test Tool',
           description: 'A test tool for unit testing',
-          inputSchema: expect.any(Object)
+          inputSchema: expect.any(Object),
         },
         expect.any(Function)
       );
@@ -94,23 +106,24 @@ describe('ToolRegistry', () => {
       toolRegistry.registerTool(mockMcpServer);
 
       // Get the handler function that was passed to registerTool
-      const registerCallArgs = (mockMcpServer.registerTool as jest.MockedFunction<any>).mock.calls[0];
+      const registerCallArgs = (
+        mockMcpServer.registerTool as jest.MockedFunction<any>
+      ).mock.calls[0];
       const handler = registerCallArgs[2];
 
       const result = await handler({ testParam: 'test-value' });
-      expect(result.content[0].text).toBe('Test executed with param: test-value');
+      expect(result.content[0].text).toBe(
+        'Test executed with param: test-value'
+      );
     });
 
     it('should log tool registration', () => {
       toolRegistry.registerTool(mockMcpServer);
 
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        'Registering tool',
-        { 
-          toolName: 'test-tool',
-          title: 'Test Tool'
-        }
-      );
+      expect(mockLogger.info).toHaveBeenCalledWith('Registering tool', {
+        toolName: 'test-tool',
+        title: 'Test Tool',
+      });
     });
   });
 
@@ -125,11 +138,13 @@ describe('ToolRegistry', () => {
           return {
             title: 'Failing Tool',
             description: 'A tool that fails',
-            inputSchema: {}
+            inputSchema: {},
           };
         }
 
-        async executeImpl(): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
+        async executeImpl(): Promise<
+          Result<MCPToolResult, GoogleWorkspaceError>
+        > {
           const error = new GoogleServiceError(
             'Test error',
             'test-service',
@@ -143,7 +158,9 @@ describe('ToolRegistry', () => {
       const failingTool = new FailingToolRegistry(mockLogger);
       failingTool.registerTool(mockMcpServer);
 
-      const registerCallArgs = (mockMcpServer.registerTool as jest.MockedFunction<any>).mock.calls[0];
+      const registerCallArgs = (
+        mockMcpServer.registerTool as jest.MockedFunction<any>
+      ).mock.calls[0];
       const handler = registerCallArgs[2];
 
       await expect(handler({})).rejects.toThrow(GoogleServiceError);
@@ -153,7 +170,7 @@ describe('ToolRegistry', () => {
           toolName: 'failing-tool',
           error: expect.any(Object),
           requestId: expect.any(String),
-          executionTime: expect.any(Number)
+          executionTime: expect.any(Number),
         })
       );
     });
@@ -166,7 +183,10 @@ describe('ToolRegistry', () => {
         optionalParam?: number;
       }
 
-      class ValidatingToolRegistry extends ToolRegistry<ValidatingParams, MCPToolResult> {
+      class ValidatingToolRegistry extends ToolRegistry<
+        ValidatingParams,
+        MCPToolResult
+      > {
         getToolName(): string {
           return 'validating-tool';
         }
@@ -177,17 +197,24 @@ describe('ToolRegistry', () => {
             description: 'A tool with validation',
             inputSchema: {
               requiredParam: z.string().min(1).describe('A required parameter'),
-              optionalParam: z.number().optional().describe('An optional parameter')
-            }
+              optionalParam: z
+                .number()
+                .optional()
+                .describe('An optional parameter'),
+            },
           };
         }
 
-        async executeImpl(params: ValidatingParams): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
+        async executeImpl(
+          params: ValidatingParams
+        ): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
           return ok({
-            content: [{
-              type: 'text',
-              text: `Validated params: ${params.requiredParam}, ${params.optionalParam || 'none'}`
-            }]
+            content: [
+              {
+                type: 'text',
+                text: `Validated params: ${params.requiredParam}, ${params.optionalParam || 'none'}`,
+              },
+            ],
           });
         }
       }
@@ -195,11 +222,16 @@ describe('ToolRegistry', () => {
       const validatingTool = new ValidatingToolRegistry(mockLogger);
       validatingTool.registerTool(mockMcpServer);
 
-      const registerCallArgs = (mockMcpServer.registerTool as jest.MockedFunction<any>).mock.calls[0];
+      const registerCallArgs = (
+        mockMcpServer.registerTool as jest.MockedFunction<any>
+      ).mock.calls[0];
       const handler = registerCallArgs[2];
 
       // Valid parameters
-      const result = await handler({ requiredParam: 'test', optionalParam: 42 });
+      const result = await handler({
+        requiredParam: 'test',
+        optionalParam: 42,
+      });
       expect(result.content[0].text).toBe('Validated params: test, 42');
 
       // Only required parameters
@@ -231,7 +263,10 @@ describe('ToolRegistry', () => {
         };
       }
 
-      class ComplexToolRegistry extends ToolRegistry<ComplexParams, MCPToolResult> {
+      class ComplexToolRegistry extends ToolRegistry<
+        ComplexParams,
+        MCPToolResult
+      > {
         getToolName(): string {
           return 'complex-tool';
         }
@@ -243,21 +278,29 @@ describe('ToolRegistry', () => {
             inputSchema: {
               spreadsheetId: z.string().describe('The spreadsheet ID'),
               range: z.string().describe('The range to operate on'),
-              values: z.array(z.array(z.string())).describe('2D array of values'),
-              options: z.object({
-                majorDimension: z.enum(['ROWS', 'COLUMNS']).optional(),
-                valueInputOption: z.enum(['RAW', 'USER_ENTERED']).optional()
-              }).optional()
-            }
+              values: z
+                .array(z.array(z.string()))
+                .describe('2D array of values'),
+              options: z
+                .object({
+                  majorDimension: z.enum(['ROWS', 'COLUMNS']).optional(),
+                  valueInputOption: z.enum(['RAW', 'USER_ENTERED']).optional(),
+                })
+                .optional(),
+            },
           };
         }
 
-        async executeImpl(params: ComplexParams): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
+        async executeImpl(
+          params: ComplexParams
+        ): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
           return ok({
-            content: [{
-              type: 'text',
-              text: 'Complex tool executed'
-            }]
+            content: [
+              {
+                type: 'text',
+                text: 'Complex tool executed',
+              },
+            ],
           });
         }
       }
@@ -269,7 +312,7 @@ describe('ToolRegistry', () => {
         'complex-tool',
         expect.objectContaining({
           title: 'Complex Tool',
-          description: 'A tool with complex schema'
+          description: 'A tool with complex schema',
         }),
         expect.any(Function)
       );
@@ -289,17 +332,21 @@ describe('ToolRegistry', () => {
           return {
             title: 'Stateful Tool',
             description: 'A tool that maintains state',
-            inputSchema: {}
+            inputSchema: {},
           };
         }
 
-        async executeImpl(): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
+        async executeImpl(): Promise<
+          Result<MCPToolResult, GoogleWorkspaceError>
+        > {
           this.callCount++;
           return ok({
-            content: [{
-              type: 'text',
-              text: `Call count: ${this.callCount}`
-            }]
+            content: [
+              {
+                type: 'text',
+                text: `Call count: ${this.callCount}`,
+              },
+            ],
           });
         }
       }
@@ -307,7 +354,9 @@ describe('ToolRegistry', () => {
       const statefulTool = new StatefulToolRegistry(mockLogger);
       statefulTool.registerTool(mockMcpServer);
 
-      const registerCallArgs = (mockMcpServer.registerTool as jest.MockedFunction<any>).mock.calls[0];
+      const registerCallArgs = (
+        mockMcpServer.registerTool as jest.MockedFunction<any>
+      ).mock.calls[0];
       const handler = registerCallArgs[2];
 
       const result1 = await handler({});

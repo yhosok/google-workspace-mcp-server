@@ -1,14 +1,17 @@
 import { Result, ok, err } from 'neverthrow';
 import { BaseSheetsTools } from './base-sheets-tool.js';
-import type { ToolMetadata, ToolExecutionContext } from '../base/tool-registry.js';
+import type {
+  ToolMetadata,
+  ToolExecutionContext,
+} from '../base/tool-registry.js';
 import { SchemaFactory } from '../base/tool-schema.js';
 import type { SheetsService } from '../../services/sheets.service.js';
 import type { AuthService } from '../../services/auth.service.js';
 import type { SheetsListResult, MCPToolResult } from '../../types/index.js';
-import { 
+import {
   GoogleWorkspaceError,
   GoogleAuthError,
-  GoogleErrorFactory 
+  GoogleErrorFactory,
 } from '../../errors/index.js';
 import { Logger } from '../../utils/logger.js';
 
@@ -37,9 +40,9 @@ export class SheetsListTool extends BaseSheetsTools<{}, MCPToolResult> {
     context?: ToolExecutionContext
   ): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
     const requestId = context?.requestId || this.generateRequestId();
-    
+
     this.logger.info('Starting spreadsheets list operation', { requestId });
-    
+
     // Validate authentication
     const authResult = await this.validateAuthentication(requestId);
     if (authResult.isErr()) {
@@ -47,40 +50,40 @@ export class SheetsListTool extends BaseSheetsTools<{}, MCPToolResult> {
     }
 
     try {
-
       // Use SheetsService to get spreadsheet list
       const spreadsheetsResult = await this.sheetsService.listSpreadsheets();
       if (spreadsheetsResult.isErr()) {
         this.logger.error('Failed to list spreadsheets', {
           error: spreadsheetsResult.error.toJSON(),
-          requestId
+          requestId,
         });
         return err(spreadsheetsResult.error);
       }
 
       const spreadsheets = spreadsheetsResult.value;
-      
+
       const result: SheetsListResult = {
         spreadsheets: spreadsheets.map(sheet => ({
           id: sheet.id,
           title: sheet.title,
           url: sheet.url,
-          modifiedTime: sheet.modifiedTime
-        }))
+          modifiedTime: sheet.modifiedTime,
+        })),
       };
 
       this.logger.info('Successfully listed spreadsheets', {
         count: result.spreadsheets.length,
-        requestId
+        requestId,
       });
-      
+
       return ok({
-        content: [{ 
-          type: 'text' as const, 
-          text: JSON.stringify(result, null, 2) 
-        }]
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
       });
-      
     } catch (error) {
       const sheetsError = GoogleErrorFactory.createSheetsError(
         error instanceof Error ? error : new Error(String(error)),
@@ -88,12 +91,12 @@ export class SheetsListTool extends BaseSheetsTools<{}, MCPToolResult> {
         undefined,
         { operation: 'sheets-list', requestId }
       );
-      
+
       this.logger.error('Unexpected error in sheetsList', {
         error: sheetsError.toJSON(),
-        requestId
+        requestId,
       });
-      
+
       return err(sheetsError);
     }
   }

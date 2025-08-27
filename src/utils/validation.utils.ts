@@ -1,6 +1,6 @@
 /**
  * Validation utilities for Google Workspace MCP Server
- * 
+ *
  * This module provides a unified validation system that eliminates duplication
  * between input schema and runtime validation using Zod's safeParse.
  * Integrates with the existing error handling system using neverthrow Result types.
@@ -8,7 +8,10 @@
 
 import { z } from 'zod';
 import { Result, ok, err } from 'neverthrow';
-import { GoogleSheetsError, GoogleSheetsInvalidRangeError } from '../errors/index.js';
+import {
+  GoogleSheetsError,
+  GoogleSheetsInvalidRangeError,
+} from '../errors/index.js';
 
 /**
  * Context information for validation operations
@@ -29,55 +32,65 @@ export type ValidationResult<T> = Result<T, GoogleSheetsError>;
 
 /**
  * Validates tool input using a Zod schema and returns a Result type
- * 
+ *
  * @param schema - The Zod schema to validate against
  * @param data - The input data to validate
  * @returns Result with validated data or GoogleSheetsError
  */
 export function validateToolInput<T>(
-  schema: z.ZodType<T>, 
+  schema: z.ZodType<T>,
   data: unknown
 ): ValidationResult<T> {
   const result = schema.safeParse(data);
-  
+
   if (result.success) {
     return ok(result.data);
   } else {
-    return err(convertZodErrorToGoogleSheetsError(result.error, undefined, undefined, undefined, data));
+    return err(
+      convertZodErrorToGoogleSheetsError(
+        result.error,
+        undefined,
+        undefined,
+        undefined,
+        data
+      )
+    );
   }
 }
 
 /**
  * Validates tool input using a Zod schema with context information
- * 
+ *
  * @param schema - The Zod schema to validate against
  * @param data - The input data to validate
  * @param context - Optional validation context for enhanced error reporting
  * @returns Result with validated data or GoogleSheetsError
  */
 export function validateToolInputWithContext<T>(
-  schema: z.ZodType<T>, 
+  schema: z.ZodType<T>,
   data: unknown,
   context?: ValidationContext
 ): ValidationResult<T> {
   const result = schema.safeParse(data);
-  
+
   if (result.success) {
     return ok(result.data);
   } else {
-    return err(convertZodErrorToGoogleSheetsError(
-      result.error, 
-      context?.spreadsheetId, 
-      context?.range, 
-      context,
-      data
-    ));
+    return err(
+      convertZodErrorToGoogleSheetsError(
+        result.error,
+        context?.spreadsheetId,
+        context?.range,
+        context,
+        data
+      )
+    );
   }
 }
 
 /**
  * Converts a ZodError to a GoogleSheetsError with appropriate mapping
- * 
+ *
  * @param error - The ZodError to convert
  * @param spreadsheetId - Optional spreadsheet ID for context
  * @param range - Optional range for context
@@ -97,36 +110,36 @@ export function convertZodErrorToGoogleSheetsError(
     code: issue.code,
     path: issue.path,
     message: issue.message,
-    ...getIssueSpecificData(issue)
+    ...getIssueSpecificData(issue),
   }));
 
   // Check for range-related validation errors
-  const hasRangeError = validationErrors.some(err => err.path.includes('range'));
-  const hasSpreadsheetIdError = validationErrors.some(err => err.path.includes('spreadsheetId'));
-  
-  // For tools that include range parameter in their data, both spreadsheetId and range errors 
+  const hasRangeError = validationErrors.some(err =>
+    err.path.includes('range')
+  );
+  const hasSpreadsheetIdError = validationErrors.some(err =>
+    err.path.includes('spreadsheetId')
+  );
+
+  // For tools that include range parameter in their data, both spreadsheetId and range errors
   // should be treated as "range-related" since they're part of the range operation
   const dataHasRange = (data as any)?.range !== undefined;
-  
+
   if (hasRangeError || (dataHasRange && hasSpreadsheetIdError)) {
     // Find the specific error message for range or spreadsheetId (in range-based tools)
-    const rangeOrIdError = validationErrors.find(err => 
-      err.path.includes('range') || err.path.includes('spreadsheetId')
+    const rangeOrIdError = validationErrors.find(
+      err => err.path.includes('range') || err.path.includes('spreadsheetId')
     );
-    
+
     if (rangeOrIdError) {
       // Return GoogleSheetsInvalidRangeError for range/ID validation failures
       const rangeValue = (data as any)?.range || range || '';
       const spreadsheetIdValue = (data as any)?.spreadsheetId || spreadsheetId;
-      return new GoogleSheetsInvalidRangeError(
-        rangeValue, 
-        spreadsheetIdValue,
-        { 
-          reason: rangeOrIdError.message,
-          validationErrors,
-          ...context 
-        }
-      );
+      return new GoogleSheetsInvalidRangeError(rangeValue, spreadsheetIdValue, {
+        reason: rangeOrIdError.message,
+        validationErrors,
+        ...context,
+      });
     }
   }
 
@@ -143,7 +156,7 @@ export function convertZodErrorToGoogleSheetsError(
   // Combine context data with validation errors
   const errorContext = {
     ...context,
-    validationErrors
+    validationErrors,
   };
 
   return new GoogleSheetsError(
@@ -158,7 +171,7 @@ export function convertZodErrorToGoogleSheetsError(
 
 /**
  * Extract issue-specific data from ZodIssue for detailed error reporting
- * 
+ *
  * @param issue - The ZodIssue to extract data from
  * @returns Object with issue-specific properties
  */
@@ -216,7 +229,8 @@ function getIssueSpecificData(issue: z.ZodIssue): Record<string, unknown> {
       break;
 
     case z.ZodIssueCode.invalid_return_type:
-      if ('returnTypeError' in issue) data.returnTypeError = issue.returnTypeError;
+      if ('returnTypeError' in issue)
+        data.returnTypeError = issue.returnTypeError;
       break;
 
     case z.ZodIssueCode.invalid_date:
@@ -269,37 +283,54 @@ export class ValidationUtils {
     context?: Record<string, unknown>,
     data?: unknown
   ): GoogleSheetsError {
-    return convertZodErrorToGoogleSheetsError(error, spreadsheetId, range, context, data);
+    return convertZodErrorToGoogleSheetsError(
+      error,
+      spreadsheetId,
+      range,
+      context,
+      data
+    );
   }
 
   /**
    * Check if a validation result contains specific error types
    */
-  static hasValidationError(result: ValidationResult<unknown>, errorCode: string): boolean {
+  static hasValidationError(
+    result: ValidationResult<unknown>,
+    errorCode: string
+  ): boolean {
     if (result.isOk()) return false;
-    
+
     const error = result.error;
     if (error.code !== 'GOOGLE_SHEETS_VALIDATION_ERROR') return false;
-    
-    const validationErrors = error.context?.validationErrors as Array<Record<string, unknown>>;
-    return validationErrors?.some(e => (e.code as string) === errorCode) || false;
+
+    const validationErrors = error.context?.validationErrors as Array<
+      Record<string, unknown>
+    >;
+    return (
+      validationErrors?.some(e => (e.code as string) === errorCode) || false
+    );
   }
 
   /**
    * Extract validation errors of specific types from a result
    */
-  static getValidationErrors(result: ValidationResult<unknown>, errorCode?: string): Array<Record<string, unknown>> {
+  static getValidationErrors(
+    result: ValidationResult<unknown>,
+    errorCode?: string
+  ): Array<Record<string, unknown>> {
     if (result.isOk()) return [];
-    
+
     const error = result.error;
     if (error.code !== 'GOOGLE_SHEETS_VALIDATION_ERROR') return [];
-    
-    const validationErrors = error.context?.validationErrors as Array<Record<string, unknown>> || [];
-    
+
+    const validationErrors =
+      (error.context?.validationErrors as Array<Record<string, unknown>>) || [];
+
     if (errorCode) {
       return validationErrors.filter(e => (e.code as string) === errorCode);
     }
-    
+
     return validationErrors;
   }
 
@@ -308,12 +339,13 @@ export class ValidationUtils {
    */
   static formatValidationErrors(result: ValidationResult<unknown>): string[] {
     if (result.isOk()) return [];
-    
+
     const error = result.error;
     if (error.code !== 'GOOGLE_SHEETS_VALIDATION_ERROR') return [error.message];
-    
-    const validationErrors = error.context?.validationErrors as Array<Record<string, unknown>> || [];
-    
+
+    const validationErrors =
+      (error.context?.validationErrors as Array<Record<string, unknown>>) || [];
+
     return validationErrors.map(e => {
       const path = e.path as (string | number)[];
       const pathStr = path.length > 0 ? path.join('.') + ': ' : '';

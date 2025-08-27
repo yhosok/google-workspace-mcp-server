@@ -1,20 +1,26 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { ServiceModule, ServiceModuleHealthStatus } from '../service-module.interface.js';
+import type {
+  ServiceModule,
+  ServiceModuleHealthStatus,
+} from '../service-module.interface.js';
 import type { AuthService } from '../../services/auth.service.js';
 import { SheetsService } from '../../services/sheets.service.js';
 import { SheetsResources } from '../../resources/sheets-resources.js';
-import { 
+import {
   SheetsListTool,
-  SheetsReadTool, 
+  SheetsReadTool,
   SheetsWriteTool,
   SheetsAppendTool,
   SheetsAddSheetTool,
-  SheetsCreateSpreadsheetTool
+  SheetsCreateSpreadsheetTool,
 } from '../../tools/sheets/index.js';
 import type { ToolRegistry } from '../../tools/base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
-import { GoogleWorkspaceError, GoogleServiceError } from '../../errors/index.js';
+import {
+  GoogleWorkspaceError,
+  GoogleServiceError,
+} from '../../errors/index.js';
 import { Logger, createServiceLogger } from '../../utils/logger.js';
 
 /**
@@ -41,7 +47,9 @@ export class SheetsServiceModule implements ServiceModule {
   /**
    * Initialize the Sheets service module
    */
-  public async initialize(authService: AuthService): Promise<Result<void, GoogleWorkspaceError>> {
+  public async initialize(
+    authService: AuthService
+  ): Promise<Result<void, GoogleWorkspaceError>> {
     if (this.initialized) {
       return ok(undefined);
     }
@@ -54,22 +62,27 @@ export class SheetsServiceModule implements ServiceModule {
       // Initialize Sheets service
       this.sheetsService = new SheetsService(authService);
       const initResult = await this.sheetsService.initialize();
-      
+
       if (initResult.isErr()) {
         this.logger.error('Failed to initialize Sheets service', {
-          error: initResult.error.toJSON()
+          error: initResult.error.toJSON(),
         });
-        return err(new GoogleServiceError(
-          `Failed to initialize Sheets service: ${initResult.error.message}`,
-          this.name,
-          'SHEETS_SERVICE_INIT_FAILED',
-          500,
-          { originalError: initResult.error }
-        ));
+        return err(
+          new GoogleServiceError(
+            `Failed to initialize Sheets service: ${initResult.error.message}`,
+            this.name,
+            'SHEETS_SERVICE_INIT_FAILED',
+            500,
+            { originalError: initResult.error }
+          )
+        );
       }
 
       // Initialize resources
-      this.sheetsResources = new SheetsResources(authService, this.sheetsService);
+      this.sheetsResources = new SheetsResources(
+        authService,
+        this.sheetsService
+      );
 
       // Create tool instances
       this.tools = [
@@ -78,7 +91,7 @@ export class SheetsServiceModule implements ServiceModule {
         new SheetsWriteTool(this.sheetsService, authService),
         new SheetsAppendTool(this.sheetsService, authService),
         new SheetsAddSheetTool(this.sheetsService, authService),
-        new SheetsCreateSpreadsheetTool(this.sheetsService, authService)
+        new SheetsCreateSpreadsheetTool(this.sheetsService, authService),
       ];
 
       this.initialized = true;
@@ -86,26 +99,28 @@ export class SheetsServiceModule implements ServiceModule {
 
       this.logger.info('Sheets service module initialized successfully', {
         initializationTime: this.initializationTime,
-        toolsCreated: this.tools.length
+        toolsCreated: this.tools.length,
       });
 
       return ok(undefined);
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
       this.logger.error('Sheets service module initialization failed', {
         error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined
+        stack: error instanceof Error ? error.stack : undefined,
       });
 
-      return err(new GoogleServiceError(
-        `Sheets service module initialization failed: ${errorMessage}`,
-        this.name,
-        'SHEETS_MODULE_INIT_FAILED',
-        500,
-        { error: errorMessage }
-      ));
+      return err(
+        new GoogleServiceError(
+          `Sheets service module initialization failed: ${errorMessage}`,
+          this.name,
+          'SHEETS_MODULE_INIT_FAILED',
+          500,
+          { error: errorMessage }
+        )
+      );
     }
   }
 
@@ -114,13 +129,15 @@ export class SheetsServiceModule implements ServiceModule {
    */
   public registerTools(server: McpServer): Result<void, GoogleWorkspaceError> {
     if (!this.initialized || !this.tools.length) {
-      return err(new GoogleServiceError(
-        'Sheets service module not initialized. Call initialize() first.',
-        this.name,
-        'SHEETS_MODULE_NOT_INITIALIZED',
-        500,
-        {}
-      ));
+      return err(
+        new GoogleServiceError(
+          'Sheets service module not initialized. Call initialize() first.',
+          this.name,
+          'SHEETS_MODULE_NOT_INITIALIZED',
+          500,
+          {}
+        )
+      );
     }
 
     try {
@@ -130,67 +147,76 @@ export class SheetsServiceModule implements ServiceModule {
         try {
           tool.registerTool(server);
           registeredCount++;
-          
+
           this.logger.debug('Tool registered successfully', {
             toolName: tool.getToolName(),
-            moduleName: this.name
+            moduleName: this.name,
           });
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+
           this.logger.error('Tool registration failed', {
             toolName: tool.getToolName(),
             error: errorMessage,
-            moduleName: this.name
+            moduleName: this.name,
           });
-          
-          return err(new GoogleServiceError(
-            `Failed to register tool ${tool.getToolName()}: ${errorMessage}`,
-            this.name,
-            'TOOL_REGISTRATION_FAILED',
-            500,
-            { toolName: tool.getToolName(), error: errorMessage }
-          ));
+
+          return err(
+            new GoogleServiceError(
+              `Failed to register tool ${tool.getToolName()}: ${errorMessage}`,
+              this.name,
+              'TOOL_REGISTRATION_FAILED',
+              500,
+              { toolName: tool.getToolName(), error: errorMessage }
+            )
+          );
         }
       }
 
       this.logger.info('All Sheets tools registered successfully', {
         registeredCount,
-        moduleName: this.name
+        moduleName: this.name,
       });
 
       return ok(undefined);
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
       this.logger.error('Tool registration process failed', {
         error: errorMessage,
-        moduleName: this.name
+        moduleName: this.name,
       });
-      
-      return err(new GoogleServiceError(
-        `Tool registration process failed: ${errorMessage}`,
-        this.name,
-        'TOOL_REGISTRATION_PROCESS_FAILED',
-        500,
-        { error: errorMessage }
-      ));
+
+      return err(
+        new GoogleServiceError(
+          `Tool registration process failed: ${errorMessage}`,
+          this.name,
+          'TOOL_REGISTRATION_PROCESS_FAILED',
+          500,
+          { error: errorMessage }
+        )
+      );
     }
   }
 
   /**
    * Register all Sheets resources with the MCP server
    */
-  public registerResources(server: McpServer): Result<void, GoogleWorkspaceError> {
+  public registerResources(
+    server: McpServer
+  ): Result<void, GoogleWorkspaceError> {
     if (!this.initialized || !this.sheetsResources) {
-      return err(new GoogleServiceError(
-        'Sheets service module not initialized. Call initialize() first.',
-        this.name,
-        'SHEETS_MODULE_NOT_INITIALIZED',
-        500,
-        {}
-      ));
+      return err(
+        new GoogleServiceError(
+          'Sheets service module not initialized. Call initialize() first.',
+          this.name,
+          'SHEETS_MODULE_NOT_INITIALIZED',
+          500,
+          {}
+        )
+      );
     }
 
     try {
@@ -202,13 +228,16 @@ export class SheetsServiceModule implements ServiceModule {
         'schema://spreadsheets',
         {
           title: 'Spreadsheet Schema',
-          description: 'Schema information for Google Sheets tools and resources',
-          mimeType: 'application/json'
+          description:
+            'Schema information for Google Sheets tools and resources',
+          mimeType: 'application/json',
         },
-        async (uri) => {
-          const result = await this.sheetsResources!.getSpreadsheetSchema(uri.href);
+        async uri => {
+          const result = await this.sheetsResources!.getSpreadsheetSchema(
+            uri.href
+          );
           return {
-            contents: [result]
+            contents: [result],
           } as any;
         }
       );
@@ -216,22 +245,28 @@ export class SheetsServiceModule implements ServiceModule {
 
       this.logger.debug('Resource registered successfully', {
         resourceName: 'spreadsheet-schema',
-        moduleName: this.name
+        moduleName: this.name,
       });
 
       // Register spreadsheet-data resource (dynamic URI)
       server.registerResource(
         'spreadsheet-data',
-        new ResourceTemplate('spreadsheet://{spreadsheetId}', { list: undefined }),
+        new ResourceTemplate('spreadsheet://{spreadsheetId}', {
+          list: undefined,
+        }),
         {
           title: 'Spreadsheet Data',
-          description: 'Metadata and structure information for a specific spreadsheet',
-          mimeType: 'application/json'
+          description:
+            'Metadata and structure information for a specific spreadsheet',
+          mimeType: 'application/json',
         },
         async (uri, { spreadsheetId }) => {
-          const result = await this.sheetsResources!.getSpreadsheetData(uri.href, spreadsheetId as string);
+          const result = await this.sheetsResources!.getSpreadsheetData(
+            uri.href,
+            spreadsheetId as string
+          );
           return {
-            contents: [result]
+            contents: [result],
           } as any;
         }
       );
@@ -239,31 +274,33 @@ export class SheetsServiceModule implements ServiceModule {
 
       this.logger.debug('Resource registered successfully', {
         resourceName: 'spreadsheet-data',
-        moduleName: this.name
+        moduleName: this.name,
       });
 
       this.logger.info('All Sheets resources registered successfully', {
         registeredCount,
-        moduleName: this.name
+        moduleName: this.name,
       });
 
       return ok(undefined);
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
       this.logger.error('Resource registration process failed', {
         error: errorMessage,
-        moduleName: this.name
+        moduleName: this.name,
       });
-      
-      return err(new GoogleServiceError(
-        `Resource registration process failed: ${errorMessage}`,
-        this.name,
-        'RESOURCE_REGISTRATION_PROCESS_FAILED',
-        500,
-        { error: errorMessage }
-      ));
+
+      return err(
+        new GoogleServiceError(
+          `Resource registration process failed: ${errorMessage}`,
+          this.name,
+          'RESOURCE_REGISTRATION_PROCESS_FAILED',
+          500,
+          { error: errorMessage }
+        )
+      );
     }
   }
 
@@ -287,21 +324,23 @@ export class SheetsServiceModule implements ServiceModule {
 
       this.logger.info('Sheets service module cleanup completed successfully');
       return ok(undefined);
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
       this.logger.error('Sheets service module cleanup failed', {
-        error: errorMessage
+        error: errorMessage,
       });
-      
-      return err(new GoogleServiceError(
-        `Cleanup failed: ${errorMessage}`,
-        this.name,
-        'CLEANUP_FAILED',
-        500,
-        { error: errorMessage }
-      ));
+
+      return err(
+        new GoogleServiceError(
+          `Cleanup failed: ${errorMessage}`,
+          this.name,
+          'CLEANUP_FAILED',
+          500,
+          { error: errorMessage }
+        )
+      );
     }
   }
 
@@ -317,7 +356,7 @@ export class SheetsServiceModule implements ServiceModule {
    */
   public getHealthStatus(): ServiceModuleHealthStatus {
     const status = this.initialized ? 'healthy' : 'unhealthy';
-    
+
     return {
       status,
       lastChecked: new Date(),
@@ -325,8 +364,8 @@ export class SheetsServiceModule implements ServiceModule {
       metrics: {
         toolsRegistered: this.tools.length,
         resourcesRegistered: 2, // spreadsheet-schema and spreadsheet-data
-        initializationTime: this.initializationTime
-      }
+        initializationTime: this.initializationTime,
+      },
     };
   }
 

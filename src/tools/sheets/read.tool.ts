@@ -1,13 +1,16 @@
 import { Result, ok, err } from 'neverthrow';
 import { BaseSheetsTools } from './base-sheets-tool.js';
 import { SchemaFactory } from '../base/tool-schema.js';
-import type { ToolMetadata, ToolExecutionContext } from '../base/tool-registry.js';
+import type {
+  ToolMetadata,
+  ToolExecutionContext,
+} from '../base/tool-registry.js';
 import type { SheetsService } from '../../services/sheets.service.js';
 import type { AuthService } from '../../services/auth.service.js';
 import type { SheetsReadResult, MCPToolResult } from '../../types/index.js';
-import { 
+import {
   GoogleWorkspaceError,
-  GoogleErrorFactory 
+  GoogleErrorFactory,
 } from '../../errors/index.js';
 import { Logger } from '../../utils/logger.js';
 
@@ -19,7 +22,10 @@ interface SheetsReadParams {
 /**
  * Individual tool for reading data from spreadsheet ranges
  */
-export class SheetsReadTool extends BaseSheetsTools<SheetsReadParams, MCPToolResult> {
+export class SheetsReadTool extends BaseSheetsTools<
+  SheetsReadParams,
+  MCPToolResult
+> {
   constructor(
     sheetsService: SheetsService,
     authService: AuthService,
@@ -41,16 +47,16 @@ export class SheetsReadTool extends BaseSheetsTools<SheetsReadParams, MCPToolRes
     context?: ToolExecutionContext
   ): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
     const requestId = context?.requestId || this.generateRequestId();
-    
-    this.logger.info('Starting spreadsheet read operation', { 
-      spreadsheetId: params.spreadsheetId, 
-      range: params.range, 
-      requestId 
+
+    this.logger.info('Starting spreadsheet read operation', {
+      spreadsheetId: params.spreadsheetId,
+      range: params.range,
+      requestId,
     });
-    
+
     // Parameter validation
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema('sheets-read'), 
+      SchemaFactory.createToolInputSchema('sheets-read'),
       params,
       { operation: 'read-sheets', requestId }
     );
@@ -59,11 +65,11 @@ export class SheetsReadTool extends BaseSheetsTools<SheetsReadParams, MCPToolRes
         error: validationResult.error.toJSON(),
         spreadsheetId: params.spreadsheetId,
         range: params.range,
-        requestId
+        requestId,
       });
       return err(validationResult.error);
     }
-    
+
     const validatedParams = validationResult.value;
 
     // Validate authentication
@@ -75,7 +81,7 @@ export class SheetsReadTool extends BaseSheetsTools<SheetsReadParams, MCPToolRes
     try {
       // Use SheetsService to read data
       const sheetDataResult = await this.sheetsService.readRange(
-        validatedParams.spreadsheetId, 
+        validatedParams.spreadsheetId,
         validatedParams.range
       );
       if (sheetDataResult.isErr()) {
@@ -83,33 +89,34 @@ export class SheetsReadTool extends BaseSheetsTools<SheetsReadParams, MCPToolRes
           error: sheetDataResult.error.toJSON(),
           spreadsheetId: validatedParams.spreadsheetId,
           range: validatedParams.range,
-          requestId
+          requestId,
         });
         return err(sheetDataResult.error);
       }
 
       const sheetData = sheetDataResult.value;
-      
+
       const result: SheetsReadResult = {
         range: sheetData.range,
         values: sheetData.values || [],
-        majorDimension: sheetData.majorDimension || 'ROWS'
+        majorDimension: sheetData.majorDimension || 'ROWS',
       };
 
       this.logger.info('Successfully read spreadsheet data', {
         spreadsheetId: validatedParams.spreadsheetId,
         range: validatedParams.range,
         rowCount: result.values.length,
-        requestId
+        requestId,
       });
-      
+
       return ok({
-        content: [{ 
-          type: 'text' as const, 
-          text: JSON.stringify(result, null, 2) 
-        }]
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
       });
-      
     } catch (error) {
       const sheetsError = GoogleErrorFactory.createSheetsError(
         error instanceof Error ? error : new Error(String(error)),
@@ -117,14 +124,14 @@ export class SheetsReadTool extends BaseSheetsTools<SheetsReadParams, MCPToolRes
         validatedParams.range,
         { operation: 'sheets-read', requestId }
       );
-      
+
       this.logger.error('Unexpected error in sheetsRead', {
         error: sheetsError.toJSON(),
         spreadsheetId: validatedParams.spreadsheetId,
         range: validatedParams.range,
-        requestId
+        requestId,
       });
-      
+
       return err(sheetsError);
     }
   }
