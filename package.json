@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node --esm src/index.ts",
+    "clear": "rimraf dist node_modules/.cache .nyc_output coverage",
     "test": "NODE_ENV=test jest --maxWorkers=75% --no-coverage",
     "test:watch": "NODE_ENV=test jest --watch --maxWorkers=50% --no-coverage",
     "test:coverage": "NODE_ENV=test jest --coverage --maxWorkers=75%",
@@ -33,6 +34,7 @@
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.0.0",
     "jest": "^29.0.0",
+    "rimraf": "^6.0.1",
     "ts-jest": "^29.0.0",
     "ts-node": "^10.0.0",
     "typescript": "^5.0.0"
