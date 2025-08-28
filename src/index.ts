@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { AuthService } from './services/auth.service.js';
-import { ServiceRegistry, SheetsServiceModule } from './registry/index.js';
+import { ServiceRegistry, SheetsServiceModule, CalendarServiceModule } from './registry/index.js';
 import { loadConfig } from './config/index.js';
 import { createServiceLogger } from './utils/logger.js';
 import type { EnvironmentConfig } from './types/index.js';
@@ -38,6 +38,13 @@ async function initializeServices(): Promise<void> {
   const registerResult = serviceRegistry.registerModule(sheetsModule);
   if (registerResult.isErr()) {
     throw registerResult.error;
+  }
+
+  // Calendar サービスモジュールの登録
+  const calendarModule = new CalendarServiceModule();
+  const calendarRegisterResult = serviceRegistry.registerModule(calendarModule);
+  if (calendarRegisterResult.isErr()) {
+    throw calendarRegisterResult.error;
   }
 
   // 全サービスモジュールの初期化

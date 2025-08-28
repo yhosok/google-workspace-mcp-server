@@ -26,6 +26,12 @@ export interface SheetData {
 }
 
 // MCPツール関連の型定義
+export interface ToolMetadata {
+  title: string;
+  description: string;
+  inputSchema: Record<string, any>;
+}
+
 export interface MCPToolResult {
   content: Array<{
     type: 'text' | 'resource_link';
@@ -83,6 +89,194 @@ export interface SheetsCreateSpreadsheetResult {
     title: string;
     index: number;
   }>;
+}
+
+// Google Calendar関連の型定義
+export interface CalendarInfo {
+  id: string;
+  summary: string;
+  description?: string;
+  location?: string;
+  timeZone?: string;
+  kind?: string;
+  etag?: string;
+  conferenceProperties?: {
+    allowedConferenceSolutionTypes?: string[];
+  };
+}
+
+export interface CalendarListEntry {
+  id: string;
+  summary: string;
+  description?: string;
+  location?: string;
+  timeZone?: string;
+  primary?: boolean;
+  accessRole?: string;
+  colorId?: string;
+  backgroundColor?: string;
+  foregroundColor?: string;
+  selected?: boolean;
+  deleted?: boolean;
+}
+
+export interface CalendarEvent {
+  id?: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  start: {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
+  end: {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
+  status?: string;
+  created?: string;
+  updated?: string;
+  creator?: {
+    id?: string;
+    email?: string;
+    displayName?: string;
+    self?: boolean;
+  };
+  organizer?: {
+    id?: string;
+    email?: string;
+    displayName?: string;
+    self?: boolean;
+  };
+  attendees?: Array<{
+    id?: string;
+    email?: string;
+    displayName?: string;
+    optional?: boolean;
+    responseStatus?: 'needsAction' | 'declined' | 'tentative' | 'accepted';
+    comment?: string;
+    additionalGuests?: number;
+  }>;
+  reminders?: {
+    useDefault?: boolean;
+    overrides?: Array<{
+      method?: 'email' | 'popup';
+      minutes?: number;
+    }>;
+  };
+  recurrence?: string[];
+  transparency?: 'opaque' | 'transparent';
+  visibility?: 'default' | 'public' | 'private' | 'confidential';
+  sequence?: number;
+  htmlLink?: string;
+  iCalUID?: string;
+  conferenceData?: {
+    createRequest?: {
+      requestId?: string;
+      conferenceSolutionKey?: {
+        type?: string;
+      };
+      status?: {
+        statusCode?: string;
+      };
+    };
+    entryPoints?: Array<{
+      entryPointType?: string;
+      uri?: string;
+      label?: string;
+      pin?: string;
+      accessCode?: string;
+      meetingCode?: string;
+      passcode?: string;
+      password?: string;
+    }>;
+    conferenceSolution?: {
+      key?: {
+        type?: string;
+      };
+      name?: string;
+      iconUri?: string;
+    };
+    conferenceId?: string;
+    signature?: string;
+    notes?: string;
+  };
+  gadget?: {
+    type?: string;
+    title?: string;
+    link?: string;
+    iconLink?: string;
+    width?: number;
+    height?: number;
+    display?: string;
+    preferences?: Record<string, string>;
+  };
+  anyoneCanAddSelf?: boolean;
+  guestsCanInviteOthers?: boolean;
+  guestsCanModify?: boolean;
+  guestsCanSeeOtherGuests?: boolean;
+  privateCopy?: boolean;
+  locked?: boolean;
+  source?: {
+    url?: string;
+    title?: string;
+  };
+  attachments?: Array<{
+    fileUrl?: string;
+    title?: string;
+    mimeType?: string;
+    iconLink?: string;
+    fileId?: string;
+  }>;
+}
+
+export interface EventListOptions {
+  timeMin?: string;
+  timeMax?: string;
+  maxResults?: number;
+  singleEvents?: boolean;
+  orderBy?: 'startTime' | 'updated';
+  q?: string;
+  showDeleted?: boolean;
+  showHiddenInvitations?: boolean;
+  updatedMin?: string;
+  privateExtendedProperty?: string;
+  sharedExtendedProperty?: string;
+  syncToken?: string;
+  pageToken?: string;
+}
+
+// Calendarツール用の結果型
+export interface CalendarListResult {
+  calendars: CalendarListEntry[];
+}
+
+export interface CalendarEventsResult {
+  events: CalendarEvent[];
+  nextPageToken?: string;
+  nextSyncToken?: string;
+}
+
+export interface CalendarEventResult {
+  event: CalendarEvent;
+}
+
+export interface CalendarCreateEventResult {
+  event: CalendarEvent;
+}
+
+export interface CalendarUpdateEventResult {
+  event: CalendarEvent;
+}
+
+export interface CalendarDeleteEventResult {
+  success: boolean;
+}
+
+export interface CalendarQuickAddResult {
+  event: CalendarEvent;
 }
 
 // MCPリソース関連の型定義

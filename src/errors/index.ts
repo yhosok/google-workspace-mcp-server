@@ -394,11 +394,215 @@ export class GoogleTimeoutError extends GoogleWorkspaceError {
 }
 
 /**
+ * Calendar Service Errors
+ */
+export class GoogleCalendarError extends GoogleWorkspaceError {
+  public readonly calendarId?: string;
+  public readonly eventId?: string;
+
+  constructor(
+    message: string,
+    code: string,
+    statusCode: number = 500,
+    calendarId?: string,
+    eventId?: string,
+    context?: Record<string, unknown>,
+    cause?: Error
+  ) {
+    super(
+      message,
+      code,
+      statusCode,
+      { calendarId, eventId, ...context },
+      cause
+    );
+    this.calendarId = calendarId;
+    this.eventId = eventId;
+  }
+
+  public isRetryable(): boolean {
+    return this.statusCode >= 500;
+  }
+}
+
+/**
+ * Calendar not found error
+ */
+export class GoogleCalendarNotFoundError extends GoogleCalendarError {
+  constructor(
+    calendarId: string,
+    context?: Record<string, unknown>,
+    cause?: Error
+  ) {
+    super(
+      `Calendar not found: ${calendarId}`,
+      'GOOGLE_CALENDAR_NOT_FOUND',
+      404,
+      calendarId,
+      undefined,
+      context,
+      cause
+    );
+  }
+
+  public isRetryable(): boolean {
+    return false;
+  }
+}
+
+/**
+ * Event not found error
+ */
+export class GoogleCalendarEventNotFoundError extends GoogleCalendarError {
+  constructor(
+    calendarId: string,
+    eventId: string,
+    context?: Record<string, unknown>,
+    cause?: Error
+  ) {
+    super(
+      `Event not found: ${eventId} in calendar ${calendarId}`,
+      'GOOGLE_CALENDAR_EVENT_NOT_FOUND',
+      404,
+      calendarId,
+      eventId,
+      context,
+      cause
+    );
+  }
+
+  public isRetryable(): boolean {
+    return false;
+  }
+}
+
+/**
+ * Calendar permission error
+ */
+export class GoogleCalendarPermissionError extends GoogleCalendarError {
+  constructor(
+    calendarId?: string,
+    eventId?: string,
+    context?: Record<string, unknown>,
+    cause?: Error
+  ) {
+    const resourceInfo = eventId
+      ? `event ${eventId} in calendar ${calendarId}`
+      : calendarId
+        ? `calendar ${calendarId}`
+        : 'calendar resource';
+
+    super(
+      `Permission denied for ${resourceInfo}`,
+      'GOOGLE_CALENDAR_PERMISSION_DENIED',
+      403,
+      calendarId,
+      eventId,
+      context,
+      cause
+    );
+  }
+
+  public isRetryable(): boolean {
+    return false;
+  }
+}
+
+/**
+ * Calendar rate limit error
+ */
+export class GoogleCalendarRateLimitError extends GoogleCalendarError {
+  public readonly retryAfterMs?: number;
+
+  constructor(
+    retryAfterMs?: number,
+    context?: Record<string, unknown>,
+    cause?: Error
+  ) {
+    const message = retryAfterMs
+      ? `Rate limit exceeded. Retry after ${retryAfterMs}ms`
+      : 'Rate limit exceeded. Please retry later';
+
+    super(
+      message,
+      'GOOGLE_CALENDAR_RATE_LIMIT',
+      429,
+      undefined,
+      undefined,
+      context,
+      cause
+    );
+    this.retryAfterMs = retryAfterMs;
+  }
+
+  public isRetryable(): boolean {
+    return true;
+  }
+
+  public override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      retryAfterMs: this.retryAfterMs,
+    };
+  }
+}
+
+/**
+ * Calendar quota exceeded error
+ */
+export class GoogleCalendarQuotaExceededError extends GoogleCalendarError {
+  constructor(context?: Record<string, unknown>, cause?: Error) {
+    super(
+      'Calendar API quota exceeded',
+      'GOOGLE_CALENDAR_QUOTA_EXCEEDED',
+      429,
+      undefined,
+      undefined,
+      context,
+      cause
+    );
+  }
+
+  public isRetryable(): boolean {
+    return false;
+  }
+}
+
+/**
+ * Invalid calendar operation error
+ */
+export class GoogleCalendarInvalidOperationError extends GoogleCalendarError {
+  constructor(
+    operation: string,
+    reason: string,
+    calendarId?: string,
+    eventId?: string,
+    context?: Record<string, unknown>,
+    cause?: Error
+  ) {
+    super(
+      `Invalid ${operation} operation: ${reason}`,
+      'GOOGLE_CALENDAR_INVALID_OPERATION',
+      400,
+      calendarId,
+      eventId,
+      { operation, reason, ...context },
+      cause
+    );
+  }
+
+  public isRetryable(): boolean {
+    return false;
+  }
+}
+
+/**
  * Type definitions for Result pattern integration
  */
 export type GoogleWorkspaceResult<T> = Result<T, GoogleWorkspaceError>;
 export type GoogleAuthResult<T> = Result<T, GoogleAuthError>;
 export type GoogleSheetsResult<T> = Result<T, GoogleSheetsError>;
+export type GoogleCalendarResult<T> = Result<T, GoogleCalendarError>;
 
 /**
  * Helper functions for creating Results
@@ -417,6 +621,12 @@ export const sheetsOk = <T>(value: T): GoogleSheetsResult<T> => new Ok(value);
 export const sheetsErr = (
   error: GoogleSheetsError
 ): GoogleSheetsResult<never> => new Err(error);
+
+export const calendarOk = <T>(value: T): GoogleCalendarResult<T> =>
+  new Ok(value);
+export const calendarErr = (
+  error: GoogleCalendarError
+): GoogleCalendarResult<never> => new Err(error);
 
 /**
  * Error factory functions for common error scenarios
@@ -763,6 +973,265 @@ export class GoogleErrorFactory {
       normalizedError.httpStatus,
       spreadsheetId,
       range,
+      enrichedContext,
+      cause
+    );
+  }
+
+  /**
+   * Create a Calendar error from a generic error
+   *
+   * @param cause - The original error that occurred
+   * @param calendarId - The ID of the calendar being accessed
+   * @param eventId - The ID of the event being accessed (if applicable)
+   * @param context - Additional context data
+   * @returns Appropriate GoogleCalendarError subclass
+   */
+  static createCalendarError(
+    cause: Error | null | undefined,
+    calendarId?: string,
+    eventId?: string,
+    context?: Record<string, unknown>
+  ): GoogleCalendarError {
+    // Extract normalized error information
+    const errorToExtract = context?.originalGaxiosError || cause;
+    const normalizedError = extractGoogleApiError(errorToExtract);
+    const enrichedContext = {
+      normalizedError,
+      ...context,
+    };
+
+    // Handle null/undefined errors gracefully
+    if (!cause) {
+      return new GoogleCalendarError(
+        'Unknown Calendar error',
+        'GOOGLE_CALENDAR_ERROR',
+        500,
+        calendarId,
+        eventId,
+        enrichedContext
+      );
+    }
+
+    // Helper function to override error message when normalized message is more specific
+    const overrideMessageIfBetter = <T extends GoogleCalendarError>(
+      errorInstance: T
+    ): T => {
+      if (
+        normalizedError.message &&
+        normalizedError.message !== cause.message
+      ) {
+        Object.defineProperty(errorInstance, 'message', {
+          value: normalizedError.message,
+          writable: false,
+          configurable: false,
+        });
+      }
+      return errorInstance;
+    };
+
+    // Helper function to extract retry-after from headers
+    const extractRetryAfter = (): number | undefined => {
+      if (context?.originalGaxiosError) {
+        const gaxiosError = context.originalGaxiosError as GaxiosErrorLike;
+        const retryAfterHeader = gaxiosError?.response?.headers?.[
+          'retry-after'
+        ] as string | undefined;
+        if (retryAfterHeader) {
+          return parseInt(retryAfterHeader, 10) * 1000;
+        }
+      }
+      return undefined;
+    };
+
+    // Priority 1: Use structured reason field for classification
+    if (normalizedError.reason) {
+      switch (normalizedError.reason) {
+        case 'notFound':
+          if (eventId) {
+            return overrideMessageIfBetter(
+              new GoogleCalendarEventNotFoundError(
+                calendarId || 'unknown',
+                eventId,
+                enrichedContext
+              )
+            );
+          } else {
+            return overrideMessageIfBetter(
+              new GoogleCalendarNotFoundError(
+                calendarId || 'unknown',
+                enrichedContext
+              )
+            );
+          }
+
+        case 'forbidden':
+          return overrideMessageIfBetter(
+            new GoogleCalendarPermissionError(
+              calendarId,
+              eventId,
+              enrichedContext
+            )
+          );
+
+        case 'rateLimitExceeded':
+          return new GoogleCalendarRateLimitError(
+            extractRetryAfter(),
+            enrichedContext
+          );
+
+        case 'quotaExceeded':
+          return new GoogleCalendarQuotaExceededError(enrichedContext);
+
+        case 'invalidParameter':
+        case 'badRequest':
+        case 'invalid':
+          return new GoogleCalendarInvalidOperationError(
+            'calendar operation',
+            normalizedError.message || 'Invalid parameters',
+            calendarId,
+            eventId,
+            enrichedContext
+          );
+
+        case 'backendError':
+        case 'internalServerError':
+          return new GoogleCalendarError(
+            normalizedError.message,
+            'GOOGLE_CALENDAR_SERVER_ERROR',
+            normalizedError.httpStatus,
+            calendarId,
+            eventId,
+            enrichedContext,
+            cause
+          );
+      }
+    }
+
+    // Priority 2: Use HTTP status code for classification
+    switch (normalizedError.httpStatus) {
+      case 404:
+        if (eventId) {
+          return overrideMessageIfBetter(
+            new GoogleCalendarEventNotFoundError(
+              calendarId || 'unknown',
+              eventId,
+              enrichedContext
+            )
+          );
+        } else {
+          return overrideMessageIfBetter(
+            new GoogleCalendarNotFoundError(
+              calendarId || 'unknown',
+              enrichedContext
+            )
+          );
+        }
+
+      case 403:
+        return overrideMessageIfBetter(
+          new GoogleCalendarPermissionError(
+            calendarId,
+            eventId,
+            enrichedContext
+          )
+        );
+
+      case 429:
+        // Distinguish between rate limit and quota based on context
+        if (
+          normalizedError.reason === 'quotaExceeded' ||
+          normalizedError.domain === 'usageLimits' ||
+          normalizedError.message.toLowerCase().includes('quota')
+        ) {
+          return new GoogleCalendarQuotaExceededError(enrichedContext);
+        }
+        return new GoogleCalendarRateLimitError(
+          extractRetryAfter(),
+          enrichedContext
+        );
+
+      case 400:
+        return new GoogleCalendarInvalidOperationError(
+          'calendar operation',
+          normalizedError.message || 'Bad request',
+          calendarId,
+          eventId,
+          enrichedContext
+        );
+
+      case 500:
+      case 502:
+      case 503:
+      case 504:
+        return new GoogleCalendarError(
+          normalizedError.message,
+          'GOOGLE_CALENDAR_SERVER_ERROR',
+          normalizedError.httpStatus,
+          calendarId,
+          eventId,
+          enrichedContext,
+          cause
+        );
+    }
+
+    // Priority 3: Fallback to string matching only if no structured data available
+    if (!normalizedError.reason && cause.message) {
+      const message = cause.message.toLowerCase();
+
+      if (message.includes('not found')) {
+        if (eventId) {
+          return new GoogleCalendarEventNotFoundError(
+            calendarId || 'unknown',
+            eventId,
+            enrichedContext
+          );
+        } else {
+          return new GoogleCalendarNotFoundError(
+            calendarId || 'unknown',
+            enrichedContext
+          );
+        }
+      }
+
+      if (message.includes('permission') || message.includes('forbidden')) {
+        return new GoogleCalendarPermissionError(
+          calendarId,
+          eventId,
+          enrichedContext
+        );
+      }
+
+      if (message.includes('rate limit')) {
+        const retryAfterMatch = cause.message.match(/retry after (\d+)/i);
+        const retryAfterMs = retryAfterMatch
+          ? parseInt(retryAfterMatch[1], 10) * 1000
+          : undefined;
+        return new GoogleCalendarRateLimitError(retryAfterMs, enrichedContext);
+      }
+
+      if (message.includes('quota') || message.includes('exceeded')) {
+        return new GoogleCalendarQuotaExceededError(enrichedContext);
+      }
+
+      if (message.includes('invalid') || message.includes('bad request')) {
+        return new GoogleCalendarInvalidOperationError(
+          'calendar operation',
+          cause.message,
+          calendarId,
+          eventId,
+          enrichedContext
+        );
+      }
+    }
+
+    // Default fallback
+    return new GoogleCalendarError(
+      normalizedError.message,
+      'GOOGLE_CALENDAR_ERROR',
+      normalizedError.httpStatus,
+      calendarId,
+      eventId,
       enrichedContext,
       cause
     );

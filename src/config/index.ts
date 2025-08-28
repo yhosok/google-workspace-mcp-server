@@ -188,12 +188,15 @@ export function loadConfig(): EnvironmentConfig {
  * These scopes provide the necessary permissions for:
  * - Reading and writing Google Sheets
  * - Creating and managing files in Google Drive
+ * - Reading and writing Google Calendar events
  */
 export const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets',
   // Drive file scope needed to create/move spreadsheets into folders
   // Note: drive.readonly would block spreadsheet creation operations
   'https://www.googleapis.com/auth/drive.file',
+  // Calendar scope for reading and writing calendar events
+  'https://www.googleapis.com/auth/calendar',
 ] as const;
 
 /**

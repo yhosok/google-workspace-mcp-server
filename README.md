@@ -58,10 +58,10 @@ npm run build
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project or select an existing one
-3. Enable the Google Sheets API:
+3. Enable the required Google APIs:
    - Navigate to "APIs & Services" > "Library"
-   - Search for "Google Sheets API"
-   - Click "Enable"
+   - Search for "Google Sheets API" and click "Enable"
+   - Search for "Google Calendar API" and click "Enable"
 
 ### 2. Create a Service Account
 
@@ -81,13 +81,24 @@ npm run build
 5. Choose "JSON" format
 6. Download the key file and save it securely
 
-### 4. Share Google Sheets
+### 4. Share Google Workspace Resources
 
-For the service account to access your Google Sheets:
+For the service account to access your Google Workspace resources:
+
+**For Google Sheets:**
 1. Open the Google Sheet you want to access
 2. Click "Share"
 3. Add the service account email (found in the JSON key file)
 4. Grant appropriate permissions (Viewer/Editor)
+
+**For Google Calendar:**
+1. Open Google Calendar
+2. In the left sidebar, find the calendar you want to share
+3. Click the three dots next to the calendar name
+4. Select "Settings and sharing"
+5. In "Share with specific people", click "Add people"
+6. Add the service account email (found in the JSON key file)
+7. Grant appropriate permissions (See all event details/Make changes to events)
 
 ## Configuration
 
@@ -234,6 +245,95 @@ Creates a new spreadsheet with optional initial sheets.
 "Create a new spreadsheet called 'Sales Report' with sheets for each quarter"
 ```
 
+### Calendar Tools
+
+#### `google-workspace__calendar-list`
+Lists all calendars accessible to the service account.
+
+**Example usage in Claude:**
+```
+"Show me all the calendars I have access to"
+```
+
+#### `google-workspace__calendar-list-events`
+Lists events from a specific calendar with optional filtering.
+
+**Parameters:**
+- `calendarId` (required): The calendar ID to list events from
+- `maxResults` (optional): Maximum number of events to return
+- `timeMin` (optional): Lower bound for event start time (RFC3339)
+- `timeMax` (optional): Upper bound for event start time (RFC3339)
+- `q` (optional): Free text search query
+- `orderBy` (optional): How to order events (startTime, updated)
+- `singleEvents` (optional): Whether to expand recurring events
+- `showDeleted` (optional): Whether to include deleted events
+
+**Example usage in Claude:**
+```
+"List all events for next week in my primary calendar"
+"Show me upcoming meetings in calendar [calendar-id] with 'project' in the title"
+```
+
+#### `google-workspace__calendar-get-event`
+Retrieves detailed information about a specific calendar event.
+
+**Parameters:**
+- `calendarId` (required): The calendar ID containing the event
+- `eventId` (required): The unique identifier of the event
+
+**Example usage in Claude:**
+```
+"Get details for event [event-id] in my calendar"
+```
+
+#### `google-workspace__calendar-create-event`
+Creates a new calendar event with comprehensive options for attendees, reminders, and recurrence.
+
+**Parameters:**
+- `calendarId` (required): The calendar ID to create the event in
+- `summary` (required): The title/summary of the event
+- `start` (required): Start date/time of the event
+- `end` (required): End date/time of the event
+- `description` (optional): Detailed description of the event
+- `location` (optional): Location of the event
+- `attendees` (optional): List of event attendees
+- `reminders` (optional): Reminder settings
+- `recurrence` (optional): RRULE recurrence patterns
+- `visibility` (optional): Event visibility (default, public, private, confidential)
+- `transparency` (optional): Event transparency (opaque, transparent)
+
+**Example usage in Claude:**
+```
+"Create a meeting called 'Team Standup' tomorrow at 9 AM for 1 hour with john@company.com and jane@company.com"
+"Schedule a recurring weekly meeting 'Weekly Review' every Monday at 2 PM in Conference Room A"
+```
+
+#### `google-workspace__calendar-quick-add`
+Creates a calendar event using natural language text with intelligent parsing of dates, times, and locations.
+
+**Parameters:**
+- `calendarId` (required): The calendar ID to create the event in
+- `text` (required): Natural language description of the event
+
+**Example usage in Claude:**
+```
+"Add 'Lunch with client at Joe's Pizza tomorrow at 12:30 PM' to my calendar"
+"Quick add 'Doctor appointment Friday 3 PM' to my calendar"
+```
+
+#### `google-workspace__calendar-delete-event`
+Deletes a calendar event with optional attendee notifications.
+
+**Parameters:**
+- `calendarId` (required): The calendar ID containing the event
+- `eventId` (required): The unique identifier of the event to delete
+- `sendUpdates` (optional): Whether to send cancellation emails (all, externalOnly, none)
+
+**Example usage in Claude:**
+```
+"Delete the meeting [event-id] from my calendar and notify all attendees"
+```
+
 ## Retry and Error Handling
 
 ### Automatic Retry Strategy
@@ -294,7 +394,7 @@ npm run test:coverage
 npm run test:watch
 ```
 
-### Linting
+### Linting and Formatting
 
 ```bash
 # Check for linting errors
@@ -302,6 +402,12 @@ npm run lint
 
 # Fix auto-fixable linting errors
 npm run lint:fix
+
+# Format code with Prettier
+npm run format
+
+# Check code formatting without making changes
+npm run format:check
 ```
 
 ### Building
@@ -376,9 +482,9 @@ GOOGLE_RETRY_MAX_DELAY=60000
 
 ## Roadmap
 
+- [x] Google Calendar support
 - [ ] Google Drive file operations
 - [ ] Google Docs integration  
-- [ ] Google Calendar support
 - [ ] Advanced authentication options (OAuth 2.0)
 - [ ] Batch operations support
 - [ ] Real-time updates via webhooks
