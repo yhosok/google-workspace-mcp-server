@@ -123,7 +123,7 @@ export function convertZodErrorToGoogleSheetsError(
 
   // For tools that include range parameter in their data, both spreadsheetId and range errors
   // should be treated as "range-related" since they're part of the range operation
-  const dataHasRange = (data as any)?.range !== undefined;
+  const dataHasRange = (data as Record<string, unknown>)?.range !== undefined;
 
   if (hasRangeError || (dataHasRange && hasSpreadsheetIdError)) {
     // Find the specific error message for range or spreadsheetId (in range-based tools)
@@ -133,8 +133,11 @@ export function convertZodErrorToGoogleSheetsError(
 
     if (rangeOrIdError) {
       // Return GoogleSheetsInvalidRangeError for range/ID validation failures
-      const rangeValue = (data as any)?.range || range || '';
-      const spreadsheetIdValue = (data as any)?.spreadsheetId || spreadsheetId;
+      const rangeValue =
+        ((data as Record<string, unknown>)?.range as string) || range || '';
+      const spreadsheetIdValue =
+        ((data as Record<string, unknown>)?.spreadsheetId as string) ||
+        spreadsheetId;
       return new GoogleSheetsInvalidRangeError(rangeValue, spreadsheetIdValue, {
         reason: rangeOrIdError.message,
         validationErrors,

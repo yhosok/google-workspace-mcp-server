@@ -18,6 +18,7 @@ import {
   GoogleWorkspaceResult,
   googleOk,
   googleErr,
+  extractGoogleApiError,
 } from '../../errors/index.js';
 import { Logger } from '../../utils/logger.js';
 import { loadConfig } from '../../config/index.js';
@@ -273,20 +274,23 @@ export abstract class GoogleService {
   public abstract healthCheck(): Promise<GoogleWorkspaceResult<boolean>>;
 
   /**
-   * Determine if an error should be retried based on multiple factors.
+   * Determine if an error should be retried using normalized error information.
    * 
    * Priority order:
    * 1. Original error's isRetryable() method (if it explicitly returns false)
-   * 2. HTTP status code in retriable codes list
+   * 2. HTTP status code in retriable codes list (explicit configuration)
    * 3. HTTP status code ranges (4xx are not retriable, 5xx might be)
-   * 4. Converted error's isRetryable() method
+   * 4. Normalized error's isRetryable flag (based on structured analysis) 
+   * 5. Converted error's isRetryable() method
    * 
    * @param error - The original error that occurred
    * @param customError - The converted GoogleWorkspaceError
    * @returns Object indicating whether to retry and the reason
    */
   protected shouldRetryError(error: Error, customError: GoogleWorkspaceError): { shouldRetry: boolean; reason: string } {
-    const statusCode = this.extractStatusCode(error, customError);
+    // Extract normalized error information for better retry decisions
+    const normalizedError = extractGoogleApiError(error);
+    const statusCode = normalizedError.httpStatus || this.extractStatusCode(error, customError);
     
     // First priority: Check if original error had explicit isRetryable that said no
     if ('isRetryable' in error && typeof (error as any).isRetryable === 'function' && !(error as any).isRetryable()) {
@@ -300,10 +304,19 @@ export abstract class GoogleService {
     
     // Third priority: If we have a definitely non-retriable status code, don't retry
     if (statusCode && statusCode >= 400 && statusCode < 500) {
-      return { shouldRetry: false, reason: 'non_retriable_http_status' };
+      // Make an exception for 429 (rate limit) which should always be retryable
+      if (statusCode === 429) {
+        return { shouldRetry: true, reason: 'rate_limit_retryable' };
+      }
+      return { shouldRetry: false, reason: `non_retriable_http_status:${statusCode}` };
     }
     
-    // Fourth priority: Use converted error's isRetryable() method
+    // Fourth priority: Use normalized error's isRetryable flag (based on structured analysis)
+    if (normalizedError.isRetryable) {
+      return { shouldRetry: true, reason: `normalized_retryable:${normalizedError.reason || 'status_' + statusCode}` };
+    }
+    
+    // Fifth priority: Use converted error's isRetryable() method
     const isRetryable = customError.isRetryable();
     if (!isRetryable) {
       return { shouldRetry: false, reason: 'error_not_retryable' };
@@ -314,24 +327,20 @@ export abstract class GoogleService {
   }
 
   /**
-   * Extract HTTP status code from various error object properties.
-   * Checks multiple common property names where status codes might be stored.
+   * Extract HTTP status code using normalized error extraction.
+   * Uses the new normalized error system to reliably extract status codes
+   * from various error sources including GaxiosError structures.
    * 
    * @param error - The original error object
    * @param customError - The converted error object
    * @returns HTTP status code or null if not found
    */
   protected extractStatusCode(error: Error, customError: GoogleWorkspaceError): number | null {
-    // Check various possible properties where status code might be stored
-    const errorObj = error as any;
-    const customErrorObj = customError as any;
+    // Use normalized error extraction for reliable status code detection
+    const normalizedError = extractGoogleApiError(error);
     
-    return errorObj.statusCode || 
-           errorObj.status ||
-           errorObj.code ||
-           customErrorObj.statusCode ||
-           customErrorObj.status ||
-           null;
+    // Return the normalized status code, which follows priority-based extraction
+    return normalizedError.httpStatus || customError.statusCode || null;
   }
 
   /**
@@ -510,7 +519,14 @@ export abstract class GoogleService {
   }
 
   /**
-   * Convert a generic error to our custom error type
+   * Convert a generic error to our custom error type using normalized error extraction.
+   * 
+   * This method now uses the normalized error system to make better decisions about
+   * error classification and avoid brittle string matching.
+   * 
+   * @param error - The original error
+   * @param context - Service context for additional information
+   * @returns Appropriate GoogleWorkspaceError subclass
    */
   protected convertError(
     error: Error,
@@ -527,29 +543,43 @@ export abstract class GoogleService {
       return error;
     }
 
-    // Try to identify common Google API errors
-    const message = error.message.toLowerCase();
+    // Extract normalized error information for better classification
+    const normalizedError = extractGoogleApiError(error);
+    const enrichedContext = {
+      normalizedError,
+      ...context.data
+    };
 
-    if (
-      message.includes('auth') ||
-      message.includes('credential') ||
-      message.includes('token')
-    ) {
-      return GoogleErrorFactory.createAuthError(
-        error,
-        'service-account',
-        context.data
-      );
+    // Use structured data for error classification instead of string matching
+    if (normalizedError.reason) {
+      // Check for authentication-related errors using structured reason
+      const authReasons = ['authError', 'forbidden', 'invalid', 'required', 'missing', 'expired', 'tokenExpired'];
+      if (authReasons.includes(normalizedError.reason)) {
+        return GoogleErrorFactory.createAuthError(error, 'service-account', enrichedContext);
+      }
     }
 
-    // Default to generic service error - preserve original status code if available
-    const statusCode = this.extractStatusCode(error, error as any) || 500;
+    // Fallback to HTTP status-based classification
+    if (normalizedError.httpStatus === 401 || normalizedError.httpStatus === 403) {
+      return GoogleErrorFactory.createAuthError(error, 'service-account', enrichedContext);
+    }
+
+    // Last resort: string matching (only if no structured data available)
+    if (!normalizedError.reason) {
+      const message = error.message.toLowerCase();
+      if (message.includes('auth') || message.includes('credential') || message.includes('token')) {
+        return GoogleErrorFactory.createAuthError(error, 'service-account', enrichedContext);
+      }
+    }
+
+    // Default to generic service error
+    const statusCode = normalizedError.httpStatus || 500;
     const genericServiceError = new GoogleServiceError(
-      error.message,
+      normalizedError.message,
       this.getServiceName(),
       'GOOGLE_SERVICE_ERROR',
       statusCode,
-      context.data,
+      enrichedContext,
       error
     );
     

@@ -425,7 +425,10 @@ describe('ValidationUtils', () => {
       expect(result.statusCode).toBe(400);
       expect(result.context).toHaveProperty('validationErrors');
 
-      const validationErrors = result.context?.validationErrors as any[];
+      const validationErrors = result.context?.validationErrors as Record<
+        string,
+        unknown
+      >[];
       expect(Array.isArray(validationErrors)).toBe(true);
       expect(validationErrors).toHaveLength(1);
       expect(validationErrors[0]).toMatchObject({

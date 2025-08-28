@@ -7,6 +7,13 @@
 
 import { Result, Err, Ok } from 'neverthrow';
 
+// Export new normalized error interfaces and utilities
+export * from './normalized-error.js';
+export * from './error-extractor.js';
+
+// Import the extractGoogleApiError function for use in GoogleErrorFactory
+import { extractGoogleApiError, GaxiosErrorLike } from './normalized-error.js';
+
 /**
  * Base error class for all Google Workspace related errors
  * Provides common error handling capabilities and structured error information
@@ -377,98 +384,378 @@ export const sheetsErr = (
 
 /**
  * Error factory functions for common error scenarios
+ *
+ * This factory uses normalized error extraction to avoid brittle string matching.
+ * Error classification follows this priority:
+ * 1. Structured reason field from Google API error details
+ * 2. HTTP status code classification
+ * 3. Fallback string matching (only if no structured data available)
  */
 export class GoogleErrorFactory {
   /**
    * Create an authentication error from a generic error
+   *
+   * @param cause - The original error that occurred
+   * @param authType - The type of authentication being used
+   * @param context - Additional context data
+   * @returns Appropriate GoogleAuthError subclass
    */
   static createAuthError(
-    cause: Error,
+    cause: Error | null | undefined,
     authType: 'service-account' | 'oauth2' | 'api-key' = 'service-account',
     context?: Record<string, unknown>
   ): GoogleAuthError {
-    if (cause.message.includes('token') && cause.message.includes('expired')) {
-      return new GoogleAuthTokenExpiredError(authType, context);
+    // Extract normalized error information
+    const errorToExtract = context?.originalGaxiosError || cause;
+    const normalizedError = extractGoogleApiError(errorToExtract);
+    const enrichedContext = {
+      normalizedError,
+      ...context,
+    };
+
+    // Handle null/undefined errors gracefully
+    if (!cause) {
+      return new GoogleAuthError(
+        'Unknown authentication error',
+        authType,
+        enrichedContext
+      );
     }
 
-    if (
-      cause.message.includes('credential') ||
-      cause.message.includes('invalid')
-    ) {
-      return new GoogleAuthInvalidCredentialsError(authType, context);
+    // Helper function to create error with proper message override
+    const createErrorWithMessage = (
+      ErrorClass: new (
+        authType?: 'service-account' | 'oauth2' | 'api-key',
+        context?: Record<string, unknown>
+      ) => GoogleAuthError
+    ): GoogleAuthError => {
+      const errorInstance = new ErrorClass(authType, enrichedContext);
+      if (
+        normalizedError.message &&
+        normalizedError.message !== cause.message
+      ) {
+        Object.defineProperty(errorInstance, 'message', {
+          value: normalizedError.message,
+          writable: false,
+          configurable: false,
+        });
+      }
+      return errorInstance;
+    };
+
+    // Priority 1: Use structured reason field for classification
+    if (normalizedError.reason) {
+      switch (normalizedError.reason) {
+        case 'authError':
+        case 'expired':
+        case 'tokenExpired':
+          return createErrorWithMessage(GoogleAuthTokenExpiredError);
+
+        case 'forbidden':
+        case 'invalid':
+        case 'invalidCredentials':
+          return createErrorWithMessage(GoogleAuthInvalidCredentialsError);
+
+        case 'required':
+        case 'missing':
+        case 'missingCredentials':
+          return createErrorWithMessage(GoogleAuthMissingCredentialsError);
+      }
     }
 
-    if (
-      cause.message.includes('missing') ||
-      cause.message.includes('required')
-    ) {
-      return new GoogleAuthMissingCredentialsError(authType, context);
+    // Priority 2: Use HTTP status for classification
+    switch (normalizedError.httpStatus) {
+      case 401:
+        // For 401, check message content to distinguish between missing and expired
+        if (
+          normalizedError.message.toLowerCase().includes('missing') ||
+          normalizedError.message.toLowerCase().includes('required')
+        ) {
+          return createErrorWithMessage(GoogleAuthMissingCredentialsError);
+        }
+        return createErrorWithMessage(GoogleAuthTokenExpiredError);
+
+      case 403:
+        return createErrorWithMessage(GoogleAuthInvalidCredentialsError);
     }
 
-    return new GoogleAuthError(cause.message, authType, context, cause);
+    // Priority 3: Fallback to string matching only if no structured data available
+    if (!normalizedError.reason && cause.message) {
+      const message = cause.message.toLowerCase();
+
+      if (message.includes('token') && message.includes('expired')) {
+        return new GoogleAuthTokenExpiredError(authType, enrichedContext);
+      }
+
+      if (message.includes('credential') || message.includes('invalid')) {
+        return new GoogleAuthInvalidCredentialsError(authType, enrichedContext);
+      }
+
+      if (message.includes('missing') || message.includes('required')) {
+        return new GoogleAuthMissingCredentialsError(authType, enrichedContext);
+      }
+    }
+
+    // Default fallback
+    return new GoogleAuthError(
+      normalizedError.message,
+      authType,
+      enrichedContext,
+      cause
+    );
   }
 
   /**
    * Create a Sheets error from a generic error
+   *
+   * @param cause - The original error that occurred
+   * @param spreadsheetId - The ID of the spreadsheet being accessed
+   * @param range - The range being accessed (if applicable)
+   * @param context - Additional context data
+   * @returns Appropriate GoogleSheetsError subclass
    */
   static createSheetsError(
-    cause: Error,
+    cause: Error | null | undefined,
     spreadsheetId?: string,
     range?: string,
     context?: Record<string, unknown>
   ): GoogleSheetsError {
-    const message = cause.message.toLowerCase();
+    // Extract normalized error information
+    const errorToExtract = context?.originalGaxiosError || cause;
+    const normalizedError = extractGoogleApiError(errorToExtract);
+    const enrichedContext = {
+      normalizedError,
+      ...context,
+    };
 
-    if (message.includes('not found') || message.includes('404')) {
-      return new GoogleSheetsNotFoundError(spreadsheetId || '', context);
-    }
-
-    if (message.includes('permission') || message.includes('403')) {
-      return new GoogleSheetsPermissionError(spreadsheetId, range, context);
-    }
-
-    if (message.includes('rate limit') || message.includes('429')) {
-      const retryAfterMatch = cause.message.match(/retry after (\d+)/i);
-      const retryAfterMs = retryAfterMatch
-        ? parseInt(retryAfterMatch[1]) * 1000
-        : undefined;
-      return new GoogleSheetsRateLimitError(retryAfterMs, context);
-    }
-
-    if (message.includes('quota') || message.includes('exceeded')) {
-      return new GoogleSheetsQuotaExceededError(context);
-    }
-
-    if (message.includes('range') || message.includes('invalid')) {
-      return new GoogleSheetsInvalidRangeError(
-        range || 'unknown',
+    // Handle null/undefined errors gracefully
+    if (!cause) {
+      return new GoogleSheetsError(
+        'Unknown Sheets error',
+        'GOOGLE_SHEETS_ERROR',
+        500,
         spreadsheetId,
-        context
+        range,
+        enrichedContext
       );
     }
 
-    // Extract status code from HTTP errors
-    const statusMatch = cause.message.match(/(\d{3})/);
-    const statusCode = statusMatch ? parseInt(statusMatch[1]) : 500;
+    // Helper function to override error message when normalized message is more specific
+    const overrideMessageIfBetter = <T extends GoogleSheetsError>(
+      errorInstance: T
+    ): T => {
+      if (
+        normalizedError.message &&
+        normalizedError.message !== cause.message
+      ) {
+        Object.defineProperty(errorInstance, 'message', {
+          value: normalizedError.message,
+          writable: false,
+          configurable: false,
+        });
+      }
+      return errorInstance;
+    };
 
+    // Helper function to extract retry-after from headers
+    const extractRetryAfter = (): number | undefined => {
+      if (context?.originalGaxiosError) {
+        const gaxiosError = context.originalGaxiosError as GaxiosErrorLike;
+        const retryAfterHeader = gaxiosError?.response?.headers?.[
+          'retry-after'
+        ] as string | undefined;
+        if (retryAfterHeader) {
+          return parseInt(retryAfterHeader, 10) * 1000;
+        }
+      }
+      return undefined;
+    };
+
+    // Priority 1: Use structured reason field for classification
+    if (normalizedError.reason) {
+      switch (normalizedError.reason) {
+        case 'notFound':
+          return overrideMessageIfBetter(
+            new GoogleSheetsNotFoundError(spreadsheetId || '', enrichedContext)
+          );
+
+        case 'forbidden':
+          return overrideMessageIfBetter(
+            new GoogleSheetsPermissionError(
+              spreadsheetId,
+              range,
+              enrichedContext
+            )
+          );
+
+        case 'rateLimitExceeded':
+          return new GoogleSheetsRateLimitError(
+            extractRetryAfter(),
+            enrichedContext
+          );
+
+        case 'quotaExceeded':
+          return new GoogleSheetsQuotaExceededError(enrichedContext);
+
+        case 'invalidParameter':
+        case 'badRequest':
+        case 'invalidRange':
+          const rangeError = new GoogleSheetsInvalidRangeError(
+            range || normalizedError.location || 'unknown',
+            spreadsheetId,
+            enrichedContext
+          );
+          // Use specific error message from details if available
+          if (normalizedError.details.length > 0) {
+            const specificMessage = normalizedError.details[0].message;
+            if (specificMessage && specificMessage !== cause.message) {
+              Object.defineProperty(rangeError, 'message', {
+                value: specificMessage,
+                writable: false,
+                configurable: false,
+              });
+            }
+          }
+          return rangeError;
+
+        case 'backendError':
+        case 'internalServerError':
+          return new GoogleSheetsError(
+            normalizedError.message,
+            'GOOGLE_SHEETS_SERVER_ERROR',
+            normalizedError.httpStatus,
+            spreadsheetId,
+            range,
+            enrichedContext,
+            cause
+          );
+      }
+    }
+
+    // Priority 2: Use HTTP status code for classification
+    switch (normalizedError.httpStatus) {
+      case 404:
+        return overrideMessageIfBetter(
+          new GoogleSheetsNotFoundError(spreadsheetId || '', enrichedContext)
+        );
+
+      case 403:
+        return overrideMessageIfBetter(
+          new GoogleSheetsPermissionError(spreadsheetId, range, enrichedContext)
+        );
+
+      case 429:
+        // Distinguish between rate limit and quota based on context
+        if (
+          normalizedError.reason === 'quotaExceeded' ||
+          normalizedError.domain === 'usageLimits' ||
+          normalizedError.message.toLowerCase().includes('quota')
+        ) {
+          return new GoogleSheetsQuotaExceededError(enrichedContext);
+        }
+        return new GoogleSheetsRateLimitError(
+          extractRetryAfter(),
+          enrichedContext
+        );
+
+      case 400:
+        return new GoogleSheetsInvalidRangeError(
+          range || 'unknown',
+          spreadsheetId,
+          enrichedContext
+        );
+
+      case 500:
+      case 502:
+      case 503:
+      case 504:
+        return new GoogleSheetsError(
+          normalizedError.message,
+          'GOOGLE_SHEETS_SERVER_ERROR',
+          normalizedError.httpStatus,
+          spreadsheetId,
+          range,
+          enrichedContext,
+          cause
+        );
+    }
+
+    // Priority 3: Fallback to string matching only if no structured data available
+    if (!normalizedError.reason && cause.message) {
+      const message = cause.message.toLowerCase();
+
+      if (message.includes('not found')) {
+        return new GoogleSheetsNotFoundError(
+          spreadsheetId || '',
+          enrichedContext
+        );
+      }
+
+      if (message.includes('permission')) {
+        return new GoogleSheetsPermissionError(
+          spreadsheetId,
+          range,
+          enrichedContext
+        );
+      }
+
+      if (message.includes('rate limit')) {
+        const retryAfterMatch = cause.message.match(/retry after (\d+)/i);
+        const retryAfterMs = retryAfterMatch
+          ? parseInt(retryAfterMatch[1], 10) * 1000
+          : undefined;
+        return new GoogleSheetsRateLimitError(retryAfterMs, enrichedContext);
+      }
+
+      if (message.includes('quota') || message.includes('exceeded')) {
+        return new GoogleSheetsQuotaExceededError(enrichedContext);
+      }
+
+      if (message.includes('range') || message.includes('invalid')) {
+        return new GoogleSheetsInvalidRangeError(
+          range || 'unknown',
+          spreadsheetId,
+          enrichedContext
+        );
+      }
+    }
+
+    // Default fallback
     return new GoogleSheetsError(
-      cause.message,
+      normalizedError.message,
       'GOOGLE_SHEETS_ERROR',
-      statusCode,
+      normalizedError.httpStatus,
       spreadsheetId,
       range,
-      context,
+      enrichedContext,
       cause
     );
   }
 
   /**
    * Create a configuration error from a generic error
+   *
+   * Configuration errors typically indicate issues with service setup,
+   * environment variables, or initialization that require manual intervention.
+   *
+   * @param cause - The original error that occurred
+   * @param context - Additional context data
+   * @returns GoogleConfigError instance
    */
   static createConfigError(
     cause: Error,
     context?: Record<string, unknown>
   ): GoogleConfigError {
-    return new GoogleConfigError(cause.message, context, cause);
+    const normalizedError = extractGoogleApiError(cause);
+    const enrichedContext = {
+      normalizedError,
+      ...context,
+    };
+
+    return new GoogleConfigError(
+      normalizedError.message,
+      enrichedContext,
+      cause
+    );
   }
 }

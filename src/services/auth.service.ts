@@ -11,7 +11,7 @@ import {
   GoogleAuthError,
   GoogleAuthMissingCredentialsError,
   GoogleAuthInvalidCredentialsError,
-  GoogleAuthTokenExpiredError,
+  GoogleErrorFactory,
   googleOk,
   googleErr,
   authOk,
@@ -162,9 +162,14 @@ export class AuthService extends GoogleService {
 
         return authOk(isValid);
       } catch (error) {
-        // Handle token-specific errors
-        const authError = this.convertToAuthError(
-          error instanceof Error ? error : new Error(String(error))
+        // Handle token-specific errors using centralized factory
+        const authError = GoogleErrorFactory.createAuthError(
+          error instanceof Error ? error : new Error(String(error)),
+          'service-account',
+          {
+            service: this.getServiceName(),
+            requestId: context.requestId,
+          }
         );
 
         this.logger.warn('Auth token validation failed', {
@@ -176,8 +181,13 @@ export class AuthService extends GoogleService {
         return authOk(false);
       }
     } catch (error) {
-      const authError = this.convertToAuthError(
-        error instanceof Error ? error : new Error(String(error))
+      const authError = GoogleErrorFactory.createAuthError(
+        error instanceof Error ? error : new Error(String(error)),
+        'service-account',
+        {
+          service: this.getServiceName(),
+          requestId: context.requestId,
+        }
       );
 
       this.logger.error('Auth validation encountered unexpected error', {
@@ -240,45 +250,15 @@ export class AuthService extends GoogleService {
   }
 
   /**
-   * Convert service-specific errors
+   * Convert service-specific errors using the centralized GoogleErrorFactory.
+   *
+   * This removes the duplicated string matching logic and uses the normalized
+   * error extraction system for consistent error classification.
    */
   protected convertServiceSpecificError(error: Error): GoogleAuthError | null {
-    return this.convertToAuthError(error);
-  }
-
-  /**
-   * Convert a generic error to AuthError
-   */
-  private convertToAuthError(error: Error): GoogleAuthError {
-    const message = error.message.toLowerCase();
-
-    if (
-      message.includes('token') &&
-      (message.includes('expired') || message.includes('invalid'))
-    ) {
-      return new GoogleAuthTokenExpiredError('service-account', {
-        originalError: error.message,
-      });
-    }
-
-    if (
-      message.includes('credential') ||
-      message.includes('auth') ||
-      message.includes('permission')
-    ) {
-      return new GoogleAuthInvalidCredentialsError('service-account', {
-        originalError: error.message,
-      });
-    }
-
-    if (message.includes('file not found') || message.includes('enoent')) {
-      return new GoogleAuthMissingCredentialsError('service-account', {
-        originalError: error.message,
-      });
-    }
-
-    // Default auth error
-    return new GoogleAuthError(error.message, 'service-account', {
+    // Use the centralized factory instead of duplicated logic
+    return GoogleErrorFactory.createAuthError(error, 'service-account', {
+      service: this.getServiceName(),
       originalError: error.message,
     });
   }
@@ -309,8 +289,13 @@ export class AuthService extends GoogleService {
 
       return authOk(undefined);
     } catch (error) {
-      const authError = this.convertToAuthError(
-        error instanceof Error ? error : new Error(String(error))
+      const authError = GoogleErrorFactory.createAuthError(
+        error instanceof Error ? error : new Error(String(error)),
+        'service-account',
+        {
+          service: this.getServiceName(),
+          requestId: context.requestId,
+        }
       );
 
       this.logger.error('Token refresh failed', {
