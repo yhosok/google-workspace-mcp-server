@@ -7,6 +7,8 @@ export interface EnvironmentConfig {
   GOOGLE_RETRY_MAX_DELAY?: number;
   GOOGLE_RETRY_JITTER?: number;
   GOOGLE_RETRY_RETRIABLE_CODES?: number[];
+  GOOGLE_REQUEST_TIMEOUT?: number;
+  GOOGLE_TOTAL_TIMEOUT?: number;
 }
 
 // Google Sheets関連の型定義

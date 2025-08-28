@@ -16,6 +16,8 @@ const envSchema = z
     GOOGLE_RETRY_MAX_DELAY: z.string().optional(),
     GOOGLE_RETRY_JITTER: z.string().optional(),
     GOOGLE_RETRY_RETRIABLE_CODES: z.string().optional(),
+    GOOGLE_REQUEST_TIMEOUT: z.string().optional(),
+    GOOGLE_TOTAL_TIMEOUT: z.string().optional(),
   })
   .transform(data => ({
     GOOGLE_SERVICE_ACCOUNT_KEY_PATH: data.GOOGLE_SERVICE_ACCOUNT_KEY_PATH,
@@ -40,6 +42,14 @@ const envSchema = z
     GOOGLE_RETRY_RETRIABLE_CODES: parseRetryCodesEnvVar(
       data.GOOGLE_RETRY_RETRIABLE_CODES,
       'GOOGLE_RETRY_RETRIABLE_CODES'
+    ),
+    GOOGLE_REQUEST_TIMEOUT: parseIntegerEnvVar(
+      data.GOOGLE_REQUEST_TIMEOUT,
+      'GOOGLE_REQUEST_TIMEOUT'
+    ),
+    GOOGLE_TOTAL_TIMEOUT: parseIntegerEnvVar(
+      data.GOOGLE_TOTAL_TIMEOUT,
+      'GOOGLE_TOTAL_TIMEOUT'
     ),
   }))
   .refine(data => {

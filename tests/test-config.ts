@@ -38,7 +38,10 @@ export const TEST_RETRY_CONFIG: GoogleServiceRetryConfig = {
   backoffMultiplier: 1.5,
   
   // Disable jitter for predictable test execution times
-  jitterFactor: 0
+  jitterFactor: 0,
+  
+  // Note: Don't set requestTimeout/totalTimeout here to allow tests to use actual defaults
+  // Individual tests can override these if needed for faster execution
 };
 
 /**

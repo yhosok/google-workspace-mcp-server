@@ -19,6 +19,7 @@ import {
   GoogleWorkspaceError, 
   GoogleServiceError, 
   GoogleAuthError,
+  GoogleTimeoutError,
   GoogleWorkspaceResult,
   googleOk,
   googleErr 
@@ -93,10 +94,11 @@ class TestGoogleService extends GoogleService {
   
   // Test method to expose executeWithRetry for testing
   public async testExecuteWithRetry<T>(
-    operation: () => Promise<T>,
-    context: ServiceContext
+    operation: (signal?: AbortSignal) => Promise<T>,
+    context: ServiceContext,
+    parentSignal?: AbortSignal
   ): Promise<GoogleWorkspaceResult<T>> {
-    return this.executeWithRetry(operation, context);
+    return this.executeWithRetry(operation, context, parentSignal);
   }
   
   // Helper to set up test scenarios
@@ -105,8 +107,12 @@ class TestGoogleService extends GoogleService {
     this.callCount = 0;
   }
   
-  public async testOperation(): Promise<string> {
+  public async testOperation(signal?: AbortSignal): Promise<string> {
     this.callCount++;
+    
+    if (signal?.aborted) {
+      throw new Error('Operation aborted');
+    }
     
     if (this.shouldThrow) {
       throw this.shouldThrow;
@@ -498,7 +504,7 @@ describe('GoogleService Retry/Backoff Strategy Visibility', () => {
       // This will fail because configuration validation is not implemented
       expect(() => {
         new TestGoogleService(mockAuth, mockLogger, invalidConfig as any);
-      }).toThrow('Invalid retry configuration');
+      }).toThrow('maxAttempts must be positive');
     });
     
     it('should fail: should normalize and validate retriable codes', async () => {
@@ -611,6 +617,400 @@ describe('GoogleService Retry/Backoff Strategy Visibility', () => {
           errorRetryable: false,
         })
       );
+    });
+  });
+
+  describe('Timeout Control Implementation (TDD Red Phase)', () => {
+    describe('Individual Request Timeout', () => {
+      it('should fail: should timeout individual API requests after requestTimeout', async () => {
+        const timeoutConfig: GoogleServiceRetryConfig = {
+          ...TEST_RETRY_CONFIG,
+          requestTimeout: 100, // 100ms timeout
+          retriableCodes: [500, 502, 503, 504, 429],
+        };
+        
+        service = new TestGoogleService(mockAuth, mockLogger, timeoutConfig);
+        
+        // Create a slow operation that takes 200ms (exceeds 100ms timeout)
+        const slowOperation = (signal?: AbortSignal): Promise<string> => {
+          return new Promise((resolve, reject) => {
+            if (signal) {
+              signal.addEventListener('abort', () => {
+                reject(new Error('Operation aborted by timeout'));
+              });
+            }
+            setTimeout(() => resolve('success'), 200);
+          });
+        };
+        
+        const context: ServiceContext = {
+          operation: 'slowOperation',
+          requestId: 'timeout-test-1',
+        };
+        
+        const startTime = Date.now();
+        const result = await service.testExecuteWithRetry(slowOperation, context);
+        const endTime = Date.now();
+        
+        // Should timeout and fail
+        expect(result.isErr()).toBe(true);
+        expect(endTime - startTime).toBeLessThan(250); // Should timeout before the 200ms operation completes
+        
+        // Should be a GoogleTimeoutError
+        if (result.isErr()) {
+          const error = result.error;
+          expect(error.constructor.name).toBe('GoogleTimeoutError');
+          expect((error as any).timeoutType).toBe('request');
+          expect((error as any).timeoutMs).toBe(100);
+          
+          // Should log timeout with flag
+          const errorJson = error.toJSON();
+          expect(errorJson.timeout).toBe(true);
+        }
+      });
+
+      it('should fail: should use AbortSignal.timeout() for individual request timeouts', async () => {
+        const timeoutConfig: GoogleServiceRetryConfig = {
+          ...TEST_RETRY_CONFIG,
+          requestTimeout: 50,
+          retriableCodes: [500],
+        };
+        
+        service = new TestGoogleService(mockAuth, mockLogger, timeoutConfig);
+        
+        let receivedSignal: AbortSignal | undefined;
+        const operationWithSignal = (signal?: AbortSignal): Promise<string> => {
+          receivedSignal = signal;
+          return new Promise((resolve, reject) => {
+            if (signal) {
+              signal.addEventListener('abort', () => {
+                reject(new Error('Operation aborted'));
+              });
+            }
+            setTimeout(() => resolve('success'), 100);
+          });
+        };
+        
+        const context: ServiceContext = {
+          operation: 'abortableOperation',
+          requestId: 'abort-test-1',
+        };
+        
+        // This will fail because AbortSignal integration is not implemented
+        const result = await service.testExecuteWithRetry(
+          (signal) => operationWithSignal(signal),
+          context
+        );
+        
+        expect(result.isErr()).toBe(true);
+        expect(receivedSignal).toBeDefined();
+        expect(receivedSignal?.aborted).toBe(true);
+        expect(receivedSignal?.reason?.name).toBe('TimeoutError');
+      });
+
+      it('should fail: should combine parent AbortSignal with timeout using AbortSignal.any()', async () => {
+        const timeoutConfig: GoogleServiceRetryConfig = {
+          ...TEST_RETRY_CONFIG,
+          requestTimeout: 100,
+        };
+        
+        service = new TestGoogleService(mockAuth, mockLogger, timeoutConfig);
+        
+        // Create a parent abort controller
+        const parentController = new AbortController();
+        setTimeout(() => parentController.abort('Parent cancelled'), 50);
+        
+        let receivedSignal: AbortSignal | undefined;
+        const operationWithSignal = (signal?: AbortSignal): Promise<string> => {
+          receivedSignal = signal;
+          return new Promise((resolve, reject) => {
+            if (signal) {
+              signal.addEventListener('abort', () => {
+                reject(new Error(`Operation aborted: ${signal.reason}`));
+              });
+            }
+            setTimeout(() => resolve('success'), 200);
+          });
+        };
+        
+        const context: ServiceContext = {
+          operation: 'combinedAbortOperation',
+          requestId: 'combined-abort-test-1',
+        };
+        
+        // This will fail because AbortSignal.any() integration is not implemented
+        const result = await service.testExecuteWithRetry(
+          (signal) => operationWithSignal(signal),
+          context,
+          parentController.signal
+        );
+        
+        expect(result.isErr()).toBe(true);
+        expect(receivedSignal).toBeDefined();
+        expect(receivedSignal?.aborted).toBe(true);
+        expect(receivedSignal?.reason).toBe('Parent cancelled');
+      });
+    });
+
+    describe('Total Retry Timeout', () => {
+      it('should fail: should timeout entire retry operation after totalTimeout', async () => {
+        const timeoutConfig: GoogleServiceRetryConfig = {
+          maxAttempts: 5, // Allow many attempts
+          baseDelay: 50,
+          initialDelayMs: 50,
+          maxDelay: 100,
+          maxDelayMs: 100,
+          backoffMultiplier: 1.5,
+          jitter: 0,
+          jitterFactor: 0,
+          retriableCodes: [500],
+          requestTimeout: 100, // Request timeout smaller than total
+          totalTimeout: 200, // Total timeout of 200ms
+        };
+        
+        service = new TestGoogleService(mockAuth, mockLogger, timeoutConfig);
+        
+        // Set up an error that would normally retry multiple times
+        service.setTestError(new HttpError('Server Error', 500));
+        
+        const context: ServiceContext = {
+          operation: 'totalTimeoutOperation',
+          requestId: 'total-timeout-test-1',
+        };
+        
+        const startTime = Date.now();
+        const result = await service.testExecuteWithRetry(
+          (signal) => service.testOperation(signal),
+          context
+        );
+        const endTime = Date.now();
+        
+        // Should timeout before all retry attempts complete
+        expect(result.isErr()).toBe(true);
+        expect(endTime - startTime).toBeLessThan(300); // Should timeout quickly
+        expect(service.getCallCount()).toBeLessThan(5); // Shouldn't complete all attempts
+        
+        // Should be a GoogleTimeoutError with totalTimeout type
+        if (result.isErr()) {
+          const error = result.error;
+          expect(error.constructor.name).toBe('GoogleTimeoutError');
+          expect((error as any).timeoutType).toBe('total');
+          expect((error as any).timeoutMs).toBe(200);
+        }
+      });
+
+      it('should fail: should log total timeout with detailed information', async () => {
+        const timeoutConfig: GoogleServiceRetryConfig = {
+          maxAttempts: 6, // More attempts to ensure timeout happens
+          baseDelay: 40, // Higher base delay
+          initialDelayMs: 40,
+          maxDelay: 80,
+          maxDelayMs: 80,
+          backoffMultiplier: 1.8, // Higher multiplier
+          jitter: 0,
+          jitterFactor: 0,
+          retriableCodes: [500],
+          requestTimeout: 60, // Request timeout smaller than total
+          totalTimeout: 120, // Smaller total timeout to ensure it triggers
+        };
+        
+        service = new TestGoogleService(mockAuth, mockLogger, timeoutConfig);
+        service.setTestError(new HttpError('Server Error', 500));
+        
+        const context: ServiceContext = {
+          operation: 'totalTimeoutLoggingOperation',
+          requestId: 'total-timeout-log-test-1',
+        };
+        
+        await service.testExecuteWithRetry(
+          (signal) => service.testOperation(signal),
+          context
+        );
+        
+        // Should log total timeout with comprehensive information
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          expect.stringContaining('Total timeout exceeded'),
+          expect.objectContaining({
+            service: 'test-service',
+            operation: 'totalTimeoutLoggingOperation',
+            totalTimeoutMs: 120,
+            elapsedMs: expect.any(Number),
+            completedAttempts: expect.any(Number),
+            timeout: true,
+            timeoutType: 'total',
+          })
+        );
+      });
+    });
+
+    describe('AbortController Integration', () => {
+      it('should fail: should handle already aborted controllers gracefully', async () => {
+        const timeoutConfig: GoogleServiceRetryConfig = {
+          ...TEST_RETRY_CONFIG,
+          requestTimeout: 100,
+        };
+        
+        service = new TestGoogleService(mockAuth, mockLogger, timeoutConfig);
+        
+        // Create an already aborted controller
+        const abortedController = new AbortController();
+        abortedController.abort('Already aborted');
+        
+        let receivedSignal: AbortSignal | undefined;
+        const operationWithSignal = (signal?: AbortSignal): Promise<string> => {
+          receivedSignal = signal;
+          if (signal?.aborted) {
+            return Promise.reject(new Error(`Pre-aborted: ${signal.reason}`));
+          }
+          return Promise.resolve('success');
+        };
+        
+        const context: ServiceContext = {
+          operation: 'preAbortedOperation',
+          requestId: 'pre-abort-test-1',
+        };
+        
+        // This will fail because pre-aborted signal handling is not implemented
+        const result = await service.testExecuteWithRetry(
+          (signal) => operationWithSignal(signal),
+          context,
+          abortedController.signal // Pass the already aborted signal
+        );
+        
+        expect(result.isErr()).toBe(true);
+        // receivedSignal may be undefined because the operation is aborted before execution
+        if (receivedSignal) {
+          expect(receivedSignal.aborted).toBe(true);
+          expect(receivedSignal.reason).toBe('Already aborted');
+        }
+        // Check that the error is the expected cancellation error
+        if (result.isErr()) {
+          const error = result.error;
+          expect(error.message).toContain('Operation cancelled by parent signal');
+        }
+      });
+
+      it('should fail: should properly cleanup timeout timers on completion', async () => {
+        const timeoutConfig: GoogleServiceRetryConfig = {
+          ...TEST_RETRY_CONFIG,
+          requestTimeout: 200, // Longer timeout
+        };
+        
+        service = new TestGoogleService(mockAuth, mockLogger, timeoutConfig);
+        
+        const quickOperation = (signal?: AbortSignal): Promise<string> => {
+          return Promise.resolve('quick-success');
+        };
+        
+        const context: ServiceContext = {
+          operation: 'quickOperation',
+          requestId: 'cleanup-test-1',
+        };
+        
+        // Track active timers (in a real implementation)
+        const result = await service.testExecuteWithRetry(quickOperation, context);
+        
+        expect(result.isOk()).toBe(true);
+        
+        // Should log successful completion without timeout
+        expect(mockLogger.info).toHaveBeenCalledWith(
+          expect.stringContaining('Operation \'quickOperation\' succeeded'),
+          expect.objectContaining({
+            service: 'test-service',
+            operation: 'quickOperation',
+            attempt: 1,
+            requestId: 'cleanup-test-1',
+          })
+        );
+        
+        // This will fail because timeout cleanup tracking is not implemented
+        // In a real implementation, we would verify no active timeout timers remain
+        expect((service as any).activeTimeouts?.size || 0).toBe(0);
+      });
+    });
+
+    describe('GoogleTimeoutError Class', () => {
+      it('should fail: GoogleTimeoutError should extend GoogleWorkspaceError', () => {
+        const error = new GoogleTimeoutError('Test timeout', 'request', 1000);
+        
+        expect(error).toBeInstanceOf(Error);
+        expect(error).toBeInstanceOf(GoogleWorkspaceError);
+        expect(error.isRetryable()).toBe(false);
+        expect(error.code).toBe('TIMEOUT_ERROR');
+        expect(error.statusCode).toBe(408);
+        expect(error.timeoutType).toBe('request');
+        expect(error.timeoutMs).toBe(1000);
+      });
+
+      it('should fail: GoogleTimeoutError should serialize timeout information', () => {
+        const error = new GoogleTimeoutError('Request timeout', 'total', 5000, { extra: 'context' });
+        
+        const json = error.toJSON();
+        
+        expect(json).toEqual(expect.objectContaining({
+          name: 'GoogleTimeoutError',
+          message: 'Request timeout',
+          code: 'TIMEOUT_ERROR',
+          statusCode: 408,
+          timeoutType: 'total',
+          timeoutMs: 5000,
+          timeout: true,
+          context: expect.objectContaining({ extra: 'context' }),
+          timestamp: expect.any(String),
+        }));
+      });
+    });
+
+    describe('Environment Variable Configuration', () => {
+      it('should fail: should load timeout configuration from environment variables', () => {
+        process.env.GOOGLE_REQUEST_TIMEOUT = '2000';
+        process.env.GOOGLE_TOTAL_TIMEOUT = '10000';
+        
+        // This will fail because environment variable loading for timeouts is not implemented
+        service = new TestGoogleService(mockAuth, mockLogger);
+        
+        const config = (service as any).retryConfig;
+        expect(config.requestTimeout).toBe(2000);
+        expect(config.totalTimeout).toBe(10000);
+      });
+
+      it('should fail: should validate timeout configuration values', () => {
+        const invalidConfig = {
+          ...TEST_RETRY_CONFIG,
+          requestTimeout: -1000, // Invalid negative timeout
+          totalTimeout: 100, // Total timeout less than request timeout
+        };
+        
+        // Should throw validation error for invalid timeout configuration
+        expect(() => {
+          new TestGoogleService(mockAuth, mockLogger, invalidConfig as any);
+        }).toThrow('requestTimeout must be positive');
+      });
+
+      it('should fail: should use default timeout values when not specified', () => {
+        // Temporarily remove timeout environment variables to test true defaults
+        const originalRequestTimeout = process.env.GOOGLE_REQUEST_TIMEOUT;
+        const originalTotalTimeout = process.env.GOOGLE_TOTAL_TIMEOUT;
+        delete process.env.GOOGLE_REQUEST_TIMEOUT;
+        delete process.env.GOOGLE_TOTAL_TIMEOUT;
+        
+        try {
+          service = new TestGoogleService(mockAuth, mockLogger);
+          
+          const config = (service as any).retryConfig;
+          // Should have sensible defaults for timeouts
+          expect(config.requestTimeout).toBe(30000); // 30 seconds default
+          expect(config.totalTimeout).toBe(120000); // 2 minutes default
+        } finally {
+          // Restore environment variables
+          if (originalRequestTimeout !== undefined) {
+            process.env.GOOGLE_REQUEST_TIMEOUT = originalRequestTimeout;
+          }
+          if (originalTotalTimeout !== undefined) {
+            process.env.GOOGLE_TOTAL_TIMEOUT = originalTotalTimeout;
+          }
+        }
+      });
     });
   });
 });

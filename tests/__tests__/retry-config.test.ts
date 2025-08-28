@@ -86,12 +86,14 @@ describe('Retry Configuration TDD Tests', () => {
 
     test('should load GOOGLE_RETRY_BASE_DELAY from environment', () => {
       process.env.GOOGLE_RETRY_BASE_DELAY = '2000';
+      process.env.GOOGLE_RETRY_MAX_DELAY = '30000'; // Ensure max > base
       
       const config = loadConfig();
       expect(config).toHaveProperty('GOOGLE_RETRY_BASE_DELAY', 2000);
     });
 
     test('should load GOOGLE_RETRY_MAX_DELAY from environment', () => {
+      process.env.GOOGLE_RETRY_BASE_DELAY = '1000'; // Ensure base < max
       process.env.GOOGLE_RETRY_MAX_DELAY = '60000';
       
       const config = loadConfig();
@@ -99,6 +101,8 @@ describe('Retry Configuration TDD Tests', () => {
     });
 
     test('should load GOOGLE_RETRY_JITTER from environment', () => {
+      process.env.GOOGLE_RETRY_BASE_DELAY = '1000'; // Ensure base < max
+      process.env.GOOGLE_RETRY_MAX_DELAY = '30000';
       process.env.GOOGLE_RETRY_JITTER = '0.2';
       
       const config = loadConfig();
@@ -106,6 +110,8 @@ describe('Retry Configuration TDD Tests', () => {
     });
 
     test('should load GOOGLE_RETRY_RETRIABLE_CODES from environment', () => {
+      process.env.GOOGLE_RETRY_BASE_DELAY = '1000'; // Ensure base < max
+      process.env.GOOGLE_RETRY_MAX_DELAY = '30000';
       process.env.GOOGLE_RETRY_RETRIABLE_CODES = '429,500,502';
       
       const config = loadConfig();
@@ -114,6 +120,8 @@ describe('Retry Configuration TDD Tests', () => {
 
     test('should validate environment variable types and ranges', () => {
       process.env.GOOGLE_RETRY_MAX_ATTEMPTS = 'invalid';
+      process.env.GOOGLE_RETRY_BASE_DELAY = '1000';
+      process.env.GOOGLE_RETRY_MAX_DELAY = '30000'; // Ensure base < max
       process.env.GOOGLE_RETRY_JITTER = '1.5'; // Out of range
       
       expect(() => loadConfig()).toThrow();

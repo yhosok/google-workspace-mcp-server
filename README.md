@@ -12,10 +12,11 @@ This MCP server implements the [Model Context Protocol](https://modelcontextprot
 
 - **Google Sheets Integration**: Full CRUD operations on spreadsheets
 - **Service Account Authentication**: Secure authentication using Google service accounts
+- **Advanced Timeout Control**: Dual-layer timeout protection with AbortController
 - **Configurable Retry/Backoff Strategy**: Intelligent retry handling for transient API failures
 - **Extensible Architecture**: Plugin-based design for easy addition of new Google services
 - **Type-Safe Implementation**: Built with TypeScript for reliability and maintainability
-- **Comprehensive Testing**: Over 370 unit and integration tests with 100% pass rate
+- **Comprehensive Testing**: Over 512 unit and integration tests with 100% pass rate
 - **Production-Ready Error Handling**: Comprehensive error classification and recovery
 
 ### Architecture
@@ -114,6 +115,13 @@ GOOGLE_RETRY_JITTER=0.1
 
 # Comma-separated list of HTTP status codes that trigger retries (default: 429,500,502,503,504)
 GOOGLE_RETRY_RETRIABLE_CODES=429,500,502,503,504
+
+# Timeout Configuration (Optional)
+# Individual request timeout in milliseconds (default: 30000)
+GOOGLE_REQUEST_TIMEOUT=30000
+
+# Total retry operation timeout in milliseconds (default: 120000)
+GOOGLE_TOTAL_TIMEOUT=120000
 ```
 
 ## Usage

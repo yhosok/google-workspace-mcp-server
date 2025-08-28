@@ -358,6 +358,42 @@ export class GoogleConfigError extends GoogleWorkspaceError {
 }
 
 /**
+ * Specialized timeout error for Google API operations
+ *
+ * This error is thrown when operations exceed their configured timeout limits,
+ * either for individual requests or total retry duration.
+ */
+export class GoogleTimeoutError extends GoogleWorkspaceError {
+  public readonly timeoutType: 'request' | 'total';
+  public readonly timeoutMs: number;
+
+  constructor(
+    message: string,
+    timeoutType: 'request' | 'total',
+    timeoutMs: number,
+    context?: Record<string, unknown>,
+    cause?: Error
+  ) {
+    super(message, 'TIMEOUT_ERROR', 408, context, cause);
+    this.timeoutType = timeoutType;
+    this.timeoutMs = timeoutMs;
+  }
+
+  public isRetryable(): boolean {
+    return false; // Timeout errors are not retryable
+  }
+
+  public override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      timeoutType: this.timeoutType,
+      timeoutMs: this.timeoutMs,
+      timeout: true, // Flag for logging systems
+    };
+  }
+}
+
+/**
  * Type definitions for Result pattern integration
  */
 export type GoogleWorkspaceResult<T> = Result<T, GoogleWorkspaceError>;

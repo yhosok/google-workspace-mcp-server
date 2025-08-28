@@ -14,6 +14,7 @@ import {
   GoogleWorkspaceError,
   GoogleAuthError,
   GoogleServiceError,
+  GoogleTimeoutError,
   GoogleErrorFactory,
   GoogleWorkspaceResult,
   googleOk,
@@ -78,6 +79,18 @@ export interface GoogleServiceRetryConfig {
    * HTTP status codes that should trigger retries
    */
   retriableCodes: number[];
+
+  /**
+   * Individual request timeout in milliseconds
+   * Each API request will be cancelled after this duration
+   */
+  requestTimeout?: number;
+
+  /**
+   * Total timeout for all retry attempts in milliseconds
+   * The entire retry operation will be cancelled after this duration
+   */
+  totalTimeout?: number;
 }
 
 // Re-export for backward compatibility
@@ -97,6 +110,8 @@ export const DEFAULT_RETRY_CONFIG: GoogleServiceRetryConfig = {
   jitterFactor: 0.1, // Alias for backward compatibility
   backoffMultiplier: 2,
   retriableCodes: [429, 500, 502, 503, 504],
+  requestTimeout: 30000, // 30 seconds default for individual requests
+  totalTimeout: 120000, // 2 minutes default for total operation
 };
 
 /**
@@ -114,6 +129,8 @@ export function createRetryConfigFromEnv(): GoogleServiceRetryConfig {
     const maxDelay = envConfig.GOOGLE_RETRY_MAX_DELAY || DEFAULT_RETRY_CONFIG.maxDelay;
     const jitter = envConfig.GOOGLE_RETRY_JITTER || DEFAULT_RETRY_CONFIG.jitter;
     const retriableCodes = envConfig.GOOGLE_RETRY_RETRIABLE_CODES || DEFAULT_RETRY_CONFIG.retriableCodes;
+    const requestTimeout = envConfig.GOOGLE_REQUEST_TIMEOUT || DEFAULT_RETRY_CONFIG.requestTimeout;
+    const totalTimeout = envConfig.GOOGLE_TOTAL_TIMEOUT || DEFAULT_RETRY_CONFIG.totalTimeout;
 
     return {
       maxAttempts,
@@ -126,6 +143,8 @@ export function createRetryConfigFromEnv(): GoogleServiceRetryConfig {
       jitter,
       jitterFactor: jitter, // Alias
       retriableCodes,
+      requestTimeout,
+      totalTimeout,
     };
   } catch {
     // When env parsing fails completely, fall back to server errors only (no rate limits)
@@ -145,6 +164,8 @@ export function createRetryConfigFromEnv(): GoogleServiceRetryConfig {
       jitter: fallbackConfig.jitter,
       jitterFactor: fallbackConfig.jitterFactor,
       retriableCodes: fallbackConfig.retriableCodes,
+      requestTimeout: fallbackConfig.requestTimeout,
+      totalTimeout: fallbackConfig.totalTimeout,
     };
   }
 }
@@ -181,6 +202,22 @@ function normalizeRetryConfig(config: GoogleServiceRetryConfig): GoogleServiceRe
       throw new Error('jitterFactor must be between 0 and 1');
     }
 
+    // Validate timeout configuration
+    const requestTimeout = config.requestTimeout ?? DEFAULT_RETRY_CONFIG.requestTimeout!;
+    const totalTimeout = config.totalTimeout ?? DEFAULT_RETRY_CONFIG.totalTimeout!;
+    
+    if (requestTimeout !== undefined && requestTimeout <= 0) {
+      throw new Error('requestTimeout must be positive');
+    }
+    
+    if (totalTimeout !== undefined && totalTimeout <= 0) {
+      throw new Error('totalTimeout must be positive');
+    }
+    
+    if (requestTimeout && totalTimeout && requestTimeout > totalTimeout) {
+      throw new Error('requestTimeout cannot be greater than totalTimeout');
+    }
+
     // Filter out non-retriable HTTP codes
     const retriableCodes = config.retriableCodes || DEFAULT_RETRY_CONFIG.retriableCodes!;
     const validRetriableCodes = [429, 500, 502, 503, 504];
@@ -199,9 +236,15 @@ function normalizeRetryConfig(config: GoogleServiceRetryConfig): GoogleServiceRe
       jitter: config.jitterFactor,
       jitterFactor: config.jitterFactor,
       retriableCodes: filteredCodes,
+      requestTimeout,
+      totalTimeout,
     };
   } catch (error) {
-    throw new Error('Invalid retry configuration');
+    // More specific error message based on the actual error
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Invalid timeout configuration');
   }
 }
 
@@ -349,17 +392,22 @@ export abstract class GoogleService {
    * This method provides:
    * - Exponential backoff with jitter
    * - Configurable retry attempts
+   * - Individual request timeouts using AbortSignal.timeout()
+   * - Total operation timeout across all retries
+   * - AbortSignal.any() for combining timeout and external signals
    * - Detailed logging at each step
    * - Smart error classification
    * - Proper error conversion and handling
    * 
    * @param operation - The async operation to execute
    * @param context - Service context for logging and error handling
+   * @param parentSignal - Optional parent AbortSignal for cancellation
    * @returns Promise resolving to either success result or error
    */
   protected async executeWithRetry<T>(
-    operation: () => Promise<T>,
-    context: ServiceContext
+    operation: (signal?: AbortSignal) => Promise<T>,
+    context: ServiceContext,
+    parentSignal?: AbortSignal
   ): Promise<GoogleWorkspaceResult<T>> {
     const { operation: operationName, data, requestId } = context;
 
@@ -376,9 +424,91 @@ export abstract class GoogleService {
 
     let lastError: Error | null = null;
     let attempt = 0;
+    const operationStartTime = Date.now();
+
+    // Create total timeout controller if configured
+    const totalTimeoutController = this.retryConfig.totalTimeout 
+      ? AbortSignal.timeout(this.retryConfig.totalTimeout)
+      : null;
 
     while (attempt < this.retryConfig.maxAttempts) {
       attempt++;
+
+      // Check if parent signal is already aborted before doing anything
+      if (parentSignal?.aborted) {
+        const parentAbortError = new GoogleServiceError(
+          'Operation cancelled by parent signal',
+          this.getServiceName(),
+          'OPERATION_CANCELLED',
+          500, // Use internal server error status
+          {
+            operation: operationName,
+            reason: parentSignal.reason || 'Parent cancelled',
+            requestId,
+          },
+          parentSignal.reason instanceof Error ? parentSignal.reason : undefined
+        );
+
+        this.logger.error(
+          `${this.getServiceName()}: Operation cancelled by parent signal`,
+          {
+            service: this.getServiceName(),
+            operation: operationName,
+            parentAborted: true,
+            reason: parentSignal.reason,
+            requestId,
+          }
+        );
+
+        return googleErr(parentAbortError);
+      }
+
+      // Check total timeout before each attempt
+      if (totalTimeoutController?.aborted) {
+        const elapsedMs = Date.now() - operationStartTime;
+        const timeoutError = new GoogleTimeoutError(
+          `Total timeout of ${this.retryConfig.totalTimeout}ms exceeded after ${elapsedMs}ms`,
+          'total',
+          this.retryConfig.totalTimeout!,
+          { 
+            service: this.getServiceName(),
+            operation: operationName,
+            elapsedMs,
+            completedAttempts: attempt - 1,
+            requestId,
+          }
+        );
+
+        this.logger.error(
+          `${this.getServiceName()}: Total timeout exceeded`,
+          {
+            service: this.getServiceName(),
+            operation: operationName,
+            totalTimeoutMs: this.retryConfig.totalTimeout,
+            elapsedMs,
+            completedAttempts: attempt - 1,
+            timeout: true,
+            timeoutType: 'total',
+            requestId,
+          }
+        );
+
+        return googleErr(timeoutError);
+      }
+
+      // Create request timeout signal if configured
+      const requestTimeoutSignal = this.retryConfig.requestTimeout
+        ? AbortSignal.timeout(this.retryConfig.requestTimeout)
+        : null;
+
+      // Combine all abort signals using AbortSignal.any()
+      const signals = [
+        parentSignal,
+        totalTimeoutController,
+        requestTimeoutSignal,
+      ].filter((signal): signal is AbortSignal => signal !== null && signal !== undefined);
+
+      const combinedSignal = signals.length > 0 ? AbortSignal.any(signals) : undefined;
 
       try {
         this.logger.debug(
@@ -391,7 +521,7 @@ export abstract class GoogleService {
           }
         );
 
-        const result = await operation();
+        const result = await operation(combinedSignal);
 
         this.logger.info(
           `${this.getServiceName()}: Operation '${operationName}' succeeded`,
@@ -406,6 +536,109 @@ export abstract class GoogleService {
         return googleOk(result);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Check if this is caused by signal abortion
+        if (combinedSignal?.aborted) {
+          // Check the specific reason for abortion
+          if (parentSignal?.aborted) {
+            // Parent signal was aborted
+            const parentAbortError = new GoogleServiceError(
+              'Operation cancelled by parent signal',
+              this.getServiceName(),
+              'OPERATION_CANCELLED',
+              500,
+              {
+                operation: operationName,
+                reason: parentSignal.reason || 'Parent cancelled',
+                attempt,
+                requestId,
+              },
+              parentSignal.reason instanceof Error ? parentSignal.reason : lastError
+            );
+
+            this.logger.error(
+              `${this.getServiceName()}: Operation cancelled by parent signal during execution`,
+              {
+                service: this.getServiceName(),
+                operation: operationName,
+                parentAborted: true,
+                reason: parentSignal.reason,
+                attempt,
+                requestId,
+              }
+            );
+
+            return googleErr(parentAbortError);
+          }
+
+          // Check for timeout errors
+          const isTimeoutError = requestTimeoutSignal?.aborted || totalTimeoutController?.aborted;
+
+          if (isTimeoutError) {
+            let timeoutError: GoogleTimeoutError;
+            
+            if (requestTimeoutSignal?.aborted) {
+              // Individual request timeout
+              timeoutError = new GoogleTimeoutError(
+                `Request timeout of ${this.retryConfig.requestTimeout}ms exceeded`,
+                'request',
+                this.retryConfig.requestTimeout!,
+                {
+                  service: this.getServiceName(),
+                  operation: operationName,
+                  attempt,
+                  requestId,
+                },
+                lastError
+              );
+              
+              this.logger.error(
+                `${this.getServiceName()}: Request timeout exceeded`,
+                {
+                  service: this.getServiceName(),
+                  operation: operationName,
+                  requestTimeoutMs: this.retryConfig.requestTimeout,
+                  attempt,
+                  timeout: true,
+                  timeoutType: 'request',
+                  requestId,
+                }
+              );
+            } else {
+              // Total timeout during operation
+              const elapsedMs = Date.now() - operationStartTime;
+              timeoutError = new GoogleTimeoutError(
+                `Total timeout of ${this.retryConfig.totalTimeout}ms exceeded after ${elapsedMs}ms`,
+                'total',
+                this.retryConfig.totalTimeout!,
+                {
+                  service: this.getServiceName(),
+                  operation: operationName,
+                  elapsedMs,
+                  completedAttempts: attempt - 1,
+                  requestId,
+                },
+                lastError
+              );
+              
+              this.logger.error(
+                `${this.getServiceName()}: Total timeout exceeded during operation`,
+                {
+                  service: this.getServiceName(),
+                  operation: operationName,
+                  totalTimeoutMs: this.retryConfig.totalTimeout,
+                  elapsedMs,
+                  completedAttempts: attempt - 1,
+                  timeout: true,
+                  timeoutType: 'total',
+                  requestId,
+                }
+              );
+            }
+            
+            return googleErr(timeoutError);
+          }
+        }
 
         const isFinalAttempt = attempt >= this.retryConfig.maxAttempts;
         const logData: any = {

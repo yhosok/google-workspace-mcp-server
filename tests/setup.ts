@@ -17,6 +17,14 @@ process.env.DEBUG = 'false';
 process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH = '/mock/service-account.json';
 process.env.GOOGLE_DRIVE_FOLDER_ID = 'mock-folder-id';
 
+// Set fast retry configuration for tests (but preserve default timeout values)
+process.env.GOOGLE_RETRY_MAX_ATTEMPTS = '2';
+process.env.GOOGLE_RETRY_BASE_DELAY = '10';
+process.env.GOOGLE_RETRY_MAX_DELAY = '50';
+process.env.GOOGLE_RETRY_JITTER = '0';
+process.env.GOOGLE_RETRY_RETRIABLE_CODES = '429,500,502,503,504';
+// Note: Don't set GOOGLE_REQUEST_TIMEOUT or GOOGLE_TOTAL_TIMEOUT here to test defaults
+
 // Import logger types and utilities
 import { logger, LogLevel } from '../src/utils/logger.js';
 
