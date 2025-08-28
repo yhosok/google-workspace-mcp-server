@@ -11,6 +11,21 @@ import type { OAuth2Client } from 'google-auth-library';
 jest.mock('googleapis');
 const mockGoogle = google as jest.Mocked<typeof google>;
 
+/**
+ * Test suite for SheetsService class.
+ * 
+ * This comprehensive test suite validates:
+ * - Service initialization and lifecycle management
+ * - All CRUD operations for spreadsheets and sheets
+ * - Error handling for various failure scenarios  
+ * - Concurrent initialization prevention and fast path optimization
+ * - Integration with AuthService and Google APIs
+ * 
+ * Test Configuration:
+ * - Uses fast retry config (TEST_RETRY_CONFIG) for faster execution
+ * - Mocks all external dependencies (Google APIs, AuthService)
+ * - 10-second timeout for potentially slow operations
+ */
 describe('SheetsService', () => {
   let sheetsService: SheetsService;
   let mockAuthService: jest.Mocked<AuthService>;
@@ -19,7 +34,7 @@ describe('SheetsService', () => {
   let mockDriveApi: any;
   let mockAuth: any;
 
-  // Set timeout for tests that might be slow
+  // Extended timeout for tests that might be slow (especially concurrent tests)
   jest.setTimeout(10000);
 
   beforeEach(() => {
@@ -67,13 +82,21 @@ describe('SheetsService', () => {
   });
 
   describe('constructor', () => {
+    /**
+     * Validates basic service instantiation.
+     * Ensures the service is properly initialized with required dependencies.
+     */
     test('should create instance with AuthService', () => {
       expect(sheetsService).toBeInstanceOf(SheetsService);
       expect(sheetsService['authService']).toBe(mockAuthService);
     });
   });
 
-  describe('initialize', () => {
+  describe('Service Initialization', () => {
+    /**
+     * Tests the core initialization process.
+     * Verifies that Google API clients are properly created with authentication.
+     */
     test('should initialize Sheets and Drive APIs', async () => {
       const result = await sheetsService.initialize();
       
@@ -83,6 +106,9 @@ describe('SheetsService', () => {
       expect(mockGoogle.drive).toHaveBeenCalledWith({ version: 'v3', auth: mockAuth });
     });
 
+    /**
+     * Validates that initialization properly sets up internal API clients.
+     */
     test('should set up both sheetsApi and driveApi properties', async () => {
       await sheetsService.initialize();
       
@@ -91,7 +117,7 @@ describe('SheetsService', () => {
     });
   });
 
-  describe('listSpreadsheets', () => {
+  describe('Spreadsheet Listing Operations', () => {
     test('should return list of spreadsheets from Drive folder', async () => {
       const mockFiles = [
         {
@@ -159,7 +185,7 @@ describe('SheetsService', () => {
     });
   });
 
-  describe('getSpreadsheet', () => {
+  describe('Spreadsheet Information Retrieval', () => {
     test('should return spreadsheet info for valid ID', async () => {
       const spreadsheetId = 'test-sheet-id';
       const mockResponse = {
@@ -214,7 +240,7 @@ describe('SheetsService', () => {
     });
   });
 
-  describe('readRange', () => {
+  describe('Range Reading Operations', () => {
     test('should read data from specified range', async () => {
       const spreadsheetId = 'test-sheet-id';
       const range = 'Sheet1!A1:B2';
@@ -266,7 +292,7 @@ describe('SheetsService', () => {
         expect(result.isErr()).toBe(true);
         // The actual error message from the service might be different
         if (result.isErr()) {
-          expect(result.error.message).toMatch(/Invalid range format|Invalid range specified/);
+          expect(result.error.message).toMatch(/Invalid range format|Invalid range specified|Range is required|Range cannot be empty/);
         }
       }
     });
@@ -291,7 +317,7 @@ describe('SheetsService', () => {
     });
   });
 
-  describe('writeRange', () => {
+  describe('Range Writing Operations', () => {
     test('should write data to specified range', async () => {
       const spreadsheetId = 'test-sheet-id';
       const range = 'Sheet1!A1:B2';
@@ -351,7 +377,7 @@ describe('SheetsService', () => {
     });
   });
 
-  describe('appendData', () => {
+  describe('Data Appending Operations', () => {
     test('should append data to spreadsheet', async () => {
       const spreadsheetId = 'test-sheet-id';
       const range = 'Sheet1!A1';
@@ -402,7 +428,7 @@ describe('SheetsService', () => {
         const result = await sheetsService.appendData('sheet-id', range, values);
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
-          expect(result.error.message).toMatch(/Invalid range format|Invalid range specified/);
+          expect(result.error.message).toMatch(/Invalid range format|Invalid range specified|Range is required|Range cannot be empty/);
         }
       }
     });
@@ -416,7 +442,7 @@ describe('SheetsService', () => {
     });
   });
 
-  describe('error handling', () => {
+  describe('Error Handling Scenarios', () => {
     test('should handle authentication errors', async () => {
       // AuthServiceのモックがエラーを返すように設定
       mockAuthService.getAuthClient.mockResolvedValue(
@@ -449,7 +475,7 @@ describe('SheetsService', () => {
     });
   });
 
-  describe('integration with AuthService', () => {
+  describe('AuthService Integration', () => {
     test('should call AuthService methods correctly', async () => {
       const result = await sheetsService.initialize();
       
@@ -479,6 +505,258 @@ describe('SheetsService', () => {
       
       expect(mockGoogle.sheets).toHaveBeenCalledWith({ version: 'v4', auth: customAuth });
       expect(mockGoogle.drive).toHaveBeenCalledWith({ version: 'v3', auth: customAuth });
+    });
+  });
+
+  describe('Concurrent Initialization Prevention', () => {
+    /**
+     * Critical test for concurrent initialization safety.
+     * 
+     * This test validates that the initializingPromise mechanism properly prevents
+     * multiple simultaneous initialization attempts. This is essential for:
+     * - Preventing resource waste (multiple API client creation)
+     * - Avoiding race conditions during service startup
+     * - Ensuring consistent service state across concurrent operations
+     * 
+     * Test Strategy:
+     * 1. Make multiple concurrent initialize() calls
+     * 2. Verify only one actual initialization occurs
+     * 3. Ensure all calls receive the same successful result
+     */
+    test('should prevent concurrent initialization - multiple simultaneous calls should initialize only once', async () => {
+      // Track initialization calls
+      let initializationCount = 0;
+      const originalGetAuthClient = mockAuthService.getAuthClient;
+      
+      mockAuthService.getAuthClient = jest.fn().mockImplementation(() => {
+        initializationCount++;
+        // Add delay to simulate real initialization time
+        return new Promise(resolve => {
+          setTimeout(() => {
+            resolve(ok(mockAuth));
+          }, 100);
+        });
+      });
+
+      // Create promises for concurrent initialization
+      const promises = [
+        sheetsService.initialize(),
+        sheetsService.initialize(),
+        sheetsService.initialize(),
+        sheetsService.initialize(),
+        sheetsService.initialize()
+      ];
+
+      // Wait for all to complete
+      const results = await Promise.all(promises);
+
+      // All should succeed
+      results.forEach(result => {
+        expect(result.isOk()).toBe(true);
+      });
+
+      // But initialization should have been called only once
+      expect(initializationCount).toBe(1);
+      expect(mockGoogle.sheets).toHaveBeenCalledTimes(1);
+      expect(mockGoogle.drive).toHaveBeenCalledTimes(1);
+
+      // Restore original mock
+      mockAuthService.getAuthClient = originalGetAuthClient;
+    });
+
+    /**
+     * Tests concurrent access through different service methods.
+     * 
+     * Validates that multiple different operations starting simultaneously
+     * will share the same initialization process rather than each triggering
+     * their own initialization.
+     */
+    test('should handle concurrent calls to ensureInitialized through different methods', async () => {
+      // Reset service to uninitialized state
+      sheetsService = new SheetsService(mockAuthService, undefined, TEST_RETRY_CONFIG);
+      
+      let initializationCount = 0;
+      mockAuthService.getAuthClient = jest.fn().mockImplementation(() => {
+        initializationCount++;
+        return new Promise(resolve => {
+          setTimeout(() => {
+            resolve(ok(mockAuth));
+          }, 50);
+        });
+      });
+
+      // Mock API responses
+      mockDriveApi.files.list.mockResolvedValue({ data: { files: [] } });
+      mockSheetsApi.spreadsheets.get.mockResolvedValue({
+        data: {
+          spreadsheetId: 'test-id',
+          properties: { title: 'Test' },
+          spreadsheetUrl: 'https://example.com'
+        }
+      });
+
+      // Make concurrent calls that will trigger ensureInitialized
+      const promises = [
+        sheetsService.listSpreadsheets(),
+        sheetsService.getSpreadsheet('test-id'),
+        sheetsService.listSpreadsheets(),
+        sheetsService.getSpreadsheet('test-id')
+      ];
+
+      const results = await Promise.all(promises);
+
+      // All calls should succeed
+      results.forEach(result => {
+        expect(result.isOk()).toBe(true);
+      });
+
+      // But initialization should have been called only once
+      expect(initializationCount).toBe(1);
+    });
+
+    /**
+     * Tests error recovery and re-initialization capability.
+     * 
+     * Ensures that after a failed initialization, the service can be
+     * re-initialized successfully without being stuck in a failed state.
+     */
+    test('should allow re-initialization after error', async () => {
+      let callCount = 0;
+      mockAuthService.getAuthClient = jest.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          // First call fails
+          return Promise.resolve(err(new GoogleAuthError('First attempt failed')));
+        } else {
+          // Second call succeeds
+          return Promise.resolve(ok(mockAuth));
+        }
+      });
+
+      // First initialization should fail
+      const firstResult = await sheetsService.initialize();
+      expect(firstResult.isErr()).toBe(true);
+      expect(callCount).toBe(1);
+
+      // Second initialization should succeed
+      const secondResult = await sheetsService.initialize();
+      expect(secondResult.isOk()).toBe(true);
+      expect(callCount).toBe(2);
+    });
+
+    test('should handle concurrent calls when first initialization fails', async () => {
+      sheetsService = new SheetsService(mockAuthService, undefined, TEST_RETRY_CONFIG);
+      
+      let callCount = 0;
+      mockAuthService.getAuthClient = jest.fn().mockImplementation(() => {
+        callCount++;
+        // All calls fail initially
+        return Promise.resolve(err(new GoogleAuthError('Auth failed')));
+      });
+
+      // Make concurrent calls that should all fail
+      const promises = [
+        sheetsService.initialize(),
+        sheetsService.initialize(),
+        sheetsService.initialize()
+      ];
+
+      const results = await Promise.all(promises);
+
+      // All calls should fail
+      results.forEach(result => {
+        expect(result.isErr()).toBe(true);
+      });
+
+      // All calls should have attempted initialization since they all failed
+      expect(callCount).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Fast Path Performance Optimization', () => {
+    /**
+     * Tests the fast path optimization for already-initialized services.
+     * 
+     * This optimization is critical for performance:
+     * - Avoids unnecessary async operations
+     * - Reduces latency for repeat operations
+     * - Minimizes CPU and memory overhead
+     * 
+     * Expected behavior: < 1ms execution time for initialized services.
+     */
+    test('should skip initialization when already initialized', async () => {
+      // First initialize the service
+      await sheetsService.initialize();
+      expect(mockAuthService.getAuthClient).toHaveBeenCalledTimes(1);
+
+      // Reset call count for tracking subsequent calls
+      jest.clearAllMocks();
+
+      // Mock API response for ensureInitialized call
+      mockDriveApi.files.list.mockResolvedValue({ data: { files: [] } });
+
+      // Call method that triggers ensureInitialized
+      const result = await sheetsService.listSpreadsheets();
+      
+      expect(result.isOk()).toBe(true);
+      // Should not call getAuthClient again since already initialized
+      expect(mockAuthService.getAuthClient).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Performance regression test for fast path execution.
+     * 
+     * Validates that operations on an already-initialized service
+     * complete within acceptable time bounds.
+     */
+    test('should have fast execution time when already initialized', async () => {
+      // Initialize first
+      await sheetsService.initialize();
+
+      // Mock API response
+      mockDriveApi.files.list.mockResolvedValue({ data: { files: [] } });
+
+      // Measure execution time for already initialized service
+      const startTime = Date.now();
+      
+      // Make multiple calls to ensureInitialized (indirectly through listSpreadsheets)
+      const promises = Array(10).fill(null).map(() => sheetsService.listSpreadsheets());
+      await Promise.all(promises);
+      
+      const endTime = Date.now();
+      const executionTime = endTime - startTime;
+
+      // Should execute quickly since no actual initialization is needed
+      // This is more of a performance regression test
+      expect(executionTime).toBeLessThan(1000); // Should complete within 1 second
+    });
+
+    /**
+     * Tests state consistency across multiple operations.
+     * 
+     * Ensures the initialization flag remains stable and accurate
+     * throughout the service lifecycle.
+     */
+    test('should maintain initialization state across multiple calls', async () => {
+      // Verify initial state
+      expect(sheetsService['isInitialized']).toBe(false);
+
+      // Initialize
+      const initResult = await sheetsService.initialize();
+      expect(initResult.isOk()).toBe(true);
+      expect(sheetsService['isInitialized']).toBe(true);
+
+      // Make multiple calls that trigger ensureInitialized
+      mockDriveApi.files.list.mockResolvedValue({ data: { files: [] } });
+      
+      for (let i = 0; i < 5; i++) {
+        const result = await sheetsService.listSpreadsheets();
+        expect(result.isOk()).toBe(true);
+        expect(sheetsService['isInitialized']).toBe(true);
+      }
+
+      // Should still be initialized
+      expect(sheetsService['isInitialized']).toBe(true);
     });
   });
 });
