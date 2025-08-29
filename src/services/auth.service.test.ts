@@ -19,6 +19,8 @@ import { AuthService } from './auth.service.js';
 import { AuthFactory } from './auth/auth-factory.js';
 import type { AuthProvider } from './auth/auth-provider.interface.js';
 import type { EnvironmentConfig } from '../types/index.js';
+import type { Logger, LoggerConfig } from '../utils/logger.js';
+import type { Result } from 'neverthrow';
 import {
   GoogleAuthError,
   GoogleAuthMissingCredentialsError,
@@ -42,7 +44,7 @@ const mockLogger = {
   warn: jest.fn(),
   debug: jest.fn(),
   fatal: jest.fn(),
-  child: jest.fn().mockReturnValue({} as any),
+  child: jest.fn().mockReturnValue({} as Logger),
   addContext: jest.fn(),
   startTimer: jest.fn(),
   endTimer: jest.fn(),
@@ -50,21 +52,25 @@ const mockLogger = {
   measure: jest.fn(),
   logOperation: jest.fn(),
   updateConfig: jest.fn(),
-  config: {} as any,
-  performanceTimers: new Map(),
-  additionalContext: {},
+  forOperation: jest.fn().mockReturnValue({} as Logger),
+  isLevelEnabled: jest.fn().mockReturnValue(true),
+  getConfig: jest.fn().mockReturnValue({} as LoggerConfig),
   log: jest.fn(),
-} as any;
+} as unknown as Logger;
 
 // Helper functions for testing Result types
-const expectOkValue = <T>(result: any, expectedValue: T) => {
+const expectOkValue = <T, E>(result: Result<T, E>, expectedValue: T): void => {
   expect(result.isOk()).toBe(true);
   if (result.isOk()) {
     expect(result.value).toEqual(expectedValue);
   }
 };
 
-const expectErrType = (result: any, ErrorType: any) => {
+const expectErrType = <T, E extends Error>(
+  result: Result<T, E>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ErrorType: new (...args: any[]) => Error
+): void => {
   expect(result.isErr()).toBe(true);
   if (result.isErr()) {
     expect(result.error).toBeInstanceOf(ErrorType);
@@ -74,7 +80,6 @@ const expectErrType = (result: any, ErrorType: any) => {
 describe('AuthService Unified Wrapper', () => {
   let mockProvider: jest.Mocked<AuthProvider>;
   let mockOAuth2Client: jest.Mocked<OAuth2Client>;
-  let mockGoogleAuth: any;
 
   const serviceAccountConfig: EnvironmentConfig = {
     GOOGLE_SERVICE_ACCOUNT_KEY_PATH: '/path/to/service-account.json',
@@ -94,25 +99,25 @@ describe('AuthService Unified Wrapper', () => {
     // Mock OAuth2Client
     mockOAuth2Client = {
       getAccessToken: jest.fn(),
-    } as any;
+    } as unknown as jest.Mocked<OAuth2Client>;
 
-    // Mock GoogleAuth
-    mockGoogleAuth = {
-      getClient: jest.fn().mockResolvedValue(mockOAuth2Client),
-    } as any;
+    // Mock GoogleAuth (not needed for current implementation)
+    // mockGoogleAuth = {
+    //   getClient: jest.fn().mockResolvedValue(mockOAuth2Client),
+    // } as jest.Mocked<GoogleAuth>;
 
     // Mock AuthProvider
     mockProvider = {
+      authType: 'service-account' as const,
       initialize: jest.fn(),
       getAuthClient: jest.fn(),
       validateAuth: jest.fn(),
       refreshToken: jest.fn(),
       getAuthInfo: jest.fn(),
       healthCheck: jest.fn(),
-    } as any;
+    } as jest.Mocked<AuthProvider>;
 
-    // Set authType dynamically in tests
-    (mockProvider as any).authType = 'service-account';
+    // AuthProvider is now properly typed with authType included
 
     // Setup AuthFactory mock
     mockAuthFactory.createAuthProvider = jest
@@ -159,7 +164,9 @@ describe('AuthService Unified Wrapper', () => {
     let authService: AuthService;
 
     beforeEach(() => {
-      (mockProvider as any).authType = 'service-account';
+      (
+        mockProvider as jest.Mocked<AuthProvider> & { authType: string }
+      ).authType = 'service-account';
       authService = new AuthService(serviceAccountConfig);
     });
 
@@ -242,7 +249,9 @@ describe('AuthService Unified Wrapper', () => {
     let authService: AuthService;
 
     beforeEach(() => {
-      (mockProvider as any).authType = 'oauth2';
+      (
+        mockProvider as jest.Mocked<AuthProvider> & { authType: string }
+      ).authType = 'oauth2';
       authService = new AuthService(oauth2Config);
     });
 
@@ -283,9 +292,14 @@ describe('AuthService Unified Wrapper', () => {
     });
 
     it('should handle OAuth2 specific errors', async () => {
-      const oauth2Error = new GoogleOAuth2Error('OAuth2 flow failed', 'GOOGLE_OAUTH2_ERROR', 401, {
-        operation: 'OAUTH2_FLOW_ERROR',
-      });
+      const oauth2Error = new GoogleOAuth2Error(
+        'OAuth2 flow failed',
+        'GOOGLE_OAUTH2_ERROR',
+        401,
+        {
+          operation: 'OAUTH2_FLOW_ERROR',
+        }
+      );
       const expectedResult = authErr(oauth2Error);
       mockProvider.initialize.mockResolvedValue(googleOk(undefined));
       mockProvider.validateAuth.mockResolvedValue(expectedResult);
@@ -400,7 +414,9 @@ describe('AuthService Unified Wrapper', () => {
 
   describe('Auto-detection and Configuration', () => {
     it('should use service account provider for service account config', async () => {
-      (mockProvider as any).authType = 'service-account';
+      (
+        mockProvider as jest.Mocked<AuthProvider> & { authType: string }
+      ).authType = 'service-account';
       const authService = new AuthService(serviceAccountConfig);
 
       await authService.initialize();
@@ -414,7 +430,7 @@ describe('AuthService Unified Wrapper', () => {
     it('should use OAuth2 provider for OAuth2 config', async () => {
       const oauth2Provider = { ...mockProvider, authType: 'oauth2' };
       mockAuthFactory.createAuthProvider.mockResolvedValue(
-        oauth2Provider as any
+        oauth2Provider as jest.Mocked<AuthProvider>
       );
 
       const authService = new AuthService(oauth2Config);
