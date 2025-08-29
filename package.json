@@ -26,12 +26,16 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "googleapis": "latest",
+    "keytar": "^7.9.0",
     "neverthrow": "^8.2.0",
+    "open": "^10.2.0",
+    "server-destroy": "^1.0.1",
     "zod": "^3.22.0"
   },
   "devDependencies": {
     "@types/jest": "^29.0.0",
     "@types/node": "^18.0.0",
+    "@types/server-destroy": "^1.0.4",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.0.0",

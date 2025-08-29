@@ -1,12 +1,25 @@
 // 環境変数の型定義
 export interface EnvironmentConfig {
-  GOOGLE_SERVICE_ACCOUNT_KEY_PATH: string;
+  // Service Account Configuration
+  GOOGLE_SERVICE_ACCOUNT_KEY_PATH?: string;
   GOOGLE_DRIVE_FOLDER_ID: string;
+
+  // OAuth2 Configuration
+  GOOGLE_AUTH_MODE?: 'service-account' | 'oauth2';
+  GOOGLE_OAUTH_CLIENT_ID?: string;
+  GOOGLE_OAUTH_CLIENT_SECRET?: string;
+  GOOGLE_OAUTH_REDIRECT_URI?: string;
+  GOOGLE_OAUTH_SCOPES?: string;
+  GOOGLE_OAUTH_PORT?: number;
+
+  // Retry Configuration
   GOOGLE_RETRY_MAX_ATTEMPTS?: number;
   GOOGLE_RETRY_BASE_DELAY?: number;
   GOOGLE_RETRY_MAX_DELAY?: number;
   GOOGLE_RETRY_JITTER?: number;
   GOOGLE_RETRY_RETRIABLE_CODES?: number[];
+
+  // Timeout Configuration
   GOOGLE_REQUEST_TIMEOUT?: number;
   GOOGLE_TOTAL_TIMEOUT?: number;
 }
@@ -351,4 +364,21 @@ export enum HttpStatusCode {
 
   /** Gateway timeout */
   GATEWAY_TIMEOUT = 504,
+}
+
+// Authentication related types
+export interface AuthInfo {
+  /** Whether the provider is currently authenticated */
+  isAuthenticated: boolean;
+  /** Service account key file path or client ID (depending on provider type) */
+  keyFile: string;
+  /** OAuth2 scopes granted for the authentication */
+  scopes: string[];
+  /** Optional token information for OAuth2 providers */
+  tokenInfo?: {
+    /** Token expiration date if available */
+    expiresAt?: Date;
+    /** Whether a valid token is currently available */
+    hasToken: boolean;
+  };
 }

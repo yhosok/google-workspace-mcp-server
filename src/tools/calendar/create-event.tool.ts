@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { BaseCalendarTools } from './base-calendar-tool.js';
-import type { CalendarCreateEventResult, CalendarEvent, MCPToolResult, ToolMetadata } from '../../types/index.js';
+import type {
+  CalendarCreateEventResult,
+  CalendarEvent,
+  MCPToolResult,
+  ToolMetadata,
+} from '../../types/index.js';
 import type { ToolExecutionContext } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
@@ -8,14 +13,24 @@ import { GoogleWorkspaceError } from '../../errors/index.js';
 /**
  * Schema for event date/time information
  */
-const EventTimeSchema = z.object({
-  dateTime: z.string().optional().describe('ISO 8601 date-time string with timezone'),
-  date: z.string().optional().describe('ISO 8601 date string for all-day events'),
-  timeZone: z.string().optional().describe('Time zone identifier (e.g., "America/New_York")'),
-}).refine(
-  (data) => !!(data.dateTime || data.date),
-  { message: 'Either dateTime or date must be provided' }
-);
+const EventTimeSchema = z
+  .object({
+    dateTime: z
+      .string()
+      .optional()
+      .describe('ISO 8601 date-time string with timezone'),
+    date: z
+      .string()
+      .optional()
+      .describe('ISO 8601 date string for all-day events'),
+    timeZone: z
+      .string()
+      .optional()
+      .describe('Time zone identifier (e.g., "America/New_York")'),
+  })
+  .refine(data => !!(data.dateTime || data.date), {
+    message: 'Either dateTime or date must be provided',
+  });
 
 /**
  * Schema for event attendee information
@@ -24,42 +39,99 @@ const AttendeeSchema = z.object({
   email: z.string().email().describe('Email address of the attendee'),
   displayName: z.string().optional().describe('Display name of the attendee'),
   optional: z.boolean().optional().describe('Whether attendance is optional'),
-  responseStatus: z.enum(['needsAction', 'declined', 'tentative', 'accepted']).optional(),
+  responseStatus: z
+    .enum(['needsAction', 'declined', 'tentative', 'accepted'])
+    .optional(),
   comment: z.string().optional().describe('Comment from the attendee'),
-  additionalGuests: z.number().int().min(0).optional().describe('Number of additional guests'),
+  additionalGuests: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Number of additional guests'),
 });
 
 /**
  * Schema for reminder settings
  */
 const ReminderSchema = z.object({
-  useDefault: z.boolean().optional().describe('Whether to use default reminders'),
-  overrides: z.array(z.object({
-    method: z.enum(['email', 'popup']).describe('Reminder delivery method'),
-    minutes: z.number().int().min(0).describe('Minutes before event to send reminder'),
-  })).optional().describe('Custom reminder settings'),
+  useDefault: z
+    .boolean()
+    .optional()
+    .describe('Whether to use default reminders'),
+  overrides: z
+    .array(
+      z.object({
+        method: z.enum(['email', 'popup']).describe('Reminder delivery method'),
+        minutes: z
+          .number()
+          .int()
+          .min(0)
+          .describe('Minutes before event to send reminder'),
+      })
+    )
+    .optional()
+    .describe('Custom reminder settings'),
 });
 
 /**
  * Schema for create event input
  */
-const CreateEventInputSchema = z.object({
-  calendarId: z.string().min(1).describe('The calendar ID to create the event in'),
-  summary: z.string().min(1).max(1024).describe('The title/summary of the event'),
-  description: z.string().max(8192).optional().describe('Detailed description of the event'),
-  location: z.string().max(1024).optional().describe('Location of the event'),
-  start: EventTimeSchema.describe('Start date/time of the event'),
-  end: EventTimeSchema.describe('End date/time of the event'),
-  attendees: z.array(AttendeeSchema).optional().describe('List of event attendees'),
-  reminders: ReminderSchema.optional().describe('Reminder settings for the event'),
-  recurrence: z.array(z.string()).optional().describe('RRULE recurrence patterns'),
-  transparency: z.enum(['opaque', 'transparent']).optional().describe('Event transparency'),
-  visibility: z.enum(['default', 'public', 'private', 'confidential']).optional(),
-  anyoneCanAddSelf: z.boolean().optional().describe('Whether anyone can add themselves'),
-  guestsCanInviteOthers: z.boolean().optional().describe('Whether guests can invite others'),
-  guestsCanModify: z.boolean().optional().describe('Whether guests can modify event'),
-  guestsCanSeeOtherGuests: z.boolean().optional().describe('Whether guests can see other guests'),
-}).describe('Create a new calendar event');
+const CreateEventInputSchema = z
+  .object({
+    calendarId: z
+      .string()
+      .min(1)
+      .describe('The calendar ID to create the event in'),
+    summary: z
+      .string()
+      .min(1)
+      .max(1024)
+      .describe('The title/summary of the event'),
+    description: z
+      .string()
+      .max(8192)
+      .optional()
+      .describe('Detailed description of the event'),
+    location: z.string().max(1024).optional().describe('Location of the event'),
+    start: EventTimeSchema.describe('Start date/time of the event'),
+    end: EventTimeSchema.describe('End date/time of the event'),
+    attendees: z
+      .array(AttendeeSchema)
+      .optional()
+      .describe('List of event attendees'),
+    reminders: ReminderSchema.optional().describe(
+      'Reminder settings for the event'
+    ),
+    recurrence: z
+      .array(z.string())
+      .optional()
+      .describe('RRULE recurrence patterns'),
+    transparency: z
+      .enum(['opaque', 'transparent'])
+      .optional()
+      .describe('Event transparency'),
+    visibility: z
+      .enum(['default', 'public', 'private', 'confidential'])
+      .optional(),
+    anyoneCanAddSelf: z
+      .boolean()
+      .optional()
+      .describe('Whether anyone can add themselves'),
+    guestsCanInviteOthers: z
+      .boolean()
+      .optional()
+      .describe('Whether guests can invite others'),
+    guestsCanModify: z
+      .boolean()
+      .optional()
+      .describe('Whether guests can modify event'),
+    guestsCanSeeOtherGuests: z
+      .boolean()
+      .optional()
+      .describe('Whether guests can see other guests'),
+  })
+  .describe('Create a new calendar event');
 
 type CreateEventInput = z.infer<typeof CreateEventInputSchema>;
 
@@ -132,8 +204,10 @@ export class CreateEventTool extends BaseCalendarTools<
 
   public getToolMetadata(): ToolMetadata {
     return {
-      title: 'Creates a new calendar event with comprehensive options for attendees, reminders, and recurrence',
-      description: 'Creates a new calendar event with comprehensive options for attendees, reminders, and recurrence',
+      title:
+        'Creates a new calendar event with comprehensive options for attendees, reminders, and recurrence',
+      description:
+        'Creates a new calendar event with comprehensive options for attendees, reminders, and recurrence',
       inputSchema: CreateEventInputSchema.shape,
     };
   }
@@ -142,7 +216,7 @@ export class CreateEventTool extends BaseCalendarTools<
     args: CreateEventInput,
     context?: ToolExecutionContext
   ): Promise<Result<any, GoogleWorkspaceError>> {
-    this.logger.info('Executing create event tool', { 
+    this.logger.info('Executing create event tool', {
       calendarId: args.calendarId,
       summary: args.summary,
       hasAttendees: !!args.attendees?.length,
@@ -182,7 +256,10 @@ export class CreateEventTool extends BaseCalendarTools<
       };
 
       // Create event using the service
-      const result = await this.calendarService.createEvent(calendarId, eventData);
+      const result = await this.calendarService.createEvent(
+        calendarId,
+        eventData
+      );
 
       if (result.isErr()) {
         const error = this.handleServiceError(result.error);
@@ -197,7 +274,7 @@ export class CreateEventTool extends BaseCalendarTools<
       }
 
       const createdEvent = result.value;
-      
+
       this.logger.info('Successfully created event', {
         calendarId,
         eventId: createdEvent.id,

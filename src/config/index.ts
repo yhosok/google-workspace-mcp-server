@@ -3,26 +3,54 @@ import type { EnvironmentConfig } from '../types/index.js';
 
 /**
  * Environment variable schema definition for Google Workspace MCP Server.
- * Validates and transforms environment variables with retry configuration.
+ * Validates and transforms environment variables with retry configuration
+ * and OAuth2 authentication support.
  */
 const envSchema = z
   .object({
-    GOOGLE_SERVICE_ACCOUNT_KEY_PATH: z
-      .string()
-      .min(1, 'GOOGLE_SERVICE_ACCOUNT_KEY_PATH is required'),
+    // Service Account Configuration
+    GOOGLE_SERVICE_ACCOUNT_KEY_PATH: z.string().optional(),
     GOOGLE_DRIVE_FOLDER_ID: z.string().optional(),
+
+    // OAuth2 Configuration
+    GOOGLE_AUTH_MODE: z.enum(['service-account', 'oauth2']).optional(),
+    GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
+    GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
+    GOOGLE_OAUTH_REDIRECT_URI: z.string().optional(),
+    GOOGLE_OAUTH_SCOPES: z.string().optional(),
+    GOOGLE_OAUTH_PORT: z.string().optional(),
+
+    // Retry Configuration
     GOOGLE_RETRY_MAX_ATTEMPTS: z.string().optional(),
     GOOGLE_RETRY_BASE_DELAY: z.string().optional(),
     GOOGLE_RETRY_MAX_DELAY: z.string().optional(),
     GOOGLE_RETRY_JITTER: z.string().optional(),
     GOOGLE_RETRY_RETRIABLE_CODES: z.string().optional(),
+
+    // Timeout Configuration
     GOOGLE_REQUEST_TIMEOUT: z.string().optional(),
     GOOGLE_TOTAL_TIMEOUT: z.string().optional(),
   })
   .transform(data => ({
+    // Service Account Configuration
     GOOGLE_SERVICE_ACCOUNT_KEY_PATH: data.GOOGLE_SERVICE_ACCOUNT_KEY_PATH,
     GOOGLE_DRIVE_FOLDER_ID: data.GOOGLE_DRIVE_FOLDER_ID || '',
-    // Parse retry configuration with proper error handling
+
+    // OAuth2 Configuration
+    GOOGLE_AUTH_MODE: data.GOOGLE_AUTH_MODE as
+      | 'service-account'
+      | 'oauth2'
+      | undefined,
+    GOOGLE_OAUTH_CLIENT_ID: data.GOOGLE_OAUTH_CLIENT_ID,
+    GOOGLE_OAUTH_CLIENT_SECRET: data.GOOGLE_OAUTH_CLIENT_SECRET,
+    GOOGLE_OAUTH_REDIRECT_URI: data.GOOGLE_OAUTH_REDIRECT_URI,
+    GOOGLE_OAUTH_SCOPES: data.GOOGLE_OAUTH_SCOPES,
+    GOOGLE_OAUTH_PORT: parseIntegerEnvVar(
+      data.GOOGLE_OAUTH_PORT,
+      'GOOGLE_OAUTH_PORT'
+    ),
+
+    // Retry Configuration
     GOOGLE_RETRY_MAX_ATTEMPTS: parseIntegerEnvVar(
       data.GOOGLE_RETRY_MAX_ATTEMPTS,
       'GOOGLE_RETRY_MAX_ATTEMPTS'
@@ -43,6 +71,8 @@ const envSchema = z
       data.GOOGLE_RETRY_RETRIABLE_CODES,
       'GOOGLE_RETRY_RETRIABLE_CODES'
     ),
+
+    // Timeout Configuration
     GOOGLE_REQUEST_TIMEOUT: parseIntegerEnvVar(
       data.GOOGLE_REQUEST_TIMEOUT,
       'GOOGLE_REQUEST_TIMEOUT'
@@ -55,6 +85,7 @@ const envSchema = z
   .refine(data => {
     // Final validation of parsed values
     validateRetryConfig(data);
+    validateAuthConfig(data);
     return true;
   });
 
@@ -160,6 +191,87 @@ function validateRetryConfig(data: EnvironmentConfig): void {
   ) {
     throw new Error(
       'GOOGLE_RETRY_MAX_DELAY must be greater than or equal to GOOGLE_RETRY_BASE_DELAY'
+    );
+  }
+}
+
+/**
+ * Validates authentication configuration values.
+ * Ensures that required credentials are provided for the selected auth mode.
+ * @param data - The parsed environment configuration
+ */
+function validateAuthConfig(data: EnvironmentConfig): void {
+  const {
+    GOOGLE_AUTH_MODE,
+    GOOGLE_SERVICE_ACCOUNT_KEY_PATH,
+    GOOGLE_OAUTH_CLIENT_ID,
+    GOOGLE_OAUTH_CLIENT_SECRET,
+    GOOGLE_OAUTH_PORT,
+  } = data;
+
+  // If auth mode is explicitly set, validate required credentials
+  if (GOOGLE_AUTH_MODE === 'service-account') {
+    if (!GOOGLE_SERVICE_ACCOUNT_KEY_PATH) {
+      throw new Error(
+        'GOOGLE_SERVICE_ACCOUNT_KEY_PATH is required when GOOGLE_AUTH_MODE is "service-account"'
+      );
+    }
+  } else if (GOOGLE_AUTH_MODE === 'oauth2') {
+    if (!GOOGLE_OAUTH_CLIENT_ID) {
+      throw new Error(
+        'GOOGLE_OAUTH_CLIENT_ID is required when GOOGLE_AUTH_MODE is "oauth2"'
+      );
+    }
+    if (!GOOGLE_OAUTH_CLIENT_SECRET) {
+      throw new Error(
+        'GOOGLE_OAUTH_CLIENT_SECRET is required when GOOGLE_AUTH_MODE is "oauth2"'
+      );
+    }
+  }
+
+  // If no explicit auth mode, but OAuth2 credentials are provided, validate them
+  if (
+    !GOOGLE_AUTH_MODE &&
+    (GOOGLE_OAUTH_CLIENT_ID || GOOGLE_OAUTH_CLIENT_SECRET)
+  ) {
+    if (!GOOGLE_OAUTH_CLIENT_ID) {
+      throw new Error(
+        'GOOGLE_OAUTH_CLIENT_SECRET requires GOOGLE_OAUTH_CLIENT_ID'
+      );
+    }
+    if (!GOOGLE_OAUTH_CLIENT_SECRET) {
+      throw new Error(
+        'GOOGLE_OAUTH_CLIENT_ID requires GOOGLE_OAUTH_CLIENT_SECRET'
+      );
+    }
+  }
+
+  // Validate OAuth2 port if provided
+  if (GOOGLE_OAUTH_PORT !== undefined) {
+    if (GOOGLE_OAUTH_PORT <= 0 || GOOGLE_OAUTH_PORT > 65535) {
+      throw new Error(
+        'GOOGLE_OAUTH_PORT must be a valid port number (1-65535)'
+      );
+    }
+    if (
+      GOOGLE_OAUTH_PORT < 1024 &&
+      GOOGLE_OAUTH_PORT !== 80 &&
+      GOOGLE_OAUTH_PORT !== 443
+    ) {
+      console.warn(
+        'Warning: GOOGLE_OAUTH_PORT is set to a privileged port (<1024). This may require admin privileges.'
+      );
+    }
+  }
+
+  // Validate that at least one auth method is configured
+  const hasServiceAccount = !!GOOGLE_SERVICE_ACCOUNT_KEY_PATH;
+  const hasOAuth2 = !!(GOOGLE_OAUTH_CLIENT_ID && GOOGLE_OAUTH_CLIENT_SECRET);
+
+  if (!hasServiceAccount && !hasOAuth2) {
+    throw new Error(
+      'At least one authentication method must be configured. ' +
+        'Provide either GOOGLE_SERVICE_ACCOUNT_KEY_PATH or both GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET.'
     );
   }
 }

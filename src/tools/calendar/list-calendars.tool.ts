@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { BaseCalendarTools } from './base-calendar-tool.js';
-import type { CalendarListResult, MCPToolResult, ToolMetadata } from '../../types/index.js';
+import type {
+  CalendarListResult,
+  MCPToolResult,
+  ToolMetadata,
+} from '../../types/index.js';
 import type { ToolExecutionContext } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
@@ -8,7 +12,10 @@ import { GoogleWorkspaceError } from '../../errors/index.js';
 /**
  * Schema for list calendars input (no parameters required)
  */
-const ListCalendarsInputSchema = z.object({}).optional().describe('List all accessible calendars');
+const ListCalendarsInputSchema = z
+  .object({})
+  .optional()
+  .describe('List all accessible calendars');
 
 type ListCalendarsInput = z.infer<typeof ListCalendarsInputSchema>;
 
@@ -71,7 +78,7 @@ export class ListCalendarsTool extends BaseCalendarTools<
       }
 
       const calendars = result.value;
-      
+
       this.logger.info('Successfully listed calendars', {
         count: calendars.length,
       });

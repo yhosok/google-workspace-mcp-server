@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { BaseCalendarTools } from './base-calendar-tool.js';
-import type { CalendarEventResult, MCPToolResult, ToolMetadata } from '../../types/index.js';
+import type {
+  CalendarEventResult,
+  MCPToolResult,
+  ToolMetadata,
+} from '../../types/index.js';
 import type { ToolExecutionContext } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
@@ -8,10 +12,18 @@ import { GoogleWorkspaceError } from '../../errors/index.js';
 /**
  * Schema for get event input
  */
-const GetEventInputSchema = z.object({
-  calendarId: z.string().min(1).describe('The calendar ID containing the event'),
-  eventId: z.string().min(1).describe('The unique identifier of the event to retrieve'),
-}).describe('Get detailed information about a specific calendar event');
+const GetEventInputSchema = z
+  .object({
+    calendarId: z
+      .string()
+      .min(1)
+      .describe('The calendar ID containing the event'),
+    eventId: z
+      .string()
+      .min(1)
+      .describe('The unique identifier of the event to retrieve'),
+  })
+  .describe('Get detailed information about a specific calendar event');
 
 type GetEventInput = z.infer<typeof GetEventInputSchema>;
 
@@ -61,7 +73,8 @@ export class GetEventTool extends BaseCalendarTools<
   public getToolMetadata(): ToolMetadata {
     return {
       title: 'Get Calendar Event',
-      description: 'Retrieves detailed information about a specific calendar event',
+      description:
+        'Retrieves detailed information about a specific calendar event',
       inputSchema: GetEventInputSchema.shape,
     };
   }
@@ -117,7 +130,7 @@ export class GetEventTool extends BaseCalendarTools<
       }
 
       const event = result.value;
-      
+
       this.logger.info('Successfully retrieved event', {
         calendarId,
         eventId,
@@ -152,17 +165,19 @@ export class GetEventTool extends BaseCalendarTools<
           visibility: event.visibility,
           sequence: event.sequence,
           iCalUID: event.iCalUID,
-          conferenceData: event.conferenceData ? {
-            entryPoints: event.conferenceData.entryPoints?.map(entry => ({
-              entryPointType: entry.entryPointType,
-              uri: entry.uri,
-              label: entry.label,
-              meetingCode: entry.meetingCode,
-              accessCode: entry.accessCode,
-            })),
-            conferenceSolution: event.conferenceData.conferenceSolution,
-            conferenceId: event.conferenceData.conferenceId,
-          } : undefined,
+          conferenceData: event.conferenceData
+            ? {
+                entryPoints: event.conferenceData.entryPoints?.map(entry => ({
+                  entryPointType: entry.entryPointType,
+                  uri: entry.uri,
+                  label: entry.label,
+                  meetingCode: entry.meetingCode,
+                  accessCode: entry.accessCode,
+                })),
+                conferenceSolution: event.conferenceData.conferenceSolution,
+                conferenceId: event.conferenceData.conferenceId,
+              }
+            : undefined,
           attachments: event.attachments?.map(attachment => ({
             fileUrl: attachment.fileUrl,
             title: attachment.title,

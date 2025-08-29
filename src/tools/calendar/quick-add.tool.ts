@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { BaseCalendarTools } from './base-calendar-tool.js';
-import type { CalendarQuickAddResult, MCPToolResult, ToolMetadata } from '../../types/index.js';
+import type {
+  CalendarQuickAddResult,
+  MCPToolResult,
+  ToolMetadata,
+} from '../../types/index.js';
 import type { ToolExecutionContext } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
@@ -8,10 +12,19 @@ import { GoogleWorkspaceError } from '../../errors/index.js';
 /**
  * Schema for quick add input
  */
-const QuickAddInputSchema = z.object({
-  calendarId: z.string().min(1).describe('The calendar ID to create the event in'),
-  text: z.string().min(1).max(1024).describe('Natural language description of the event to create'),
-}).describe('Create a calendar event using natural language text');
+const QuickAddInputSchema = z
+  .object({
+    calendarId: z
+      .string()
+      .min(1)
+      .describe('The calendar ID to create the event in'),
+    text: z
+      .string()
+      .min(1)
+      .max(1024)
+      .describe('Natural language description of the event to create'),
+  })
+  .describe('Create a calendar event using natural language text');
 
 type QuickAddInput = z.infer<typeof QuickAddInputSchema>;
 
@@ -81,7 +94,8 @@ export class QuickAddTool extends BaseCalendarTools<
   public getToolMetadata(): ToolMetadata {
     return {
       title: 'Quick Add Calendar Event',
-      description: 'Creates a calendar event using natural language text with intelligent parsing of dates, times, and locations',
+      description:
+        'Creates a calendar event using natural language text with intelligent parsing of dates, times, and locations',
       inputSchema: QuickAddInputSchema.shape,
     };
   }
@@ -90,7 +104,7 @@ export class QuickAddTool extends BaseCalendarTools<
     args: QuickAddInput,
     context?: ToolExecutionContext
   ): Promise<Result<CalendarQuickAddResult, GoogleWorkspaceError>> {
-    this.logger.info('Executing quick add tool', { 
+    this.logger.info('Executing quick add tool', {
       calendarId: args.calendarId,
       text: args.text,
     });
@@ -117,7 +131,9 @@ export class QuickAddTool extends BaseCalendarTools<
           text: args.text,
         });
 
-        return err(this.handleServiceError(new Error('Quick add text cannot be empty')));
+        return err(
+          this.handleServiceError(new Error('Quick add text cannot be empty'))
+        );
       }
 
       const text = args.text.trim();
@@ -138,7 +154,7 @@ export class QuickAddTool extends BaseCalendarTools<
       }
 
       const createdEvent = result.value;
-      
+
       this.logger.info('Successfully created event via quick add', {
         calendarId,
         eventId: createdEvent.id,

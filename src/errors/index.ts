@@ -22,7 +22,15 @@ export abstract class GoogleWorkspaceError extends Error {
   /**
    * Error code for programmatic identification
    */
-  public readonly code: string;
+  public readonly errorCode: string;
+
+  /**
+   * Legacy property for backwards compatibility
+   * @deprecated Use errorCode instead
+   */
+  public get code(): string {
+    return this.errorCode;
+  }
 
   /**
    * HTTP status code equivalent (for API responses)
@@ -41,14 +49,14 @@ export abstract class GoogleWorkspaceError extends Error {
 
   constructor(
     message: string,
-    code: string,
+    errorCode: string,
     statusCode: number = 500,
     context?: Record<string, unknown>,
     cause?: Error
   ) {
     super(message);
     this.name = this.constructor.name;
-    this.code = code;
+    this.errorCode = errorCode;
     this.statusCode = statusCode;
     this.context = context;
     this.timestamp = new Date();
@@ -72,7 +80,8 @@ export abstract class GoogleWorkspaceError extends Error {
     return {
       name: this.name,
       message: this.message,
-      code: this.code,
+      code: this.code, // Keep for backwards compatibility
+      errorCode: this.errorCode,
       statusCode: this.statusCode,
       context: this.context,
       timestamp: this.timestamp.toISOString(),
@@ -104,25 +113,27 @@ export class GoogleAuthError extends GoogleWorkspaceError {
 
   public isRetryable(): boolean {
     // Auth errors with expired tokens might be retryable after refresh
-    return this.code === 'GOOGLE_AUTH_TOKEN_EXPIRED';
+    return this.errorCode === 'GOOGLE_AUTH_TOKEN_EXPIRED';
   }
 }
 
 /**
  * Specific authentication error subtypes
  */
-export class GoogleAuthTokenExpiredError extends GoogleAuthError {
+export class GoogleAuthTokenExpiredError extends GoogleWorkspaceError {
+  public readonly authType: 'service-account' | 'oauth2' | 'api-key';
+
   constructor(
     authType: 'service-account' | 'oauth2' | 'api-key' = 'service-account',
     context?: Record<string, unknown>
   ) {
-    super('Authentication token has expired', authType, context);
-    // Override the code using Object.defineProperty to avoid readonly issues
-    Object.defineProperty(this, 'code', {
-      value: 'GOOGLE_AUTH_TOKEN_EXPIRED',
-      writable: false,
-      configurable: false,
-    });
+    super(
+      'Authentication token has expired',
+      'GOOGLE_AUTH_TOKEN_EXPIRED',
+      401,
+      { authType, ...context }
+    );
+    this.authType = authType;
   }
 
   public isRetryable(): boolean {
@@ -130,23 +141,20 @@ export class GoogleAuthTokenExpiredError extends GoogleAuthError {
   }
 }
 
-export class GoogleAuthInvalidCredentialsError extends GoogleAuthError {
+export class GoogleAuthInvalidCredentialsError extends GoogleWorkspaceError {
+  public readonly authType: 'service-account' | 'oauth2' | 'api-key';
+
   constructor(
     authType: 'service-account' | 'oauth2' | 'api-key' = 'service-account',
     context?: Record<string, unknown>
   ) {
-    super('Invalid authentication credentials provided', authType, context);
-    // Override the code and statusCode using Object.defineProperty
-    Object.defineProperty(this, 'code', {
-      value: 'GOOGLE_AUTH_INVALID_CREDENTIALS',
-      writable: false,
-      configurable: false,
-    });
-    Object.defineProperty(this, 'statusCode', {
-      value: 403,
-      writable: false,
-      configurable: false,
-    });
+    super(
+      'Invalid authentication credentials provided',
+      'GOOGLE_AUTH_INVALID_CREDENTIALS',
+      403,
+      { authType, ...context }
+    );
+    this.authType = authType;
   }
 
   public isRetryable(): boolean {
@@ -154,27 +162,151 @@ export class GoogleAuthInvalidCredentialsError extends GoogleAuthError {
   }
 }
 
-export class GoogleAuthMissingCredentialsError extends GoogleAuthError {
+export class GoogleAuthMissingCredentialsError extends GoogleWorkspaceError {
+  public readonly authType: 'service-account' | 'oauth2' | 'api-key';
+
   constructor(
     authType: 'service-account' | 'oauth2' | 'api-key' = 'service-account',
     context?: Record<string, unknown>
   ) {
-    super('Missing required authentication credentials', authType, context);
-    // Override the code and statusCode using Object.defineProperty
-    Object.defineProperty(this, 'code', {
-      value: 'GOOGLE_AUTH_MISSING_CREDENTIALS',
-      writable: false,
-      configurable: false,
-    });
-    Object.defineProperty(this, 'statusCode', {
-      value: 401,
-      writable: false,
-      configurable: false,
-    });
+    super(
+      'Missing required authentication credentials',
+      'GOOGLE_AUTH_MISSING_CREDENTIALS',
+      401,
+      { authType, ...context }
+    );
+    this.authType = authType;
   }
 
   public isRetryable(): boolean {
     return false;
+  }
+}
+
+/**
+ * OAuth2 specific authentication errors
+ */
+export class GoogleOAuth2Error extends GoogleWorkspaceError {
+  public readonly authType: 'oauth2' = 'oauth2';
+  public readonly redirectUri?: string;
+  public readonly scopes?: string[];
+
+  constructor(
+    message: string,
+    errorCode: string = 'GOOGLE_OAUTH2_ERROR',
+    statusCode: number = 401,
+    context?: Record<string, unknown> & {
+      redirectUri?: string;
+      scopes?: string[];
+    },
+    cause?: Error
+  ) {
+    super(message, errorCode, statusCode, { authType: 'oauth2', ...context }, cause);
+    this.redirectUri = context?.redirectUri;
+    this.scopes = context?.scopes;
+  }
+
+  public isRetryable(): boolean {
+    return false; // Most OAuth2 errors require user intervention
+  }
+}
+
+export class GoogleOAuth2AuthorizationRequiredError extends GoogleOAuth2Error {
+  public readonly authorizationUrl: string;
+
+  constructor(
+    authorizationUrl: string,
+    context?: Record<string, unknown> & {
+      redirectUri?: string;
+      scopes?: string[];
+    }
+  ) {
+    super(
+      'User authorization required',
+      'GOOGLE_OAUTH2_AUTHORIZATION_REQUIRED',
+      401,
+      { authorizationUrl, ...context }
+    );
+    this.authorizationUrl = authorizationUrl;
+  }
+
+  public isRetryable(): boolean {
+    return false; // Requires user interaction
+  }
+}
+
+export class GoogleOAuth2UserDeniedError extends GoogleOAuth2Error {
+  constructor(
+    context?: Record<string, unknown> & {
+      redirectUri?: string;
+      scopes?: string[];
+    }
+  ) {
+    super(
+      'User denied authorization request',
+      'GOOGLE_OAUTH2_USER_DENIED',
+      403,
+      context
+    );
+  }
+
+  public isRetryable(): boolean {
+    return false; // User explicitly denied access
+  }
+}
+
+export class GoogleOAuth2TokenStorageError extends GoogleOAuth2Error {
+  constructor(
+    operation: 'save' | 'load' | 'delete',
+    cause?: Error,
+    context?: Record<string, unknown>
+  ) {
+    super(
+      `Failed to ${operation} OAuth2 tokens`,
+      'GOOGLE_OAUTH2_TOKEN_STORAGE_ERROR',
+      500,
+      { operation, ...context },
+      cause
+    );
+  }
+
+  public isRetryable(): boolean {
+    return true; // Storage issues might be transient
+  }
+}
+
+export class GoogleOAuth2RefreshTokenExpiredError extends GoogleOAuth2Error {
+  constructor(context?: Record<string, unknown>) {
+    super(
+      'OAuth2 refresh token has expired and cannot be renewed',
+      'GOOGLE_OAUTH2_REFRESH_TOKEN_EXPIRED',
+      401,
+      context
+    );
+  }
+
+  public isRetryable(): boolean {
+    return false; // Requires re-authorization
+  }
+}
+
+export class GoogleOAuth2NetworkError extends GoogleOAuth2Error {
+  constructor(
+    message: string,
+    cause?: Error,
+    context?: Record<string, unknown>
+  ) {
+    super(
+      `OAuth2 network error: ${message}`,
+      'GOOGLE_OAUTH2_NETWORK_ERROR',
+      503,
+      context,
+      cause
+    );
+  }
+
+  public isRetryable(): boolean {
+    return true; // Network issues are often transient
   }
 }
 
@@ -208,8 +340,8 @@ export class GoogleSheetsError extends GoogleWorkspaceError {
   public isRetryable(): boolean {
     // Rate limit and quota errors are typically retryable
     return (
-      this.code === 'GOOGLE_SHEETS_RATE_LIMIT' ||
-      this.code === 'GOOGLE_SHEETS_QUOTA_EXCEEDED' ||
+      this.errorCode === 'GOOGLE_SHEETS_RATE_LIMIT' ||
+      this.errorCode === 'GOOGLE_SHEETS_QUOTA_EXCEEDED' ||
       this.statusCode >= 500
     ); // Server errors are retryable
   }

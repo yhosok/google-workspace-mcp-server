@@ -97,7 +97,9 @@ export abstract class BaseCalendarTools<
    * @param calendarId - The calendar ID to validate
    * @returns Result with validated calendar ID or error
    */
-  protected validateCalendarId(calendarId: string): Result<string, GoogleCalendarError> {
+  protected validateCalendarId(
+    calendarId: string
+  ): Result<string, GoogleCalendarError> {
     if (!calendarId || calendarId.trim() === '') {
       return err(
         new GoogleCalendarInvalidOperationError(
@@ -139,33 +141,53 @@ export abstract class BaseCalendarTools<
    */
   protected static createCommonSchemas() {
     return {
-      calendarId: z.string({
-        description: 'The unique identifier of the calendar',
-      }).min(1),
-      eventId: z.string({
-        description: 'The unique identifier of the event',
-      }).min(1),
-      eventSummary: z.string({
-        description: 'The title/summary of the event',
-      }).min(1).max(1024),
-      eventDescription: z.string({
-        description: 'Optional description of the event',
-      }).max(8192).optional(),
-      eventLocation: z.string({
-        description: 'Optional location of the event',
-      }).max(1024).optional(),
+      calendarId: z
+        .string({
+          description: 'The unique identifier of the calendar',
+        })
+        .min(1),
+      eventId: z
+        .string({
+          description: 'The unique identifier of the event',
+        })
+        .min(1),
+      eventSummary: z
+        .string({
+          description: 'The title/summary of the event',
+        })
+        .min(1)
+        .max(1024),
+      eventDescription: z
+        .string({
+          description: 'Optional description of the event',
+        })
+        .max(8192)
+        .optional(),
+      eventLocation: z
+        .string({
+          description: 'Optional location of the event',
+        })
+        .max(1024)
+        .optional(),
       dateTime: z.string({
         description: 'ISO 8601 date-time string',
       }),
       date: z.string({
         description: 'ISO 8601 date string for all-day events',
       }),
-      maxResults: z.number({
-        description: 'Maximum number of results to return',
-      }).min(1).max(2500).optional(),
-      quickAddText: z.string({
-        description: 'Natural language text for quick event creation',
-      }).min(1).max(1024),
+      maxResults: z
+        .number({
+          description: 'Maximum number of results to return',
+        })
+        .min(1)
+        .max(2500)
+        .optional(),
+      quickAddText: z
+        .string({
+          description: 'Natural language text for quick event creation',
+        })
+        .min(1)
+        .max(1024),
     };
   }
 }

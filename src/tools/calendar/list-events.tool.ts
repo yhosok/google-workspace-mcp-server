@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { BaseCalendarTools } from './base-calendar-tool.js';
-import type { CalendarEventsResult, MCPToolResult, ToolMetadata } from '../../types/index.js';
+import type {
+  CalendarEventsResult,
+  MCPToolResult,
+  ToolMetadata,
+} from '../../types/index.js';
 import type { ToolExecutionContext } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
@@ -8,16 +12,42 @@ import { GoogleWorkspaceError } from '../../errors/index.js';
 /**
  * Schema for list events input
  */
-const ListEventsInputSchema = z.object({
-  calendarId: z.string().min(1).describe('The calendar ID to list events from'),
-  timeMin: z.string().optional().describe('Lower bound (exclusive) for event start time (RFC3339)'),
-  timeMax: z.string().optional().describe('Upper bound (exclusive) for event start time (RFC3339)'),
-  maxResults: z.number().int().min(1).max(2500).optional().describe('Maximum number of events to return'),
-  singleEvents: z.boolean().optional().describe('Whether to expand recurring events into instances'),
-  orderBy: z.enum(['startTime', 'updated']).optional().describe('How to order the events'),
-  q: z.string().optional().describe('Free text search query'),
-  showDeleted: z.boolean().optional().describe('Whether to include deleted events'),
-}).describe('List events from a calendar with optional filtering');
+const ListEventsInputSchema = z
+  .object({
+    calendarId: z
+      .string()
+      .min(1)
+      .describe('The calendar ID to list events from'),
+    timeMin: z
+      .string()
+      .optional()
+      .describe('Lower bound (exclusive) for event start time (RFC3339)'),
+    timeMax: z
+      .string()
+      .optional()
+      .describe('Upper bound (exclusive) for event start time (RFC3339)'),
+    maxResults: z
+      .number()
+      .int()
+      .min(1)
+      .max(2500)
+      .optional()
+      .describe('Maximum number of events to return'),
+    singleEvents: z
+      .boolean()
+      .optional()
+      .describe('Whether to expand recurring events into instances'),
+    orderBy: z
+      .enum(['startTime', 'updated'])
+      .optional()
+      .describe('How to order the events'),
+    q: z.string().optional().describe('Free text search query'),
+    showDeleted: z
+      .boolean()
+      .optional()
+      .describe('Whether to include deleted events'),
+  })
+  .describe('List events from a calendar with optional filtering');
 
 type ListEventsInput = z.infer<typeof ListEventsInputSchema>;
 
@@ -70,8 +100,10 @@ export class ListEventsTool extends BaseCalendarTools<
 
   public getToolMetadata(): ToolMetadata {
     return {
-      title: 'Lists events from a specific calendar with optional filtering and search',
-      description: 'Lists events from a specific calendar with optional filtering and search',
+      title:
+        'Lists events from a specific calendar with optional filtering and search',
+      description:
+        'Lists events from a specific calendar with optional filtering and search',
       inputSchema: ListEventsInputSchema.shape,
     };
   }
@@ -123,7 +155,7 @@ export class ListEventsTool extends BaseCalendarTools<
       }
 
       const events = result.value;
-      
+
       this.logger.info('Successfully listed events', {
         calendarId,
         count: events.length,

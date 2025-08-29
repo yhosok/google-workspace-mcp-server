@@ -1,32 +1,53 @@
-import { google } from 'googleapis';
 import { OAuth2Client, GoogleAuth } from 'google-auth-library';
-import type { Credentials } from 'google-auth-library';
-import fs from 'fs/promises';
 import type { EnvironmentConfig } from '../types/index.js';
-import { GOOGLE_SCOPES } from '../config/index.js';
 import { GoogleService } from './base/google-service.js';
 import {
   GoogleWorkspaceResult,
   GoogleAuthResult,
   GoogleAuthError,
   GoogleAuthMissingCredentialsError,
-  GoogleAuthInvalidCredentialsError,
-  GoogleErrorFactory,
   googleOk,
   googleErr,
   authOk,
   authErr,
 } from '../errors/index.js';
 import { Logger, createServiceLogger } from '../utils/logger.js';
+import { AuthFactory } from './auth/auth-factory.js';
+import type { AuthProvider } from './auth/auth-provider.interface.js';
 
+/**
+ * Unified AuthService wrapper that maintains backward compatibility.
+ *
+ * This service acts as a facade over the new AuthProvider architecture,
+ * using AuthFactory internally to create appropriate providers while
+ * maintaining the exact same interface as the legacy AuthService.
+ *
+ * Features:
+ * - Automatic provider selection (Service Account or OAuth2)
+ * - Seamless delegation to underlying providers
+ * - Full backward compatibility with existing code
+ * - Support for both authentication methods
+ * - Consistent error handling and logging
+ */
 export class AuthService extends GoogleService {
-  private config: EnvironmentConfig;
-  private googleAuth?: GoogleAuth;
-  private authenticatedClient?: OAuth2Client;
+  private readonly config: EnvironmentConfig;
+  private provider: AuthProvider | null = null;
+  private initializationPromise: Promise<void> | null = null;
 
   constructor(config: EnvironmentConfig, logger?: Logger) {
+    // Validate basic configuration
+    if (
+      !config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH &&
+      (!config.GOOGLE_OAUTH_CLIENT_ID || !config.GOOGLE_OAUTH_CLIENT_SECRET)
+    ) {
+      throw new GoogleAuthMissingCredentialsError('service-account', {
+        message:
+          'Either service account key path or OAuth2 credentials are required for AuthService',
+      });
+    }
+
     const serviceLogger = logger || createServiceLogger('auth-service');
-    super(new OAuth2Client(), serviceLogger); // Temporary OAuth2Client, will be replaced
+    super(new OAuth2Client(), serviceLogger); // Temporary OAuth2Client, will be replaced by provider
     this.config = config;
   }
 
@@ -39,276 +60,340 @@ export class AuthService extends GoogleService {
   }
 
   /**
-   * Initialize the authentication service
+   * Ensure provider is initialized.
+   * Uses singleton pattern with concurrent initialization prevention.
    */
-  public async initialize(): Promise<GoogleWorkspaceResult<void>> {
-    const context = this.createContext('initialize');
+  private async ensureProvider(): Promise<AuthProvider> {
+    if (this.provider) {
+      return this.provider;
+    }
 
-    return this.executeWithRetry(async () => {
-      // Service account key file existence check
-      try {
-        await fs.access(this.config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH);
-      } catch (error) {
-        throw new GoogleAuthMissingCredentialsError('service-account', {
-          filePath: this.config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-
-      // Create GoogleAuth instance
-      try {
-        this.googleAuth = new google.auth.GoogleAuth({
-          keyFilename: this.config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH,
-          scopes: [...GOOGLE_SCOPES], // Create mutable copy
-        });
-
-        // Get authenticated client and replace the temporary one
-        this.authenticatedClient =
-          (await this.googleAuth.getClient()) as OAuth2Client;
-
-        // Replace the auth client in the base class
-        (this.auth as OAuth2Client) = this.authenticatedClient;
-
-        this.logger.info('Authentication service initialized successfully', {
-          service: this.getServiceName(),
-          keyPath: this.config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH,
-          scopes: GOOGLE_SCOPES,
-        });
-      } catch (error) {
-        throw new GoogleAuthInvalidCredentialsError('service-account', {
-          filePath: this.config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }, context);
-  }
-
-  /**
-   * Get the authenticated OAuth2Client
-   */
-  public async getAuthClient(): Promise<GoogleAuthResult<OAuth2Client>> {
-    if (!this.authenticatedClient) {
-      const initResult = await this.initialize();
-      if (initResult.isErr()) {
-        return authErr(initResult.error as GoogleAuthError);
+    // Prevent concurrent initialization
+    if (this.initializationPromise) {
+      await this.initializationPromise;
+      if (this.provider) {
+        return this.provider;
       }
     }
 
-    if (!this.authenticatedClient) {
-      return authErr(
+    this.initializationPromise = this.createProvider();
+
+    try {
+      await this.initializationPromise;
+      if (!this.provider) {
+        throw new GoogleAuthError(
+          'Provider creation failed',
+          'service-account',
+          {
+            service: this.getServiceName(),
+          }
+        );
+      }
+      return this.provider;
+    } finally {
+      this.initializationPromise = null;
+    }
+  }
+
+  /**
+   * Create the appropriate provider using AuthFactory.
+   */
+  private async createProvider(): Promise<void> {
+    try {
+      this.logger.info('Creating authentication provider via AuthFactory', {
+        service: this.getServiceName(),
+        hasServiceAccount: !!this.config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH,
+        hasOAuth2Config: !!(
+          this.config.GOOGLE_OAUTH_CLIENT_ID &&
+          this.config.GOOGLE_OAUTH_CLIENT_SECRET
+        ),
+      });
+
+      this.provider = await AuthFactory.createAuthProvider(
+        this.config,
+        this.logger
+      );
+
+      this.logger.info('Authentication provider created successfully', {
+        service: this.getServiceName(),
+        providerType: this.provider.authType,
+      });
+    } catch (error) {
+      this.logger.error('Failed to create authentication provider', {
+        service: this.getServiceName(),
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      // Convert factory errors to AuthService errors
+      if (error instanceof GoogleAuthError) {
+        throw error;
+      }
+
+      throw new GoogleAuthError(
+        `Failed to create authentication provider: ${error instanceof Error ? error.message : String(error)}`,
+        'service-account',
+        { service: this.getServiceName() }
+      );
+    }
+  }
+
+  /**
+   * Initialize the authentication service.
+   * Delegates to the underlying provider after ensuring it exists.
+   */
+  public async initialize(): Promise<GoogleWorkspaceResult<void>> {
+    try {
+      const provider = await this.ensureProvider();
+      const result = await provider.initialize();
+
+      if (result.isOk()) {
+        this.logger.info('Authentication service initialized successfully', {
+          service: this.getServiceName(),
+          providerType: provider.authType,
+        });
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Authentication service initialization failed', {
+        service: this.getServiceName(),
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      if (error instanceof GoogleAuthError) {
+        return googleErr(error);
+      }
+
+      return googleErr(
         new GoogleAuthError(
-          'Auth service not properly initialized',
+          `Authentication initialization failed: ${error instanceof Error ? error.message : String(error)}`,
           'service-account',
           { service: this.getServiceName() }
         )
       );
     }
-
-    return authOk(this.authenticatedClient);
   }
 
   /**
-   * Validate authentication status
+   * Get the authenticated OAuth2Client.
+   * Delegates to the underlying provider after ensuring initialization.
    */
-  public async validateAuth(): Promise<GoogleAuthResult<boolean>> {
-    const context = this.createContext('validateAuth');
-
+  public async getAuthClient(): Promise<GoogleAuthResult<OAuth2Client>> {
     try {
-      // Initialize if not already done
-      if (!this.googleAuth || !this.authenticatedClient) {
-        const initResult = await this.initialize();
-        if (initResult.isErr()) {
-          this.logger.warn('Auth initialization failed during validation', {
-            error: initResult.error.toJSON(),
-            requestId: context.requestId,
-          });
-          return authOk(false);
-        }
+      const provider = await this.ensureProvider();
+
+      // Ensure provider is initialized before getting auth client
+      const initResult = await provider.initialize();
+      if (initResult.isErr()) {
+        return authErr(initResult.error as GoogleAuthError);
       }
 
-      // Test scenario detection (for testing purposes)
-      if (this.config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH.includes('invalid')) {
-        this.logger.debug('Test invalid credentials detected', {
-          keyPath: this.config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH,
-          requestId: context.requestId,
-        });
-        return authOk(false);
-      }
-
-      // Get authenticated client and test access token
-      const clientResult = await this.getAuthClient();
-      if (clientResult.isErr()) {
-        this.logger.warn('Failed to get auth client during validation', {
-          error: clientResult.error.toJSON(),
-          requestId: context.requestId,
-        });
-        return authOk(false);
-      }
-
-      const client = clientResult.value;
-
-      try {
-        const accessToken = await client.getAccessToken();
-        const isValid = !!accessToken.token;
-
-        this.logger.debug('Auth validation completed', {
-          isValid,
-          hasToken: !!accessToken.token,
-          expiresAt: (accessToken as Credentials).expiry_date
-            ? new Date((accessToken as Credentials).expiry_date!).toISOString()
-            : null,
-          requestId: context.requestId,
-        });
-
-        return authOk(isValid);
-      } catch (error) {
-        // Handle token-specific errors using centralized factory
-        const authError = GoogleErrorFactory.createAuthError(
-          error instanceof Error ? error : new Error(String(error)),
-          'service-account',
-          {
-            service: this.getServiceName(),
-            requestId: context.requestId,
-          }
-        );
-
-        this.logger.warn('Auth token validation failed', {
-          error: authError.toJSON(),
-          requestId: context.requestId,
-        });
-
-        // For validation, we return false instead of throwing
-        return authOk(false);
-      }
+      return await provider.getAuthClient();
     } catch (error) {
-      const authError = GoogleErrorFactory.createAuthError(
-        error instanceof Error ? error : new Error(String(error)),
-        'service-account',
-        {
-          service: this.getServiceName(),
-          requestId: context.requestId,
-        }
-      );
-
-      this.logger.error('Auth validation encountered unexpected error', {
-        error: authError.toJSON(),
-        requestId: context.requestId,
+      this.logger.error('Failed to get authentication client', {
+        service: this.getServiceName(),
+        error: error instanceof Error ? error.message : String(error),
       });
 
-      // For validation, we return false instead of throwing
+      if (error instanceof GoogleAuthError) {
+        return authErr(error);
+      }
+
+      return authErr(
+        new GoogleAuthError(
+          `Failed to get authentication client: ${error instanceof Error ? error.message : String(error)}`,
+          'service-account',
+          { service: this.getServiceName() }
+        )
+      );
+    }
+  }
+
+  /**
+   * Validate authentication status.
+   * Delegates to the underlying provider after ensuring initialization.
+   */
+  public async validateAuth(): Promise<GoogleAuthResult<boolean>> {
+    try {
+      const provider = await this.ensureProvider();
+
+      // Ensure provider is initialized before validation
+      const initResult = await provider.initialize();
+      if (initResult.isErr()) {
+        this.logger.warn('Auth initialization failed during validation', {
+          service: this.getServiceName(),
+          error: initResult.error.message,
+        });
+        return authOk(false);
+      }
+
+      return await provider.validateAuth();
+    } catch (error) {
+      this.logger.error('Authentication validation failed', {
+        service: this.getServiceName(),
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      // For validation, return false instead of throwing
       return authOk(false);
     }
   }
 
   /**
-   * Get the GoogleAuth instance
+   * Get the GoogleAuth instance for backward compatibility.
+   *
+   * Note: This method is provided for backward compatibility but may not
+   * be available for all provider types. OAuth2 providers don't have a
+   * GoogleAuth instance, so this method will create a minimal compatibility wrapper.
    */
   public async getGoogleAuth(): Promise<GoogleAuthResult<GoogleAuth>> {
-    if (!this.googleAuth) {
-      const initResult = await this.initialize();
-      if (initResult.isErr()) {
-        return authErr(initResult.error as GoogleAuthError);
-      }
-    }
-
-    if (!this.googleAuth) {
-      return authErr(
-        new GoogleAuthError(
-          'GoogleAuth instance not available',
-          'service-account',
-          { service: this.getServiceName() }
-        )
-      );
-    }
-
-    return authOk(this.googleAuth);
-  }
-
-  /**
-   * Health check for the auth service
-   */
-  public async healthCheck(): Promise<GoogleWorkspaceResult<boolean>> {
-    const context = this.createContext('healthCheck');
-
-    const validationResult = await this.validateAuth();
-    if (validationResult.isErr()) {
-      this.logger.error('Auth health check failed', {
-        error: validationResult.error.toJSON(),
-        requestId: context.requestId,
-      });
-      return googleErr(validationResult.error);
-    }
-
-    const isHealthy = validationResult.value;
-
-    this.logger.info('Auth health check completed', {
-      isHealthy,
-      requestId: context.requestId,
-    });
-
-    return googleOk(isHealthy);
-  }
-
-  /**
-   * Convert service-specific errors using the centralized GoogleErrorFactory.
-   *
-   * This removes the duplicated string matching logic and uses the normalized
-   * error extraction system for consistent error classification.
-   */
-  protected convertServiceSpecificError(error: Error): GoogleAuthError | null {
-    // Use the centralized factory instead of duplicated logic
-    return GoogleErrorFactory.createAuthError(error, 'service-account', {
-      service: this.getServiceName(),
-      originalError: error.message,
-    });
-  }
-
-  /**
-   * Refresh the authentication token
-   */
-  public async refreshToken(): Promise<GoogleAuthResult<void>> {
-    const context = this.createContext('refreshToken');
-
-    if (!this.authenticatedClient) {
-      return authErr(
-        new GoogleAuthError(
-          'Cannot refresh token: auth client not initialized',
-          'service-account',
-          { service: this.getServiceName() }
-        )
-      );
-    }
-
     try {
-      await this.authenticatedClient.getAccessToken();
+      const provider = await this.ensureProvider();
 
-      this.logger.info('Token refreshed successfully', {
-        service: this.getServiceName(),
-        requestId: context.requestId,
-      });
+      // For service account providers, we can try to get the GoogleAuth instance
+      if (provider.authType === 'service-account') {
+        // Ensure provider is initialized
+        const initResult = await provider.initialize();
+        if (initResult.isErr()) {
+          return authErr(initResult.error as GoogleAuthError);
+        }
 
-      return authOk(undefined);
-    } catch (error) {
-      const authError = GoogleErrorFactory.createAuthError(
-        error instanceof Error ? error : new Error(String(error)),
-        'service-account',
+        // Service account providers may expose GoogleAuth
+        if (
+          'getGoogleAuth' in provider &&
+          typeof (provider as any).getGoogleAuth === 'function'
+        ) {
+          return await (provider as any).getGoogleAuth();
+        }
+      }
+
+      // For backward compatibility, create a minimal GoogleAuth-like object
+      this.logger.warn(
+        'GoogleAuth instance not available for this provider type, creating compatibility wrapper',
         {
           service: this.getServiceName(),
-          requestId: context.requestId,
+          providerType: provider.authType,
         }
       );
 
-      this.logger.error('Token refresh failed', {
-        error: authError.toJSON(),
-        requestId: context.requestId,
+      const authClientResult = await provider.getAuthClient();
+      if (authClientResult.isErr()) {
+        return authErr(authClientResult.error);
+      }
+
+      // Create a minimal GoogleAuth-compatible object
+      const compatibilityAuth = {
+        getClient: async () => authClientResult.value,
+      };
+
+      return authOk(compatibilityAuth as GoogleAuth);
+    } catch (error) {
+      this.logger.error('Failed to get GoogleAuth instance', {
+        service: this.getServiceName(),
+        error: error instanceof Error ? error.message : String(error),
       });
 
-      return authErr(authError);
+      if (error instanceof GoogleAuthError) {
+        return authErr(error);
+      }
+
+      return authErr(
+        new GoogleAuthError(
+          `Failed to get GoogleAuth instance: ${error instanceof Error ? error.message : String(error)}`,
+          'service-account',
+          { service: this.getServiceName() }
+        )
+      );
     }
   }
 
   /**
-   * Get current authentication information
+   * Health check for the auth service.
+   * Delegates to the underlying provider after ensuring initialization.
+   */
+  public async healthCheck(): Promise<GoogleWorkspaceResult<boolean>> {
+    try {
+      const provider = await this.ensureProvider();
+
+      // Ensure provider is initialized before health check
+      const initResult = await provider.initialize();
+      if (initResult.isErr()) {
+        this.logger.warn('Provider initialization failed during health check', {
+          service: this.getServiceName(),
+          error: initResult.error.message,
+        });
+        return googleOk(false);
+      }
+
+      const result = await provider.healthCheck();
+
+      if (result.isOk()) {
+        this.logger.info('Auth health check completed', {
+          service: this.getServiceName(),
+          isHealthy: result.value,
+        });
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Auth health check failed', {
+        service: this.getServiceName(),
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return googleOk(false); // Health check failures should not throw
+    }
+  }
+
+  /**
+   * Refresh the authentication token.
+   * Delegates to the underlying provider after ensuring initialization.
+   */
+  public async refreshToken(): Promise<GoogleAuthResult<void>> {
+    try {
+      const provider = await this.ensureProvider();
+
+      // Ensure provider is initialized before refresh
+      const initResult = await provider.initialize();
+      if (initResult.isErr()) {
+        return authErr(initResult.error as GoogleAuthError);
+      }
+
+      const result = await provider.refreshToken();
+
+      if (result.isOk()) {
+        this.logger.info('Token refreshed successfully', {
+          service: this.getServiceName(),
+          providerType: provider.authType,
+        });
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Token refresh failed', {
+        service: this.getServiceName(),
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      if (error instanceof GoogleAuthError) {
+        return authErr(error);
+      }
+
+      return authErr(
+        new GoogleAuthError(
+          `Token refresh failed: ${error instanceof Error ? error.message : String(error)}`,
+          'service-account',
+          { service: this.getServiceName() }
+        )
+      );
+    }
+  }
+
+  /**
+   * Get current authentication information.
+   *
+   * For backward compatibility, this method returns the legacy structure
+   * while internally using the new AuthInfo interface from the provider.
    */
   public async getAuthInfo(): Promise<
     GoogleAuthResult<{
@@ -321,37 +406,67 @@ export class AuthService extends GoogleService {
       };
     }>
   > {
-    const context = this.createContext('getAuthInfo');
+    try {
+      const provider = await this.ensureProvider();
 
-    const validationResult = await this.validateAuth();
-    const isAuthenticated = validationResult.isOk()
-      ? validationResult.value
-      : false;
+      // Ensure provider is initialized before getting auth info
+      const initResult = await provider.initialize();
+      if (initResult.isErr()) {
+        this.logger.warn('Provider initialization failed during getAuthInfo', {
+          service: this.getServiceName(),
+          error: initResult.error.message,
+        });
 
-    let tokenInfo;
-
-    if (this.authenticatedClient && isAuthenticated) {
-      try {
-        const accessToken = await this.authenticatedClient.getAccessToken();
-        tokenInfo = {
-          expiresAt: (accessToken as Credentials).expiry_date
-            ? new Date((accessToken as Credentials).expiry_date!)
-            : undefined,
-          hasToken: !!accessToken.token,
-        };
-      } catch (error) {
-        this.logger.debug('Could not get token info', {
-          error: error instanceof Error ? error.message : String(error),
-          requestId: context.requestId,
+        // Return minimal info for backward compatibility
+        return authOk({
+          isAuthenticated: false,
+          keyFile:
+            this.config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH || 'oauth2-client',
+          scopes: [],
         });
       }
-    }
 
-    return authOk({
-      isAuthenticated,
-      keyFile: this.config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH,
-      scopes: [...GOOGLE_SCOPES],
-      tokenInfo,
-    });
+      // Get auth info from provider
+      const authInfoResult = await provider.getAuthInfo();
+      if (authInfoResult.isErr()) {
+        return authErr(authInfoResult.error);
+      }
+
+      const authInfo = authInfoResult.value;
+
+      // Convert AuthInfo to legacy format for backward compatibility
+      const legacyInfo = {
+        isAuthenticated: authInfo.isAuthenticated,
+        keyFile: authInfo.keyFile,
+        scopes: authInfo.scopes,
+        tokenInfo: authInfo.tokenInfo,
+      };
+
+      this.logger.debug('Auth info retrieved successfully', {
+        service: this.getServiceName(),
+        providerType: provider.authType,
+        isAuthenticated: legacyInfo.isAuthenticated,
+        scopes: legacyInfo.scopes,
+      });
+
+      return authOk(legacyInfo);
+    } catch (error) {
+      this.logger.error('Failed to get auth info', {
+        service: this.getServiceName(),
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      if (error instanceof GoogleAuthError) {
+        return authErr(error);
+      }
+
+      return authErr(
+        new GoogleAuthError(
+          `Failed to get auth info: ${error instanceof Error ? error.message : String(error)}`,
+          'service-account',
+          { service: this.getServiceName() }
+        )
+      );
+    }
   }
 }

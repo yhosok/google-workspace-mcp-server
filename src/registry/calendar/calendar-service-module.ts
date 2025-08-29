@@ -1,10 +1,10 @@
 /**
  * Calendar Service Module
- * 
+ *
  * This module implements the ServiceModule interface for Google Calendar functionality,
  * providing centralized management of Calendar service, tools, and resources within
  * the MCP server architecture.
- * 
+ *
  * Features:
  * - Calendar service lifecycle management
  * - Tool registration and initialization
@@ -36,7 +36,6 @@ import {
 } from '../../errors/index.js';
 import { Logger, createServiceLogger } from '../../utils/logger.js';
 
-
 /**
  * Service module for Google Calendar integration
  * Manages the lifecycle of Calendar tools, resources, and services
@@ -56,7 +55,6 @@ export class CalendarServiceModule implements ServiceModule {
   constructor(logger?: Logger) {
     this.logger = logger || createServiceLogger('calendar-service-module');
   }
-
 
   /**
    * Initialize the Calendar service module
@@ -278,7 +276,9 @@ export class CalendarServiceModule implements ServiceModule {
       this.initialized = false;
       this.initializationTime = undefined;
 
-      this.logger.info('Calendar service module cleanup completed successfully');
+      this.logger.info(
+        'Calendar service module cleanup completed successfully'
+      );
       return ok(undefined);
     } catch (error) {
       const errorMessage =

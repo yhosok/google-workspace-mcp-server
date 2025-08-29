@@ -1,10 +1,10 @@
 /**
  * Google Calendar Tools Export Module
- * 
+ *
  * This module exports all Calendar-related MCP tools for use in the service registry.
  * Each tool provides specific Calendar API functionality with comprehensive input
  * validation, error handling, and detailed response formatting.
- * 
+ *
  * Available Tools:
  * - ListCalendarsTool: List all accessible calendars
  * - ListEventsTool: List events from a specific calendar with filtering

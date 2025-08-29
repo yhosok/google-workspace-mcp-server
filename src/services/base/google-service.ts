@@ -117,20 +117,27 @@ export const DEFAULT_RETRY_CONFIG: GoogleServiceRetryConfig = {
 /**
  * Create retry configuration from environment variables and defaults.
  * This function merges environment-based configuration with sensible defaults.
- * 
+ *
  * @returns Normalized retry configuration for Google services
  */
 export function createRetryConfigFromEnv(): GoogleServiceRetryConfig {
   try {
     const envConfig = loadConfig();
-    
-    const maxAttempts = envConfig.GOOGLE_RETRY_MAX_ATTEMPTS || DEFAULT_RETRY_CONFIG.maxAttempts;
-    const baseDelay = envConfig.GOOGLE_RETRY_BASE_DELAY || DEFAULT_RETRY_CONFIG.baseDelay;
-    const maxDelay = envConfig.GOOGLE_RETRY_MAX_DELAY || DEFAULT_RETRY_CONFIG.maxDelay;
+
+    const maxAttempts =
+      envConfig.GOOGLE_RETRY_MAX_ATTEMPTS || DEFAULT_RETRY_CONFIG.maxAttempts;
+    const baseDelay =
+      envConfig.GOOGLE_RETRY_BASE_DELAY || DEFAULT_RETRY_CONFIG.baseDelay;
+    const maxDelay =
+      envConfig.GOOGLE_RETRY_MAX_DELAY || DEFAULT_RETRY_CONFIG.maxDelay;
     const jitter = envConfig.GOOGLE_RETRY_JITTER || DEFAULT_RETRY_CONFIG.jitter;
-    const retriableCodes = envConfig.GOOGLE_RETRY_RETRIABLE_CODES || DEFAULT_RETRY_CONFIG.retriableCodes;
-    const requestTimeout = envConfig.GOOGLE_REQUEST_TIMEOUT || DEFAULT_RETRY_CONFIG.requestTimeout;
-    const totalTimeout = envConfig.GOOGLE_TOTAL_TIMEOUT || DEFAULT_RETRY_CONFIG.totalTimeout;
+    const retriableCodes =
+      envConfig.GOOGLE_RETRY_RETRIABLE_CODES ||
+      DEFAULT_RETRY_CONFIG.retriableCodes;
+    const requestTimeout =
+      envConfig.GOOGLE_REQUEST_TIMEOUT || DEFAULT_RETRY_CONFIG.requestTimeout;
+    const totalTimeout =
+      envConfig.GOOGLE_TOTAL_TIMEOUT || DEFAULT_RETRY_CONFIG.totalTimeout;
 
     return {
       maxAttempts,
@@ -152,7 +159,7 @@ export function createRetryConfigFromEnv(): GoogleServiceRetryConfig {
       ...DEFAULT_RETRY_CONFIG,
       retriableCodes: [500, 502, 503, 504], // Exclude 429 for fallback
     };
-    
+
     return {
       maxAttempts: fallbackConfig.maxAttempts,
       baseDelay: fallbackConfig.baseDelay,
@@ -173,56 +180,61 @@ export function createRetryConfigFromEnv(): GoogleServiceRetryConfig {
 /**
  * Validate and normalize retry configuration.
  * Ensures all configuration values are valid and within acceptable ranges.
- * 
+ *
  * @param config - The retry configuration to validate
  * @returns Normalized and validated retry configuration
  * @throws Error if configuration values are invalid
  */
-function normalizeRetryConfig(config: GoogleServiceRetryConfig): GoogleServiceRetryConfig {
+function normalizeRetryConfig(
+  config: GoogleServiceRetryConfig
+): GoogleServiceRetryConfig {
   try {
     // Validate parameters
     if (config.maxAttempts <= 0) {
       throw new Error('maxAttempts must be positive');
     }
-    
+
     const initialDelayMs = config.baseDelayMs || config.initialDelayMs;
     if (initialDelayMs <= 0) {
       throw new Error('initialDelayMs must be positive');
     }
-    
+
     if (config.maxDelayMs <= 0) {
       throw new Error('maxDelayMs must be positive');
     }
-    
+
     if (config.backoffMultiplier <= 0) {
       throw new Error('backoffMultiplier must be positive');
     }
-    
+
     if (config.jitterFactor < 0 || config.jitterFactor > 1) {
       throw new Error('jitterFactor must be between 0 and 1');
     }
 
     // Validate timeout configuration
-    const requestTimeout = config.requestTimeout ?? DEFAULT_RETRY_CONFIG.requestTimeout!;
-    const totalTimeout = config.totalTimeout ?? DEFAULT_RETRY_CONFIG.totalTimeout!;
-    
+    const requestTimeout =
+      config.requestTimeout ?? DEFAULT_RETRY_CONFIG.requestTimeout!;
+    const totalTimeout =
+      config.totalTimeout ?? DEFAULT_RETRY_CONFIG.totalTimeout!;
+
     if (requestTimeout !== undefined && requestTimeout <= 0) {
       throw new Error('requestTimeout must be positive');
     }
-    
+
     if (totalTimeout !== undefined && totalTimeout <= 0) {
       throw new Error('totalTimeout must be positive');
     }
-    
+
     if (requestTimeout && totalTimeout && requestTimeout > totalTimeout) {
       throw new Error('requestTimeout cannot be greater than totalTimeout');
     }
 
     // Filter out non-retriable HTTP codes
-    const retriableCodes = config.retriableCodes || DEFAULT_RETRY_CONFIG.retriableCodes!;
+    const retriableCodes =
+      config.retriableCodes || DEFAULT_RETRY_CONFIG.retriableCodes!;
     const validRetriableCodes = [429, 500, 502, 503, 504];
-    const filteredCodes = retriableCodes.filter(code => 
-      typeof code === 'number' && validRetriableCodes.includes(code)
+    const filteredCodes = retriableCodes.filter(
+      code => typeof code === 'number' && validRetriableCodes.includes(code)
     );
 
     return {
@@ -283,17 +295,22 @@ export abstract class GoogleService {
   ) {
     this.auth = auth;
     this.logger = logger;
-    this.retryConfig = normalizeRetryConfig(retryConfig || createRetryConfigFromEnv());
-    
+    this.retryConfig = normalizeRetryConfig(
+      retryConfig || createRetryConfigFromEnv()
+    );
+
     // Log retry configuration at service startup
-    this.logger.info(`${this.constructor.name}: Retry configuration initialized`, {
-      maxAttempts: this.retryConfig.maxAttempts,
-      initialDelayMs: this.retryConfig.initialDelayMs,
-      maxDelayMs: this.retryConfig.maxDelayMs,
-      backoffMultiplier: this.retryConfig.backoffMultiplier,
-      jitterFactor: this.retryConfig.jitterFactor,
-      retriableCodes: this.retryConfig.retriableCodes,
-    });
+    this.logger.info(
+      `${this.constructor.name}: Retry configuration initialized`,
+      {
+        maxAttempts: this.retryConfig.maxAttempts,
+        initialDelayMs: this.retryConfig.initialDelayMs,
+        maxDelayMs: this.retryConfig.maxDelayMs,
+        backoffMultiplier: this.retryConfig.backoffMultiplier,
+        jitterFactor: this.retryConfig.jitterFactor,
+        retriableCodes: this.retryConfig.retriableCodes,
+      }
+    );
   }
 
   /**
@@ -318,53 +335,67 @@ export abstract class GoogleService {
 
   /**
    * Determine if an error should be retried using normalized error information.
-   * 
+   *
    * Priority order:
    * 1. Original error's isRetryable() method (if it explicitly returns false)
    * 2. HTTP status code in retriable codes list (explicit configuration)
    * 3. HTTP status code ranges (4xx are not retriable, 5xx might be)
-   * 4. Normalized error's isRetryable flag (based on structured analysis) 
+   * 4. Normalized error's isRetryable flag (based on structured analysis)
    * 5. Converted error's isRetryable() method
-   * 
+   *
    * @param error - The original error that occurred
    * @param customError - The converted GoogleWorkspaceError
    * @returns Object indicating whether to retry and the reason
    */
-  protected shouldRetryError(error: Error, customError: GoogleWorkspaceError): { shouldRetry: boolean; reason: string } {
+  protected shouldRetryError(
+    error: Error,
+    customError: GoogleWorkspaceError
+  ): { shouldRetry: boolean; reason: string } {
     // Extract normalized error information for better retry decisions
     const normalizedError = extractGoogleApiError(error);
-    const statusCode = normalizedError.httpStatus || this.extractStatusCode(error, customError);
-    
+    const statusCode =
+      normalizedError.httpStatus || this.extractStatusCode(error, customError);
+
     // First priority: Check if original error had explicit isRetryable that said no
-    if ('isRetryable' in error && typeof (error as any).isRetryable === 'function' && !(error as any).isRetryable()) {
+    if (
+      'isRetryable' in error &&
+      typeof (error as any).isRetryable === 'function' &&
+      !(error as any).isRetryable()
+    ) {
       return { shouldRetry: false, reason: 'error_override_not_retryable' };
     }
-    
+
     // Second priority: If we have an explicit HTTP status code in our retriable list, retry
     if (statusCode && this.retryConfig.retriableCodes?.includes(statusCode)) {
       return { shouldRetry: true, reason: 'retriable_http_status' };
     }
-    
+
     // Third priority: If we have a definitely non-retriable status code, don't retry
     if (statusCode && statusCode >= 400 && statusCode < 500) {
       // Make an exception for 429 (rate limit) which should always be retryable
       if (statusCode === 429) {
         return { shouldRetry: true, reason: 'rate_limit_retryable' };
       }
-      return { shouldRetry: false, reason: `non_retriable_http_status:${statusCode}` };
+      return {
+        shouldRetry: false,
+        reason: `non_retriable_http_status:${statusCode}`,
+      };
     }
-    
+
     // Fourth priority: Use normalized error's isRetryable flag (based on structured analysis)
     if (normalizedError.isRetryable) {
-      return { shouldRetry: true, reason: `normalized_retryable:${normalizedError.reason || 'status_' + statusCode}` };
+      return {
+        shouldRetry: true,
+        reason: `normalized_retryable:${normalizedError.reason || 'status_' + statusCode}`,
+      };
     }
-    
+
     // Fifth priority: Use converted error's isRetryable() method
     const isRetryable = customError.isRetryable();
     if (!isRetryable) {
       return { shouldRetry: false, reason: 'error_not_retryable' };
     }
-    
+
     // Error says it's retryable
     return { shouldRetry: true, reason: 'error_is_retryable' };
   }
@@ -373,22 +404,25 @@ export abstract class GoogleService {
    * Extract HTTP status code using normalized error extraction.
    * Uses the new normalized error system to reliably extract status codes
    * from various error sources including GaxiosError structures.
-   * 
+   *
    * @param error - The original error object
    * @param customError - The converted error object
    * @returns HTTP status code or null if not found
    */
-  protected extractStatusCode(error: Error, customError: GoogleWorkspaceError): number | null {
+  protected extractStatusCode(
+    error: Error,
+    customError: GoogleWorkspaceError
+  ): number | null {
     // Use normalized error extraction for reliable status code detection
     const normalizedError = extractGoogleApiError(error);
-    
+
     // Return the normalized status code, which follows priority-based extraction
     return normalizedError.httpStatus || customError.statusCode || null;
   }
 
   /**
    * Execute an operation with comprehensive retry logic and error handling.
-   * 
+   *
    * This method provides:
    * - Exponential backoff with jitter
    * - Configurable retry attempts
@@ -398,7 +432,7 @@ export abstract class GoogleService {
    * - Detailed logging at each step
    * - Smart error classification
    * - Proper error conversion and handling
-   * 
+   *
    * @param operation - The async operation to execute
    * @param context - Service context for logging and error handling
    * @param parentSignal - Optional parent AbortSignal for cancellation
@@ -427,7 +461,7 @@ export abstract class GoogleService {
     const operationStartTime = Date.now();
 
     // Create total timeout controller if configured
-    const totalTimeoutController = this.retryConfig.totalTimeout 
+    const totalTimeoutController = this.retryConfig.totalTimeout
       ? AbortSignal.timeout(this.retryConfig.totalTimeout)
       : null;
 
@@ -470,7 +504,7 @@ export abstract class GoogleService {
           `Total timeout of ${this.retryConfig.totalTimeout}ms exceeded after ${elapsedMs}ms`,
           'total',
           this.retryConfig.totalTimeout!,
-          { 
+          {
             service: this.getServiceName(),
             operation: operationName,
             elapsedMs,
@@ -479,19 +513,16 @@ export abstract class GoogleService {
           }
         );
 
-        this.logger.error(
-          `${this.getServiceName()}: Total timeout exceeded`,
-          {
-            service: this.getServiceName(),
-            operation: operationName,
-            totalTimeoutMs: this.retryConfig.totalTimeout,
-            elapsedMs,
-            completedAttempts: attempt - 1,
-            timeout: true,
-            timeoutType: 'total',
-            requestId,
-          }
-        );
+        this.logger.error(`${this.getServiceName()}: Total timeout exceeded`, {
+          service: this.getServiceName(),
+          operation: operationName,
+          totalTimeoutMs: this.retryConfig.totalTimeout,
+          elapsedMs,
+          completedAttempts: attempt - 1,
+          timeout: true,
+          timeoutType: 'total',
+          requestId,
+        });
 
         return googleErr(timeoutError);
       }
@@ -506,9 +537,13 @@ export abstract class GoogleService {
         parentSignal,
         totalTimeoutController,
         requestTimeoutSignal,
-      ].filter((signal): signal is AbortSignal => signal !== null && signal !== undefined);
+      ].filter(
+        (signal): signal is AbortSignal =>
+          signal !== null && signal !== undefined
+      );
 
-      const combinedSignal = signals.length > 0 ? AbortSignal.any(signals) : undefined;
+      const combinedSignal =
+        signals.length > 0 ? AbortSignal.any(signals) : undefined;
 
       try {
         this.logger.debug(
@@ -553,7 +588,9 @@ export abstract class GoogleService {
                 attempt,
                 requestId,
               },
-              parentSignal.reason instanceof Error ? parentSignal.reason : lastError
+              parentSignal.reason instanceof Error
+                ? parentSignal.reason
+                : lastError
             );
 
             this.logger.error(
@@ -572,11 +609,12 @@ export abstract class GoogleService {
           }
 
           // Check for timeout errors
-          const isTimeoutError = requestTimeoutSignal?.aborted || totalTimeoutController?.aborted;
+          const isTimeoutError =
+            requestTimeoutSignal?.aborted || totalTimeoutController?.aborted;
 
           if (isTimeoutError) {
             let timeoutError: GoogleTimeoutError;
-            
+
             if (requestTimeoutSignal?.aborted) {
               // Individual request timeout
               timeoutError = new GoogleTimeoutError(
@@ -591,7 +629,7 @@ export abstract class GoogleService {
                 },
                 lastError
               );
-              
+
               this.logger.error(
                 `${this.getServiceName()}: Request timeout exceeded`,
                 {
@@ -620,7 +658,7 @@ export abstract class GoogleService {
                 },
                 lastError
               );
-              
+
               this.logger.error(
                 `${this.getServiceName()}: Total timeout exceeded during operation`,
                 {
@@ -635,7 +673,7 @@ export abstract class GoogleService {
                 }
               );
             }
-            
+
             return googleErr(timeoutError);
           }
         }
@@ -650,10 +688,10 @@ export abstract class GoogleService {
           error: lastError.message,
           stack: lastError.stack,
         };
-        
+
         // Convert to our custom error type
         const customError = this.convertError(lastError, context);
-        
+
         // Add next retry delay if this isn't the final attempt
         if (!isFinalAttempt) {
           const nextDelay = this.calculateRetryDelay(attempt, customError);
@@ -666,12 +704,15 @@ export abstract class GoogleService {
         );
 
         // Check if error should be retried
-        const { shouldRetry, reason } = this.shouldRetryError(lastError, customError);
-        
+        const { shouldRetry, reason } = this.shouldRetryError(
+          lastError,
+          customError
+        );
+
         if (!shouldRetry) {
           const statusCode = this.extractStatusCode(lastError, customError);
           const isRetryable = customError.isRetryable();
-          
+
           this.logger.error(
             `${this.getServiceName()}: Non-retryable error encountered`,
             {
@@ -682,7 +723,9 @@ export abstract class GoogleService {
               retrySkippedReason: reason,
               errorCode: customError.code,
               statusCode,
-              httpStatusRetriable: statusCode ? this.retryConfig.retriableCodes?.includes(statusCode) : undefined,
+              httpStatusRetriable: statusCode
+                ? this.retryConfig.retriableCodes?.includes(statusCode)
+                : undefined,
               errorRetryable: isRetryable,
             }
           );
@@ -753,10 +796,10 @@ export abstract class GoogleService {
 
   /**
    * Convert a generic error to our custom error type using normalized error extraction.
-   * 
+   *
    * This method now uses the normalized error system to make better decisions about
    * error classification and avoid brittle string matching.
-   * 
+   *
    * @param error - The original error
    * @param context - Service context for additional information
    * @returns Appropriate GoogleWorkspaceError subclass
@@ -780,28 +823,55 @@ export abstract class GoogleService {
     const normalizedError = extractGoogleApiError(error);
     const enrichedContext = {
       normalizedError,
-      ...context.data
+      ...context.data,
     };
 
     // Use structured data for error classification instead of string matching
     if (normalizedError.reason) {
       // Check for authentication-related errors using structured reason
-      const authReasons = ['authError', 'forbidden', 'invalid', 'required', 'missing', 'expired', 'tokenExpired'];
+      const authReasons = [
+        'authError',
+        'forbidden',
+        'invalid',
+        'required',
+        'missing',
+        'expired',
+        'tokenExpired',
+      ];
       if (authReasons.includes(normalizedError.reason)) {
-        return GoogleErrorFactory.createAuthError(error, 'service-account', enrichedContext);
+        return GoogleErrorFactory.createAuthError(
+          error,
+          'service-account',
+          enrichedContext
+        );
       }
     }
 
     // Fallback to HTTP status-based classification
-    if (normalizedError.httpStatus === 401 || normalizedError.httpStatus === 403) {
-      return GoogleErrorFactory.createAuthError(error, 'service-account', enrichedContext);
+    if (
+      normalizedError.httpStatus === 401 ||
+      normalizedError.httpStatus === 403
+    ) {
+      return GoogleErrorFactory.createAuthError(
+        error,
+        'service-account',
+        enrichedContext
+      );
     }
 
     // Last resort: string matching (only if no structured data available)
     if (!normalizedError.reason) {
       const message = error.message.toLowerCase();
-      if (message.includes('auth') || message.includes('credential') || message.includes('token')) {
-        return GoogleErrorFactory.createAuthError(error, 'service-account', enrichedContext);
+      if (
+        message.includes('auth') ||
+        message.includes('credential') ||
+        message.includes('token')
+      ) {
+        return GoogleErrorFactory.createAuthError(
+          error,
+          'service-account',
+          enrichedContext
+        );
       }
     }
 
@@ -815,21 +885,27 @@ export abstract class GoogleService {
       enrichedContext,
       error
     );
-    
+
     // Preserve retryAfterMs if it exists on the original error
-    if ('retryAfterMs' in error && typeof (error as any).retryAfterMs === 'number') {
+    if (
+      'retryAfterMs' in error &&
+      typeof (error as any).retryAfterMs === 'number'
+    ) {
       (genericServiceError as any).retryAfterMs = (error as any).retryAfterMs;
     }
-    
+
     // Preserve original isRetryable logic if it exists
-    if ('isRetryable' in error && typeof (error as any).isRetryable === 'function') {
+    if (
+      'isRetryable' in error &&
+      typeof (error as any).isRetryable === 'function'
+    ) {
       const originalIsRetryable = (error as any).isRetryable();
       (genericServiceError as any)._originalIsRetryable = originalIsRetryable;
-      
+
       // Override the isRetryable method to return the original value
       genericServiceError.isRetryable = () => originalIsRetryable;
     }
-    
+
     return genericServiceError;
   }
 
@@ -846,13 +922,13 @@ export abstract class GoogleService {
 
   /**
    * Calculate retry delay using exponential backoff with jitter.
-   * 
+   *
    * The delay calculation follows this strategy:
    * 1. Check if error specifies a retry-after time (e.g., rate limit)
    * 2. Apply exponential backoff: baseDelay * (multiplier ^ (attempt - 1))
    * 3. Cap at maximum delay
    * 4. Add random jitter to prevent thundering herd
-   * 
+   *
    * @param attempt - Current attempt number (1-based)
    * @param error - The error that triggered the retry
    * @returns Delay in milliseconds before next attempt
@@ -966,7 +1042,7 @@ export abstract class GoogleService {
   /**
    * Generate a unique request ID for tracing and correlation.
    * Format: serviceName-timestamp-randomString
-   * 
+   *
    * @returns Unique identifier for the current operation
    */
   protected generateRequestId(): string {
@@ -977,7 +1053,7 @@ export abstract class GoogleService {
    * Create a standardized service context for operations.
    * The context is used throughout the operation lifecycle for consistent
    * logging, error handling, and request tracing.
-   * 
+   *
    * @param operation - Name of the operation being performed
    * @param data - Additional context data for the operation
    * @returns ServiceContext object with operation details

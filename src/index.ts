@@ -1,7 +1,11 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { AuthService } from './services/auth.service.js';
-import { ServiceRegistry, SheetsServiceModule, CalendarServiceModule } from './registry/index.js';
+import {
+  ServiceRegistry,
+  SheetsServiceModule,
+  CalendarServiceModule,
+} from './registry/index.js';
 import { loadConfig } from './config/index.js';
 import { createServiceLogger } from './utils/logger.js';
 import type { EnvironmentConfig } from './types/index.js';

@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { BaseCalendarTools } from './base-calendar-tool.js';
-import type { CalendarDeleteEventResult, MCPToolResult, ToolMetadata } from '../../types/index.js';
+import type {
+  CalendarDeleteEventResult,
+  MCPToolResult,
+  ToolMetadata,
+} from '../../types/index.js';
 import type { ToolExecutionContext } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
@@ -8,11 +12,22 @@ import { GoogleWorkspaceError } from '../../errors/index.js';
 /**
  * Schema for delete event input
  */
-const DeleteEventInputSchema = z.object({
-  calendarId: z.string().min(1).describe('The calendar ID containing the event'),
-  eventId: z.string().min(1).describe('The unique identifier of the event to delete'),
-  sendUpdates: z.enum(['all', 'externalOnly', 'none']).optional().describe('Whether to send cancellation emails to attendees'),
-}).describe('Delete a calendar event');
+const DeleteEventInputSchema = z
+  .object({
+    calendarId: z
+      .string()
+      .min(1)
+      .describe('The calendar ID containing the event'),
+    eventId: z
+      .string()
+      .min(1)
+      .describe('The unique identifier of the event to delete'),
+    sendUpdates: z
+      .enum(['all', 'externalOnly', 'none'])
+      .optional()
+      .describe('Whether to send cancellation emails to attendees'),
+  })
+  .describe('Delete a calendar event');
 
 type DeleteEventInput = z.infer<typeof DeleteEventInputSchema>;
 
@@ -73,7 +88,8 @@ export class DeleteEventTool extends BaseCalendarTools<
   public getToolMetadata(): ToolMetadata {
     return {
       title: 'Delete Calendar Event',
-      description: 'Deletes a calendar event with optional attendee notifications',
+      description:
+        'Deletes a calendar event with optional attendee notifications',
       inputSchema: DeleteEventInputSchema.shape,
     };
   }
@@ -82,7 +98,7 @@ export class DeleteEventTool extends BaseCalendarTools<
     args: DeleteEventInput,
     context?: ToolExecutionContext
   ): Promise<Result<CalendarDeleteEventResult, GoogleWorkspaceError>> {
-    this.logger.info('Executing delete event tool', { 
+    this.logger.info('Executing delete event tool', {
       calendarId: args.calendarId,
       eventId: args.eventId,
       sendUpdates: args.sendUpdates,
@@ -120,7 +136,10 @@ export class DeleteEventTool extends BaseCalendarTools<
       // Optional: Get event details for logging before deletion
       let eventSummary: string | undefined;
       try {
-        const getResult = await this.calendarService.getEvent(calendarId, eventId);
+        const getResult = await this.calendarService.getEvent(
+          calendarId,
+          eventId
+        );
         if (getResult.isOk()) {
           eventSummary = getResult.value.summary;
         }
@@ -133,7 +152,10 @@ export class DeleteEventTool extends BaseCalendarTools<
       }
 
       // Delete event using the service
-      const result = await this.calendarService.deleteEvent(calendarId, eventId);
+      const result = await this.calendarService.deleteEvent(
+        calendarId,
+        eventId
+      );
 
       if (result.isErr()) {
         const error = this.handleServiceError(result.error);
@@ -165,9 +187,9 @@ export class DeleteEventTool extends BaseCalendarTools<
           notificationSettings: args.sendUpdates || 'none',
           deletedAt: new Date().toISOString(),
         },
-        warnings: eventSummary ? undefined : [
-          'Event summary could not be retrieved before deletion'
-        ],
+        warnings: eventSummary
+          ? undefined
+          : ['Event summary could not be retrieved before deletion'],
       });
     } catch (error) {
       const calendarError = this.handleServiceError(error);
