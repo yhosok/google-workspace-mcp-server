@@ -11,7 +11,8 @@ This MCP server implements the [Model Context Protocol](https://modelcontextprot
 ### Key Features
 
 - **Google Sheets Integration**: Full CRUD operations on spreadsheets
-- **Service Account Authentication**: Secure authentication using Google service accounts
+- **Google Calendar Integration**: Complete calendar management with event creation, updates, and deletion
+- **Dual Authentication Support**: Both Service Account and OAuth2 user authentication
 - **Advanced Timeout Control**: Dual-layer timeout protection with AbortController
 - **Configurable Retry/Backoff Strategy**: Intelligent retry handling for transient API failures
 - **Extensible Architecture**: Plugin-based design for easy addition of new Google services
@@ -31,8 +32,8 @@ The server follows a modular architecture with these key components:
 ## Prerequisites
 
 - Node.js >= 18.0.0
-- A Google Cloud Project with Google Sheets API enabled
-- Google Service Account with appropriate permissions
+- A Google Cloud Project with Google Sheets API and Google Calendar API enabled
+- Authentication credentials (Service Account or OAuth2 Client credentials)
 
 ## Installation
 
@@ -52,9 +53,15 @@ npm install
 npm run build
 ```
 
-## Google Workspace Setup
+## Authentication Setup
 
-### 1. Create a Google Cloud Project
+This server supports two authentication methods:
+
+### Option 1: Service Account Authentication (Server-to-Server)
+
+**Best for:** Automated workflows, server environments, accessing organization-wide resources
+
+#### 1. Create a Google Cloud Project
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project or select an existing one
@@ -63,7 +70,7 @@ npm run build
    - Search for "Google Sheets API" and click "Enable"
    - Search for "Google Calendar API" and click "Enable"
 
-### 2. Create a Service Account
+#### 2. Create a Service Account
 
 1. Navigate to "APIs & Services" > "Credentials"
 2. Click "Create Credentials" > "Service Account"
@@ -72,7 +79,7 @@ npm run build
 5. Skip role assignment (or assign minimal required roles)
 6. Click "Done"
 
-### 3. Generate Service Account Key
+#### 3. Generate Service Account Key
 
 1. Find your service account in the credentials list
 2. Click on the service account name
@@ -81,7 +88,7 @@ npm run build
 5. Choose "JSON" format
 6. Download the key file and save it securely
 
-### 4. Share Google Workspace Resources
+#### 4. Share Google Workspace Resources
 
 For the service account to access your Google Workspace resources:
 
@@ -100,38 +107,92 @@ For the service account to access your Google Workspace resources:
 6. Add the service account email (found in the JSON key file)
 7. Grant appropriate permissions (See all event details/Make changes to events)
 
+### Option 2: OAuth2 User Authentication (Interactive)
+
+**Best for:** Personal use, development, accessing user's own resources
+
+#### 1. Create OAuth2 Credentials
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/), navigate to "APIs & Services" > "Credentials"
+2. Click "Create Credentials" > "OAuth 2.0 Client IDs"
+3. Select "Desktop application" as the application type
+4. Give it a name (e.g., "Google Workspace MCP Server")
+5. Click "Create"
+6. Download the credentials JSON file or note the Client ID and Client Secret
+
+#### 2. Configure Redirect URI
+
+1. Edit your OAuth2 client credentials
+2. Add `http://localhost:3000/oauth2callback` to "Authorized redirect URIs"
+3. Save the changes
+
+#### 3. Configure Environment Variables
+
+Set up your `.env` file with OAuth2 credentials:
+```env
+GOOGLE_AUTH_MODE=oauth2
+GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
+GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar
+```
+
+#### 4. First-Time Authentication
+
+When you first run the server with OAuth2:
+1. The server will automatically open your browser
+2. Sign in to your Google account
+3. Grant the requested permissions
+4. The server will receive the authorization and store refresh tokens securely
+5. Future runs will use stored tokens automatically
+
+#### 5. Token Security
+
+- Tokens are stored securely using your OS keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux)
+- Fallback encrypted file storage is used if keychain access is unavailable
+- Refresh tokens are automatically managed and never logged
+
 ## Configuration
 
-Create a `.env` file in the project root (use `.env.example` as template):
+Create a `.env` file in the project root (use `.env.example` as template).
+
+### Service Account Configuration
+
+For Service Account authentication:
 
 ```env
-# Google Service Account Configuration (Required)
+GOOGLE_AUTH_MODE=service-account
 GOOGLE_SERVICE_ACCOUNT_KEY_PATH=/path/to/your/service-account-key.json
+```
 
+### OAuth2 Configuration
+
+For OAuth2 authentication:
+
+```env
+GOOGLE_AUTH_MODE=oauth2
+GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
+GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar
+GOOGLE_OAUTH_PORT=3000
+```
+
+### Optional Settings
+
+```env
 # Google Drive Folder ID (optional - limits access to specific folder)
 GOOGLE_DRIVE_FOLDER_ID=your-folder-id
 
 # Google API Retry Configuration (Optional)
-# Maximum number of retry attempts for failed API calls (default: 3)
 GOOGLE_RETRY_MAX_ATTEMPTS=3
-
-# Base delay in milliseconds before first retry (default: 1000)
 GOOGLE_RETRY_BASE_DELAY=1000
-
-# Maximum delay in milliseconds between retries (default: 30000)
 GOOGLE_RETRY_MAX_DELAY=30000
-
-# Jitter factor (0-1) to add randomness to retry delays (default: 0.1)
 GOOGLE_RETRY_JITTER=0.1
-
-# Comma-separated list of HTTP status codes that trigger retries (default: 429,500,502,503,504)
 GOOGLE_RETRY_RETRIABLE_CODES=429,500,502,503,504
 
 # Timeout Configuration (Optional)
-# Individual request timeout in milliseconds (default: 30000)
 GOOGLE_REQUEST_TIMEOUT=30000
-
-# Total retry operation timeout in milliseconds (default: 120000)
 GOOGLE_TOTAL_TIMEOUT=120000
 ```
 
@@ -151,6 +212,8 @@ npm start
 
 ### Claude Desktop Integration
 
+#### For Service Account Authentication
+
 Add to your Claude Desktop configuration (`claude_desktop_config.json`):
 
 ```json
@@ -160,7 +223,30 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
       "command": "node",
       "args": ["/path/to/google-workspace-mcp-server/dist/index.js"],
       "env": {
+        "GOOGLE_AUTH_MODE": "service-account",
         "GOOGLE_SERVICE_ACCOUNT_KEY_PATH": "/path/to/your/service-account-key.json"
+      }
+    }
+  }
+}
+```
+
+#### For OAuth2 Authentication
+
+Add to your Claude Desktop configuration (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "google-workspace": {
+      "command": "node",
+      "args": ["/path/to/google-workspace-mcp-server/dist/index.js"],
+      "env": {
+        "GOOGLE_AUTH_MODE": "oauth2",
+        "GOOGLE_OAUTH_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
+        "GOOGLE_OAUTH_CLIENT_SECRET": "your-client-secret",
+        "GOOGLE_OAUTH_REDIRECT_URI": "http://localhost:3000/oauth2callback",
+        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar"
       }
     }
   }
@@ -435,20 +521,50 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Common Issues
 
-#### "Authentication failed"
-- Verify that your service account key file path is correct
-- Ensure the service account has been granted access to the specific Google Sheets
-- Check that the Google Sheets API is enabled in your Google Cloud project
+#### Service Account Authentication Issues
 
-#### "Spreadsheet not found"
+**"Authentication failed"**
+- Verify that your service account key file path is correct
+- Ensure the service account has been granted access to the specific Google Sheets/Calendars
+- Check that the Google Sheets API and Google Calendar API are enabled in your Google Cloud project
+
+**"Spreadsheet not found"**
 - Confirm the spreadsheet ID is correct
 - Verify the service account has been shared with the spreadsheet
 - Check that the spreadsheet hasn't been deleted or moved
 
-#### "Permission denied"
+**"Permission denied"**
 - Ensure the service account has appropriate permissions
 - Verify the required scopes are included in your configuration
 - Check that the service account key hasn't expired
+
+#### OAuth2 Authentication Issues
+
+**"OAuth2 authorization required"**
+- Run the server once to complete the initial OAuth2 flow
+- Check that your browser opens automatically during first setup
+- Verify that you've granted all requested permissions
+
+**"OAuth2 client configuration error"**
+- Ensure `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` are correct
+- Verify the redirect URI matches: `http://localhost:3000/oauth2callback`
+- Check that the OAuth2 client is configured for "Desktop application"
+
+**"Token storage error"**
+- On macOS: Check Keychain access permissions
+- On Windows: Verify Credential Manager is accessible
+- On Linux: Ensure Secret Service is available
+- Fallback: Check file permissions in `~/.config/google-workspace-mcp/`
+
+**"Browser doesn't open automatically"**
+- Copy the authorization URL from the console and open manually
+- Check if `open` command is available on your system
+- Verify no firewall is blocking localhost connections
+
+**"Refresh token expired"**
+- Delete stored tokens and re-authenticate: `rm -rf ~/.config/google-workspace-mcp/`
+- Or clear OS keychain entries for "google-workspace-mcp"
+- Run the server again to complete new OAuth2 flow
 
 #### "Rate limit exceeded" (HTTP 429)
 - The server automatically handles rate limits with exponential backoff
@@ -482,9 +598,15 @@ GOOGLE_RETRY_MAX_DELAY=60000
 
 ## Roadmap
 
-- [x] Google Calendar support
+- [x] Google Sheets integration with full CRUD operations
+- [x] Google Calendar support with event management
+- [x] Service Account authentication
+- [x] OAuth2 user authentication with secure token storage
+- [x] Advanced retry/backoff strategy with timeout control
+- [x] Comprehensive error handling and logging
 - [ ] Google Drive file operations
 - [ ] Google Docs integration  
-- [ ] Advanced authentication options (OAuth 2.0)
 - [ ] Batch operations support
 - [ ] Real-time updates via webhooks
+- [ ] Google Forms integration
+- [ ] Google Meet integration
