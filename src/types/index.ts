@@ -42,7 +42,7 @@ export interface SheetData {
 export interface ToolMetadata {
   title: string;
   description: string;
-  inputSchema: Record<string, any>;
+  inputSchema: Record<string, unknown>;
 }
 
 export interface MCPToolResult {

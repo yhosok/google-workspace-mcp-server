@@ -1,12 +1,15 @@
-import { SheetsWriteTool } from '../../../../src/tools/sheets/write.tool.js';
-import { SheetsService } from '../../../../src/services/sheets.service.js';
-import { AuthService } from '../../../../src/services/auth.service.js';
+import { SheetsReadTool } from '../../tools/sheets/read.tool.js';
+import { SheetsService } from '../../services/sheets.service.js';
+import { AuthService } from '../../services/auth.service.js';
 import { ok, err } from 'neverthrow';
-import { GoogleSheetsError, GoogleSheetsInvalidRangeError } from '../../../../src/errors/index.js';
-import type { SheetsWriteResult, MCPToolResult } from '../../../../src/types/index.js';
+import {
+  GoogleSheetsError,
+  GoogleSheetsInvalidRangeError,
+} from '../../errors/index.js';
+import type { SheetsReadResult, MCPToolResult } from '../../types/index.js';
 
-describe('SheetsWriteTool', () => {
-  let tool: SheetsWriteTool;
+describe('SheetsReadTool', () => {
+  let tool: SheetsReadTool;
   let mockSheetsService: jest.Mocked<SheetsService>;
   let mockAuthService: jest.Mocked<AuthService>;
 
@@ -15,7 +18,7 @@ describe('SheetsWriteTool', () => {
       initialize: jest.fn(),
       getAuthClient: jest.fn(),
       validateAuth: jest.fn().mockResolvedValue(ok(true)),
-      getGoogleAuth: jest.fn()
+      getGoogleAuth: jest.fn(),
     } as any;
 
     mockSheetsService = {
@@ -25,96 +28,85 @@ describe('SheetsWriteTool', () => {
       readRange: jest.fn(),
       writeRange: jest.fn(),
       appendData: jest.fn(),
-      healthCheck: jest.fn()
+      healthCheck: jest.fn(),
     } as any;
 
-    tool = new SheetsWriteTool(mockSheetsService, mockAuthService);
+    tool = new SheetsReadTool(mockSheetsService, mockAuthService);
   });
 
   describe('getToolName', () => {
     test('should return correct tool name', () => {
-      expect(tool.getToolName()).toBe('sheets-write');
+      expect(tool.getToolName()).toBe('sheets-read');
     });
   });
 
   describe('getToolMetadata', () => {
     test('should return correct metadata', () => {
       const metadata = tool.getToolMetadata();
-      expect(metadata.title).toBe('Write to Spreadsheet Range');
-      expect(metadata.description).toBe('Write data to a specific spreadsheet range');
+      expect(metadata.title).toBe('Read Spreadsheet Range');
+      expect(metadata.description).toBe(
+        'Read data from a specific spreadsheet range'
+      );
       expect(metadata.inputSchema).toHaveProperty('spreadsheetId');
       expect(metadata.inputSchema).toHaveProperty('range');
-      expect(metadata.inputSchema).toHaveProperty('values');
     });
   });
 
   describe('executeImpl', () => {
-    test('should write data to spreadsheet successfully', async () => {
+    test('should read data from spreadsheet range successfully', async () => {
       const params = {
         spreadsheetId: 'test-sheet-id',
         range: 'Sheet1!A1:B2',
-        values: [['New A1', 'New B1'], ['New A2', 'New B2']]
       };
 
-      mockSheetsService.writeRange.mockResolvedValue(ok(undefined));
+      const mockSheetData = {
+        range: 'Sheet1!A1:B2',
+        values: [
+          ['A1', 'B1'],
+          ['A2', 'B2'],
+        ],
+        majorDimension: 'ROWS' as const,
+      };
+
+      mockSheetsService.readRange.mockResolvedValue(ok(mockSheetData));
 
       const result = await tool.executeImpl(params);
-      
+
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         const mcpResult = result.value as MCPToolResult;
-        const resultData = JSON.parse(mcpResult.content[0].text) as SheetsWriteResult;
-        expect(resultData.updatedCells).toBe(4);
-        expect(resultData.updatedRows).toBe(2);
-        expect(resultData.updatedColumns).toBe(2);
+        const text = mcpResult.content[0].text;
+        expect(text).toBeDefined();
+        const resultData = JSON.parse(text!) as SheetsReadResult;
+        expect(resultData.range).toBe(mockSheetData.range);
+        expect(resultData.values).toEqual(mockSheetData.values);
+        expect(resultData.majorDimension).toBe(mockSheetData.majorDimension);
       }
-      expect(mockSheetsService.writeRange).toHaveBeenCalledWith(
-        params.spreadsheetId, 
-        params.range, 
-        params.values
-      );
     });
 
-    test('should handle empty values', async () => {
+    test('should handle empty range', async () => {
       const params = {
         spreadsheetId: 'test-sheet-id',
         range: 'Sheet1!A1:A1',
-        values: []
       };
 
-      mockSheetsService.writeRange.mockResolvedValue(ok(undefined));
+      const mockSheetData = {
+        range: 'Sheet1!A1:A1',
+        values: [],
+        majorDimension: 'ROWS' as const,
+      };
+
+      mockSheetsService.readRange.mockResolvedValue(ok(mockSheetData));
 
       const result = await tool.executeImpl(params);
-      
+
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         const mcpResult = result.value as MCPToolResult;
-        const resultData = JSON.parse(mcpResult.content[0].text) as SheetsWriteResult;
-        expect(resultData.updatedCells).toBe(0);
-        expect(resultData.updatedRows).toBe(0);
-        expect(resultData.updatedColumns).toBe(0);
-      }
-    });
-
-    test('should handle large datasets', async () => {
-      const largeValues = Array(1000).fill(['data1', 'data2']);
-      const params = {
-        spreadsheetId: 'test-sheet-id',
-        range: 'Sheet1!A1:B1000',
-        values: largeValues
-      };
-
-      mockSheetsService.writeRange.mockResolvedValue(ok(undefined));
-
-      const result = await tool.executeImpl(params);
-      
-      expect(result.isOk()).toBe(true);
-      if (result.isOk()) {
-        const mcpResult = result.value as MCPToolResult;
-        const resultData = JSON.parse(mcpResult.content[0].text) as SheetsWriteResult;
-        expect(resultData.updatedRows).toBe(1000);
-        expect(resultData.updatedCells).toBe(2000);
-        expect(resultData.updatedColumns).toBe(2);
+        const text = mcpResult.content[0].text;
+        expect(text).toBeDefined();
+        const resultData = JSON.parse(text!) as SheetsReadResult;
+        expect(resultData.values).toEqual([]);
       }
     });
 
@@ -122,15 +114,16 @@ describe('SheetsWriteTool', () => {
       const params = {
         spreadsheetId: '',
         range: 'Sheet1!A1:B2',
-        values: [['data']]
       };
 
       const result = await tool.executeImpl(params);
-      
+
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         expect(result.error).toBeInstanceOf(GoogleSheetsInvalidRangeError);
-        expect(result.error.message).toContain('Spreadsheet ID cannot be empty');
+        expect(result.error.message).toContain(
+          'Spreadsheet ID cannot be empty'
+        );
       }
     });
 
@@ -138,11 +131,10 @@ describe('SheetsWriteTool', () => {
       const params = {
         spreadsheetId: 'test-sheet-id',
         range: '',
-        values: [['data']]
       };
 
       const result = await tool.executeImpl(params);
-      
+
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         expect(result.error).toBeInstanceOf(GoogleSheetsInvalidRangeError);
@@ -154,11 +146,10 @@ describe('SheetsWriteTool', () => {
       const params = {
         spreadsheetId: 'test-sheet-id',
         range: 'invalid-range',
-        values: [['data']]
       };
 
       const result = await tool.executeImpl(params);
-      
+
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         expect(result.error).toBeInstanceOf(GoogleSheetsInvalidRangeError);
@@ -166,35 +157,21 @@ describe('SheetsWriteTool', () => {
       }
     });
 
-    test('should validate values parameter', async () => {
-      // This will be caught by Zod schema validation in real implementation
-      const params = {
-        spreadsheetId: 'test-sheet-id',
-        range: 'Sheet1!A1:B2',
-        values: 'invalid-values' as any
-      };
-
-      const result = await tool.executeImpl(params);
-      
-      expect(result.isErr()).toBe(true);
-      if (result.isErr()) {
-        expect(result.error).toBeInstanceOf(GoogleSheetsError);
-        expect(result.error.message).toContain('Expected array, received string');
-      }
-    });
-
     test('should handle service error', async () => {
       const params = {
         spreadsheetId: 'test-sheet-id',
         range: 'Sheet1!A1:B2',
-        values: [['data']]
       };
-      
-      const serviceError = new GoogleSheetsError('Write failed', 'GOOGLE_SHEETS_WRITE_ERROR', 400);
-      mockSheetsService.writeRange.mockResolvedValue(err(serviceError));
+
+      const serviceError = new GoogleSheetsError(
+        'Spreadsheet not found',
+        'GOOGLE_SHEETS_NOT_FOUND',
+        404
+      );
+      mockSheetsService.readRange.mockResolvedValue(err(serviceError));
 
       const result = await tool.executeImpl(params);
-      
+
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         expect(result.error).toBe(serviceError);
@@ -205,16 +182,17 @@ describe('SheetsWriteTool', () => {
       const params = {
         spreadsheetId: 'test-sheet-id',
         range: 'Sheet1!A1:B2',
-        values: [['data']]
       };
-      
+
       mockAuthService.validateAuth.mockResolvedValue(ok(false));
 
       const result = await tool.executeImpl(params);
-      
+
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('Authentication validation failed');
+        expect(result.error.message).toContain(
+          'Authentication validation failed'
+        );
       }
     });
   });
@@ -224,13 +202,14 @@ describe('SheetsWriteTool', () => {
       const params = {
         spreadsheetId: 'test-sheet-id',
         range: 'Sheet1!A1:B2',
-        values: [['data']]
       };
-      
-      mockSheetsService.writeRange.mockRejectedValue(new Error('Unexpected error'));
+
+      mockSheetsService.readRange.mockRejectedValue(
+        new Error('Unexpected error')
+      );
 
       const result = await tool.executeImpl(params);
-      
+
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         expect(result.error.message).toContain('Unexpected error');

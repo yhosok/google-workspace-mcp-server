@@ -528,7 +528,7 @@ export class CalendarService extends GoogleService {
         );
       }
 
-      const requestParams: any = {
+      const requestParams: Record<string, unknown> = {
         calendarId,
         ...options,
       };

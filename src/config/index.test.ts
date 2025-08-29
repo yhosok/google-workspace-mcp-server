@@ -274,7 +274,8 @@ describe('Config Loading', () => {
 
     it('should leave optional fields as undefined when not provided', () => {
       // Need to provide at least one auth method for validation to pass
-      process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH = '/path/to/service-account.json';
+      process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH =
+        '/path/to/service-account.json';
       delete process.env.GOOGLE_OAUTH_CLIENT_ID;
       delete process.env.GOOGLE_OAUTH_CLIENT_SECRET;
       delete process.env.GOOGLE_RETRY_MAX_ATTEMPTS;

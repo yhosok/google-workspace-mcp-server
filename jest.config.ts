@@ -8,7 +8,7 @@ const presetConfig = createDefaultPreset({
 const config: Config = {
   ...presetConfig,
   testEnvironment: 'node',
-  roots: ['<rootDir>/src', '<rootDir>/tests'],
+  roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
   collectCoverageFrom: [
     'src/**/*.ts',
@@ -19,7 +19,7 @@ const config: Config = {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   extensionsToTreatAsEsm: ['.ts'],
-  setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
+  setupFilesAfterEnv: ['<rootDir>/src/test-setup.ts'],
   
   // Performance optimizations
   maxWorkers: '75%',           // CPU並列度向上 - 75%のワーカーでバランス良く並列化

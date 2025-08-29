@@ -1,46 +1,53 @@
-import { SheetsServiceModule } from '../../../../src/registry/sheets/sheets-service-module.js';
-import type { AuthService } from '../../../../src/services/auth.service.js';
-import type { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SheetsService } from '../../../../src/services/sheets.service.js';
-import { SheetsResources } from '../../../../src/resources/sheets-resources.js';
+import { SheetsServiceModule } from '../../registry/sheets/sheets-service-module.js';
+import type { AuthService } from '../../services/auth.service.js';
+import type {
+  McpServer,
+  ResourceTemplate,
+} from '@modelcontextprotocol/sdk/server/mcp.js';
+import { SheetsService } from '../../services/sheets.service.js';
+import { SheetsResources } from '../../resources/sheets-resources.js';
 import { ok, err } from 'neverthrow';
-import { GoogleServiceError } from '../../../../src/errors/index.js';
+import { GoogleServiceError } from '../../errors/index.js';
 
 // Mock SheetsService
-jest.mock('../../../../src/services/sheets.service.js');
-jest.mock('../../../../src/resources/sheets-resources.js');
+jest.mock('../../services/sheets.service.js');
+jest.mock('../../resources/sheets-resources.js');
 
 // Mock tool classes
-jest.mock('../../../../src/tools/sheets/list.tool.js', () => ({
+jest.mock('../../tools/sheets/list.tool.js', () => ({
   SheetsListTool: jest.fn().mockImplementation(() => ({
     registerTool: jest.fn(),
-    getToolName: jest.fn().mockReturnValue('sheets-list')
-  }))
+    getToolName: jest.fn().mockReturnValue('sheets-list'),
+  })),
 }));
 
-jest.mock('../../../../src/tools/sheets/read.tool.js', () => ({
+jest.mock('../../tools/sheets/read.tool.js', () => ({
   SheetsReadTool: jest.fn().mockImplementation(() => ({
     registerTool: jest.fn(),
-    getToolName: jest.fn().mockReturnValue('sheets-read')
-  }))
+    getToolName: jest.fn().mockReturnValue('sheets-read'),
+  })),
 }));
 
-jest.mock('../../../../src/tools/sheets/write.tool.js', () => ({
+jest.mock('../../tools/sheets/write.tool.js', () => ({
   SheetsWriteTool: jest.fn().mockImplementation(() => ({
     registerTool: jest.fn(),
-    getToolName: jest.fn().mockReturnValue('sheets-write')
-  }))
+    getToolName: jest.fn().mockReturnValue('sheets-write'),
+  })),
 }));
 
-jest.mock('../../../../src/tools/sheets/append.tool.js', () => ({
+jest.mock('../../tools/sheets/append.tool.js', () => ({
   SheetsAppendTool: jest.fn().mockImplementation(() => ({
     registerTool: jest.fn(),
-    getToolName: jest.fn().mockReturnValue('sheets-append')
-  }))
+    getToolName: jest.fn().mockReturnValue('sheets-append'),
+  })),
 }));
 
-const MockedSheetsService = SheetsService as jest.MockedClass<typeof SheetsService>;
-const MockedSheetsResources = SheetsResources as jest.MockedClass<typeof SheetsResources>;
+const MockedSheetsService = SheetsService as jest.MockedClass<
+  typeof SheetsService
+>;
+const MockedSheetsResources = SheetsResources as jest.MockedClass<
+  typeof SheetsResources
+>;
 
 describe('SheetsServiceModule', () => {
   let module: SheetsServiceModule;
@@ -53,20 +60,20 @@ describe('SheetsServiceModule', () => {
     module = new SheetsServiceModule();
     mockAuthService = {} as AuthService;
     mockServer = {
-      registerResource: jest.fn()
+      registerResource: jest.fn(),
     } as unknown as McpServer;
 
     // Setup SheetsService mock
     mockSheetsService = {
       initialize: jest.fn(),
       getServiceName: jest.fn().mockReturnValue('SheetsService'),
-      getServiceVersion: jest.fn().mockReturnValue('v4')
+      getServiceVersion: jest.fn().mockReturnValue('v4'),
     } as unknown as jest.Mocked<SheetsService>;
 
     // Setup SheetsResources mock
     mockSheetsResources = {
       getSpreadsheetSchema: jest.fn(),
-      getSpreadsheetData: jest.fn()
+      getSpreadsheetData: jest.fn(),
     } as unknown as jest.Mocked<SheetsResources>;
 
     MockedSheetsService.mockImplementation(() => mockSheetsService);
@@ -98,7 +105,7 @@ describe('SheetsServiceModule', () => {
       expect(result.isOk()).toBe(true);
       expect(module.isInitialized()).toBe(true);
       expect(mockSheetsService.initialize).toHaveBeenCalled();
-      
+
       // Check that tools and resources are created
       expect(module.getTools()).toHaveLength(6); // List, Read, Write, Append, AddSheet, CreateSpreadsheet
       expect(module.getSheetsService()).toBeDefined();
@@ -116,13 +123,19 @@ describe('SheetsServiceModule', () => {
     });
 
     it('should handle SheetsService initialization failure', async () => {
-      const error = new GoogleServiceError('Service init failed', 'sheets', 'SERVICE_INIT_FAILED');
+      const error = new GoogleServiceError(
+        'Service init failed',
+        'sheets',
+        'SERVICE_INIT_FAILED'
+      );
       mockSheetsService.initialize.mockResolvedValue(err(error));
 
       const result = await module.initialize(mockAuthService);
 
       expect(result.isErr()).toBe(true);
-      expect(result._unsafeUnwrapErr().message).toContain('Failed to initialize Sheets service');
+      expect(result._unsafeUnwrapErr().message).toContain(
+        'Failed to initialize Sheets service'
+      );
       expect(module.isInitialized()).toBe(false);
     });
 
@@ -161,7 +174,7 @@ describe('SheetsServiceModule', () => {
 
     it('should fail if not initialized', () => {
       const uninitializedModule = new SheetsServiceModule();
-      
+
       const result = uninitializedModule.registerTools(mockServer);
 
       expect(result.isErr()).toBe(true);
@@ -177,7 +190,9 @@ describe('SheetsServiceModule', () => {
       const result = module.registerTools(mockServer);
 
       expect(result.isErr()).toBe(true);
-      expect(result._unsafeUnwrapErr().message).toContain('Registration failed');
+      expect(result._unsafeUnwrapErr().message).toContain(
+        'Registration failed'
+      );
     });
   });
 
@@ -192,31 +207,33 @@ describe('SheetsServiceModule', () => {
 
       expect(result.isOk()).toBe(true);
       expect(mockServer.registerResource).toHaveBeenCalledTimes(2);
-      
+
       // Verify spreadsheet-schema resource registration
       expect(mockServer.registerResource).toHaveBeenCalledWith(
         'spreadsheet-schema',
         'schema://spreadsheets',
         expect.objectContaining({
           title: 'Spreadsheet Schema',
-          mimeType: 'application/json'
+          mimeType: 'application/json',
         }),
         expect.any(Function)
       );
 
       // Verify spreadsheet-data resource registration - check the call arguments
       const calls = (mockServer.registerResource as jest.Mock).mock.calls;
-      const spreadsheetDataCall = calls.find(call => call[0] === 'spreadsheet-data');
+      const spreadsheetDataCall = calls.find(
+        call => call[0] === 'spreadsheet-data'
+      );
       expect(spreadsheetDataCall).toBeDefined();
       expect(spreadsheetDataCall[2]).toMatchObject({
         title: 'Spreadsheet Data',
-        mimeType: 'application/json'
+        mimeType: 'application/json',
       });
     });
 
     it('should fail if not initialized', () => {
       const uninitializedModule = new SheetsServiceModule();
-      
+
       const result = uninitializedModule.registerResources(mockServer);
 
       expect(result.isErr()).toBe(true);
@@ -231,7 +248,9 @@ describe('SheetsServiceModule', () => {
       const result = module.registerResources(mockServer);
 
       expect(result.isErr()).toBe(true);
-      expect(result._unsafeUnwrapErr().message).toContain('Resource registration failed');
+      expect(result._unsafeUnwrapErr().message).toContain(
+        'Resource registration failed'
+      );
     });
   });
 
@@ -261,7 +280,7 @@ describe('SheetsServiceModule', () => {
         },
         set: () => {
           throw new Error('Cleanup error');
-        }
+        },
       });
 
       const result = await module.cleanup();
@@ -299,8 +318,12 @@ describe('SheetsServiceModule', () => {
       const healthStatus = module.getHealthStatus();
       const afterCheck = new Date();
 
-      expect(healthStatus.lastChecked.getTime()).toBeGreaterThanOrEqual(beforeCheck.getTime());
-      expect(healthStatus.lastChecked.getTime()).toBeLessThanOrEqual(afterCheck.getTime());
+      expect(healthStatus.lastChecked.getTime()).toBeGreaterThanOrEqual(
+        beforeCheck.getTime()
+      );
+      expect(healthStatus.lastChecked.getTime()).toBeLessThanOrEqual(
+        afterCheck.getTime()
+      );
     });
   });
 
@@ -318,7 +341,7 @@ describe('SheetsServiceModule', () => {
 
     it('should return undefined for services when not initialized', async () => {
       await module.cleanup();
-      
+
       expect(module.getSheetsService()).toBeUndefined();
       expect(module.getSheetsResources()).toBeUndefined();
       expect(module.getTools()).toHaveLength(0);

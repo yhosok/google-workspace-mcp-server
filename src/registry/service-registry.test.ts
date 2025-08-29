@@ -1,9 +1,12 @@
-import { ServiceRegistry } from '../../../src/registry/service-registry.js';
-import type { ServiceModule, ServiceModuleHealthStatus } from '../../../src/registry/service-module.interface.js';
-import type { AuthService } from '../../../src/services/auth.service.js';
+import { ServiceRegistry } from './service-registry.js';
+import type {
+  ServiceModule,
+  ServiceModuleHealthStatus,
+} from './service-module.interface.js';
+import type { AuthService } from '../services/auth.service.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { ok, err } from 'neverthrow';
-import { GoogleServiceError } from '../../../src/errors/index.js';
+import { ok, err, Result } from 'neverthrow';
+import { GoogleServiceError } from '../errors/index.js';
 
 // Mock implementations
 class MockServiceModule implements ServiceModule {
@@ -16,7 +19,7 @@ class MockServiceModule implements ServiceModule {
   private shouldFailResourceRegistration = false;
 
   constructor(
-    name: string, 
+    name: string,
     displayName?: string,
     options: {
       failInitialization?: boolean;
@@ -28,39 +31,55 @@ class MockServiceModule implements ServiceModule {
     this.displayName = displayName || name;
     this.shouldFailInitialization = options.failInitialization || false;
     this.shouldFailToolRegistration = options.failToolRegistration || false;
-    this.shouldFailResourceRegistration = options.failResourceRegistration || false;
+    this.shouldFailResourceRegistration =
+      options.failResourceRegistration || false;
   }
 
-  async initialize(authService: AuthService) {
+  async initialize(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _authService: AuthService
+  ): Promise<Result<void, GoogleServiceError>> {
     if (this.shouldFailInitialization) {
-      return err(new GoogleServiceError(
-        `Initialization failed for ${this.name}`,
-        this.name,
-        'INITIALIZATION_FAILED'
-      ));
+      return err(
+        new GoogleServiceError(
+          `Initialization failed for ${this.name}`,
+          this.name,
+          'INITIALIZATION_FAILED'
+        )
+      );
     }
     this.initialized = true;
     return ok(undefined);
   }
 
-  registerTools(server: McpServer) {
+  registerTools(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _server: McpServer
+  ): Result<void, GoogleServiceError> {
     if (this.shouldFailToolRegistration) {
-      return err(new GoogleServiceError(
-        `Tool registration failed for ${this.name}`,
-        this.name,
-        'TOOL_REGISTRATION_FAILED'
-      ));
+      return err(
+        new GoogleServiceError(
+          `Tool registration failed for ${this.name}`,
+          this.name,
+          'TOOL_REGISTRATION_FAILED'
+        )
+      );
     }
     return ok(undefined);
   }
 
-  registerResources(server: McpServer) {
+  registerResources(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _server: McpServer
+  ): Result<void, GoogleServiceError> {
     if (this.shouldFailResourceRegistration) {
-      return err(new GoogleServiceError(
-        `Resource registration failed for ${this.name}`,
-        this.name,
-        'RESOURCE_REGISTRATION_FAILED'
-      ));
+      return err(
+        new GoogleServiceError(
+          `Resource registration failed for ${this.name}`,
+          this.name,
+          'RESOURCE_REGISTRATION_FAILED'
+        )
+      );
     }
     return ok(undefined);
   }
@@ -76,19 +95,19 @@ class MockServiceModule implements ServiceModule {
       metrics: {
         toolsRegistered: 2,
         resourcesRegistered: 1,
-        initializationTime: 100
-      }
+        initializationTime: 100,
+      },
     };
   }
 
-  async cleanup() {
+  async cleanup(): Promise<Result<void, GoogleServiceError>> {
     this.initialized = false;
     return ok(undefined);
   }
 }
 
-const createMockAuthService = (): AuthService => ({} as AuthService);
-const createMockServer = (): McpServer => ({} as McpServer);
+const createMockAuthService = (): AuthService => ({}) as AuthService;
+const createMockServer = (): McpServer => ({}) as McpServer;
 
 describe('ServiceRegistry', () => {
   let registry: ServiceRegistry;
@@ -126,7 +145,7 @@ describe('ServiceRegistry', () => {
       const modules = [
         new MockServiceModule('service1'),
         new MockServiceModule('service2'),
-        new MockServiceModule('service3')
+        new MockServiceModule('service3'),
       ];
 
       modules.forEach(module => {
@@ -161,7 +180,7 @@ describe('ServiceRegistry', () => {
     it('should call cleanup on module if available', async () => {
       const module = new MockServiceModule('test-service');
       const cleanupSpy = jest.spyOn(module, 'cleanup');
-      
+
       registry.registerModule(module);
       await registry.unregisterModule('test-service');
 
@@ -173,7 +192,7 @@ describe('ServiceRegistry', () => {
     it('should initialize all registered modules', async () => {
       const modules = [
         new MockServiceModule('service1'),
-        new MockServiceModule('service2')
+        new MockServiceModule('service2'),
       ];
 
       modules.forEach(module => registry.registerModule(module));
@@ -182,19 +201,24 @@ describe('ServiceRegistry', () => {
 
       expect(result.isOk()).toBe(true);
       expect(registry.getIsInitialized()).toBe(true);
-      
+
       modules.forEach(module => {
         expect(module.isInitialized()).toBe(true);
       });
 
-      expect(registry.getInitializationOrder()).toEqual(['service1', 'service2']);
+      expect(registry.getInitializationOrder()).toEqual([
+        'service1',
+        'service2',
+      ]);
     });
 
     it('should fail fast on module initialization failure', async () => {
       const modules = [
         new MockServiceModule('service1'),
-        new MockServiceModule('service2', undefined, { failInitialization: true }),
-        new MockServiceModule('service3')
+        new MockServiceModule('service2', undefined, {
+          failInitialization: true,
+        }),
+        new MockServiceModule('service3'),
       ];
 
       modules.forEach(module => registry.registerModule(module));
@@ -209,9 +233,9 @@ describe('ServiceRegistry', () => {
     it('should not re-initialize if already initialized', async () => {
       const module = new MockServiceModule('service1');
       const initSpy = jest.spyOn(module, 'initialize');
-      
+
       registry.registerModule(module);
-      
+
       await registry.initializeAll(mockAuthService);
       await registry.initializeAll(mockAuthService);
 
@@ -223,7 +247,7 @@ describe('ServiceRegistry', () => {
     it('should register tools from all initialized modules', async () => {
       const modules = [
         new MockServiceModule('service1'),
-        new MockServiceModule('service2')
+        new MockServiceModule('service2'),
       ];
 
       modules.forEach(module => {
@@ -235,7 +259,7 @@ describe('ServiceRegistry', () => {
       const result = registry.registerAllTools(mockServer);
 
       expect(result.isOk()).toBe(true);
-      
+
       modules.forEach(module => {
         expect(module.registerTools).toHaveBeenCalledWith(mockServer);
       });
@@ -254,7 +278,9 @@ describe('ServiceRegistry', () => {
     it('should fail fast on tool registration error', async () => {
       const modules = [
         new MockServiceModule('service1'),
-        new MockServiceModule('service2', undefined, { failToolRegistration: true })
+        new MockServiceModule('service2', undefined, {
+          failToolRegistration: true,
+        }),
       ];
 
       modules.forEach(module => registry.registerModule(module));
@@ -271,7 +297,7 @@ describe('ServiceRegistry', () => {
     it('should register resources from all initialized modules', async () => {
       const modules = [
         new MockServiceModule('service1'),
-        new MockServiceModule('service2')
+        new MockServiceModule('service2'),
       ];
 
       modules.forEach(module => {
@@ -283,7 +309,7 @@ describe('ServiceRegistry', () => {
       const result = registry.registerAllResources(mockServer);
 
       expect(result.isOk()).toBe(true);
-      
+
       modules.forEach(module => {
         expect(module.registerResources).toHaveBeenCalledWith(mockServer);
       });
@@ -302,7 +328,9 @@ describe('ServiceRegistry', () => {
     it('should fail fast on resource registration error', async () => {
       const modules = [
         new MockServiceModule('service1'),
-        new MockServiceModule('service2', undefined, { failResourceRegistration: true })
+        new MockServiceModule('service2', undefined, {
+          failResourceRegistration: true,
+        }),
       ];
 
       modules.forEach(module => registry.registerModule(module));
@@ -319,7 +347,7 @@ describe('ServiceRegistry', () => {
     it('should return overall health status', async () => {
       const modules = [
         new MockServiceModule('service1'),
-        new MockServiceModule('service2')
+        new MockServiceModule('service2'),
       ];
 
       modules.forEach(module => registry.registerModule(module));
@@ -340,7 +368,7 @@ describe('ServiceRegistry', () => {
       const modules = [
         new MockServiceModule('service1'),
         new MockServiceModule('service2'),
-        new MockServiceModule('service3')
+        new MockServiceModule('service3'),
       ];
 
       const cleanupOrder: string[] = [];
@@ -364,15 +392,15 @@ describe('ServiceRegistry', () => {
       const modules = [
         new MockServiceModule('service1'),
         new MockServiceModule('service2'),
-        new MockServiceModule('service3')
+        new MockServiceModule('service3'),
       ];
 
       // Make middle service fail cleanup
-      (modules[1] as any).cleanup = jest.fn(async () => err(new GoogleServiceError(
-        'Cleanup failed',
-        'service2',
-        'CLEANUP_FAILED'
-      )));
+      (modules[1] as MockServiceModule).cleanup = jest.fn(async () =>
+        err(
+          new GoogleServiceError('Cleanup failed', 'service2', 'CLEANUP_FAILED')
+        )
+      );
 
       modules.forEach(module => registry.registerModule(module));
       await registry.initializeAll(mockAuthService);
@@ -381,7 +409,7 @@ describe('ServiceRegistry', () => {
 
       expect(result.isErr()).toBe(true);
       expect(result._unsafeUnwrapErr().message).toContain('1 error(s)');
-      
+
       // Should still reset state
       expect(registry.getIsInitialized()).toBe(false);
     });

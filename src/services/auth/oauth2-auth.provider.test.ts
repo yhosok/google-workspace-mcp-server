@@ -100,7 +100,7 @@ describe('OAuth2AuthProvider', () => {
   beforeEach(() => {
     // Reset all mocks
     jest.clearAllMocks();
-    
+
     // Set test environment variables
     process.env.NODE_ENV = 'test';
     process.env.TEST_OAUTH_STATE = 'test-state';
@@ -214,7 +214,7 @@ describe('OAuth2AuthProvider', () => {
   afterEach(() => {
     // Clean up environment variables
     delete process.env.TEST_OAUTH_STATE;
-    
+
     // Clear any remaining timers (Jest should handle this, but being explicit)
     jest.clearAllTimers();
     jest.useRealTimers();
@@ -570,7 +570,7 @@ describe('OAuth2AuthProvider', () => {
         const callback = args[args.length - 1];
         if (typeof callback === 'function') {
           callback(); // Server is ready
-          
+
           // Set the callback result immediately after server starts
           // This simulates the OAuth callback happening right away
           setImmediate(() => {
@@ -597,11 +597,11 @@ describe('OAuth2AuthProvider', () => {
       // Create a fresh mock storage that always fails
       const failingStorage = {
         saveTokens: jest.fn().mockRejectedValue(new Error('Storage error')),
-        getTokens: jest.fn().mockRejectedValue(new Error('Storage error')), 
+        getTokens: jest.fn().mockRejectedValue(new Error('Storage error')),
         deleteTokens: jest.fn().mockRejectedValue(new Error('Storage error')),
         hasTokens: jest.fn().mockRejectedValue(new Error('Storage error')),
       };
-      
+
       const uninitializedProvider = new OAuth2AuthProvider(
         validConfig,
         failingStorage
@@ -774,7 +774,7 @@ describe('OAuth2AuthProvider', () => {
           return mockServer as any;
         }
       );
-      
+
       (mockServer.listen as jest.Mock).mockImplementation((...args) => {
         const callback = args[args.length - 1];
         if (typeof callback === 'function') {
@@ -784,7 +784,7 @@ describe('OAuth2AuthProvider', () => {
             port: 3000,
           };
           (mockServer as any)._callbackServer = callbackServer;
-          
+
           setImmediate(() => {
             if (requestHandler) {
               const mockReq = {

@@ -261,9 +261,14 @@ export class AuthService extends GoogleService {
         // Service account providers may expose GoogleAuth
         if (
           'getGoogleAuth' in provider &&
-          typeof (provider as any).getGoogleAuth === 'function'
+          typeof (provider as { getGoogleAuth: () => Promise<unknown> })
+            .getGoogleAuth === 'function'
         ) {
-          return await (provider as any).getGoogleAuth();
+          return await (
+            provider as {
+              getGoogleAuth: () => Promise<GoogleAuthResult<GoogleAuth>>;
+            }
+          ).getGoogleAuth();
         }
       }
 

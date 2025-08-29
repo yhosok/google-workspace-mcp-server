@@ -1,68 +1,71 @@
-import { ServiceRegistry, SheetsServiceModule } from '../../../src/registry/index.js';
-import { AuthService } from '../../../src/services/auth.service.js';
+import { ServiceRegistry, SheetsServiceModule } from './index.js';
+import { AuthService } from '../services/auth.service.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { ServiceModule } from './service-module.interface.js';
 import { ok, err } from 'neverthrow';
-import { GoogleServiceError } from '../../../src/errors/index.js';
+import { GoogleServiceError } from '../errors/index.js';
 
 // Mock external dependencies
-jest.mock('../../../src/services/auth.service.js');
+jest.mock('../services/auth.service.js');
 
 // Mock SheetsService with proper Result return values
-jest.mock('../../../src/services/sheets.service.js', () => ({
+jest.mock('../services/sheets.service.js', () => ({
   SheetsService: jest.fn().mockImplementation(() => ({
     initialize: jest.fn().mockResolvedValue(ok(undefined)),
     getServiceName: jest.fn().mockReturnValue('SheetsService'),
-    getServiceVersion: jest.fn().mockReturnValue('v4')
-  }))
+    getServiceVersion: jest.fn().mockReturnValue('v4'),
+  })),
 }));
 
-jest.mock('../../../src/resources/sheets-resources.js', () => ({
+jest.mock('../resources/sheets-resources.js', () => ({
   SheetsResources: jest.fn().mockImplementation(() => ({
     getSpreadsheetSchema: jest.fn(),
-    getSpreadsheetData: jest.fn()
-  }))
+    getSpreadsheetData: jest.fn(),
+  })),
 }));
 
 // Mock tool classes
-jest.mock('../../../src/tools/sheets/list.tool.js', () => ({
+jest.mock('../tools/sheets/list.tool.js', () => ({
   SheetsListTool: jest.fn().mockImplementation(() => ({
     registerTool: jest.fn(),
-    getToolName: jest.fn().mockReturnValue('sheets-list')
-  }))
+    getToolName: jest.fn().mockReturnValue('sheets-list'),
+  })),
 }));
 
-jest.mock('../../../src/tools/sheets/read.tool.js', () => ({
+jest.mock('../tools/sheets/read.tool.js', () => ({
   SheetsReadTool: jest.fn().mockImplementation(() => ({
     registerTool: jest.fn(),
-    getToolName: jest.fn().mockReturnValue('sheets-read')
-  }))
+    getToolName: jest.fn().mockReturnValue('sheets-read'),
+  })),
 }));
 
-jest.mock('../../../src/tools/sheets/write.tool.js', () => ({
+jest.mock('../tools/sheets/write.tool.js', () => ({
   SheetsWriteTool: jest.fn().mockImplementation(() => ({
     registerTool: jest.fn(),
-    getToolName: jest.fn().mockReturnValue('sheets-write')
-  }))
+    getToolName: jest.fn().mockReturnValue('sheets-write'),
+  })),
 }));
 
-jest.mock('../../../src/tools/sheets/append.tool.js', () => ({
+jest.mock('../tools/sheets/append.tool.js', () => ({
   SheetsAppendTool: jest.fn().mockImplementation(() => ({
     registerTool: jest.fn(),
-    getToolName: jest.fn().mockReturnValue('sheets-append')
-  }))
+    getToolName: jest.fn().mockReturnValue('sheets-append'),
+  })),
 }));
 
-const createMockAuthService = (): jest.Mocked<AuthService> => ({
-  initialize: jest.fn().mockResolvedValue(ok(undefined)),
-  getAuthClient: jest.fn(),
-  getServiceName: jest.fn().mockReturnValue('AuthService'),
-  getServiceVersion: jest.fn().mockReturnValue('v1')
-} as unknown as jest.Mocked<AuthService>);
+const createMockAuthService = (): jest.Mocked<AuthService> =>
+  ({
+    initialize: jest.fn().mockResolvedValue(ok(undefined)),
+    getAuthClient: jest.fn(),
+    getServiceName: jest.fn().mockReturnValue('AuthService'),
+    getServiceVersion: jest.fn().mockReturnValue('v1'),
+  }) as unknown as jest.Mocked<AuthService>;
 
-const createMockServer = (): jest.Mocked<McpServer> => ({
-  registerTool: jest.fn(),
-  registerResource: jest.fn()
-} as unknown as jest.Mocked<McpServer>);
+const createMockServer = (): jest.Mocked<McpServer> =>
+  ({
+    registerTool: jest.fn(),
+    registerResource: jest.fn(),
+  }) as unknown as jest.Mocked<McpServer>;
 
 describe('Service Registry Integration Tests', () => {
   let serviceRegistry: ServiceRegistry;
@@ -75,15 +78,21 @@ describe('Service Registry Integration Tests', () => {
     mockServer = createMockServer();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     jest.clearAllMocks();
     // Reset SheetsService mock to default success behavior
-    const { SheetsService } = require('../../../src/services/sheets.service.js');
-    SheetsService.mockImplementation(() => ({
-      initialize: jest.fn().mockResolvedValue(ok(undefined)),
-      getServiceName: jest.fn().mockReturnValue('SheetsService'),
-      getServiceVersion: jest.fn().mockReturnValue('v4')
-    }));
+    const sheetsServiceModule = await import('../services/sheets.service.js');
+    const { SheetsService } = sheetsServiceModule;
+    (
+      SheetsService as jest.MockedClass<typeof SheetsService>
+    ).mockImplementation(
+      () =>
+        ({
+          initialize: jest.fn().mockResolvedValue(ok(undefined)),
+          getServiceName: jest.fn().mockReturnValue('SheetsService'),
+          getServiceVersion: jest.fn().mockReturnValue('v4'),
+        }) as unknown as InstanceType<typeof SheetsService>
+    );
   });
 
   describe('End-to-End Service Module Lifecycle', () => {
@@ -91,34 +100,34 @@ describe('Service Registry Integration Tests', () => {
       // Phase 1: Register service module
       const sheetsModule = new SheetsServiceModule();
       const registerResult = serviceRegistry.registerModule(sheetsModule);
-      
+
       expect(registerResult.isOk()).toBe(true);
       expect(serviceRegistry.getModuleNames()).toContain('sheets');
 
       // Phase 2: Initialize all services
       const initResult = await serviceRegistry.initializeAll(mockAuthService);
-      
+
       expect(initResult.isOk()).toBe(true);
       expect(serviceRegistry.getIsInitialized()).toBe(true);
       expect(sheetsModule.isInitialized()).toBe(true);
 
       // Phase 3: Register tools
       const toolsResult = serviceRegistry.registerAllTools(mockServer);
-      
+
       expect(toolsResult.isOk()).toBe(true);
       // Tools are registered via the module's tool registry pattern, not directly on mockServer
       // The registration happens inside the tool registry pattern
 
       // Phase 4: Register resources
       const resourcesResult = serviceRegistry.registerAllResources(mockServer);
-      
+
       expect(resourcesResult.isOk()).toBe(true);
       // Should register 2 resources: spreadsheet-schema and spreadsheet-data
       expect(mockServer.registerResource).toHaveBeenCalledTimes(2);
 
       // Phase 5: Health check
       const healthStatus = serviceRegistry.getOverallHealthStatus();
-      
+
       expect(healthStatus.status).toBe('healthy');
       expect(healthStatus.summary.healthy).toBe(1);
       expect(healthStatus.summary.total).toBe(1);
@@ -127,7 +136,7 @@ describe('Service Registry Integration Tests', () => {
 
       // Phase 6: Cleanup
       const cleanupResult = await serviceRegistry.cleanup();
-      
+
       expect(cleanupResult.isOk()).toBe(true);
       expect(serviceRegistry.getIsInitialized()).toBe(false);
       expect(sheetsModule.isInitialized()).toBe(false);
@@ -136,9 +145,9 @@ describe('Service Registry Integration Tests', () => {
     it('should handle multiple service modules registration and initialization', async () => {
       // Register multiple modules (simulating future Drive, Gmail modules)
       const sheetsModule = new SheetsServiceModule();
-      
+
       serviceRegistry.registerModule(sheetsModule);
-      
+
       expect(serviceRegistry.getModuleNames()).toEqual(['sheets']);
 
       // Initialize all
@@ -167,16 +176,30 @@ describe('Service Registry Integration Tests', () => {
       // Create a new registry with fresh auth service for this test
       const localRegistry = new ServiceRegistry();
       const failingAuthService = createMockAuthService();
-      
+
       // Mock the underlying SheetsService to fail initialization
-      const { SheetsService } = require('../../../src/services/sheets.service.js');
-      SheetsService.mockImplementation(() => ({
-        initialize: jest.fn().mockResolvedValue(
-          err(new GoogleServiceError('Service init failed', 'sheets', 'SERVICE_INIT_FAILED'))
-        ),
-        getServiceName: jest.fn().mockReturnValue('SheetsService'),
-        getServiceVersion: jest.fn().mockReturnValue('v4')
-      }));
+      const sheetsServiceModule = await import('../services/sheets.service.js');
+      const { SheetsService } = sheetsServiceModule;
+      (
+        SheetsService as jest.MockedClass<typeof SheetsService>
+      ).mockImplementation(
+        () =>
+          ({
+            initialize: jest
+              .fn()
+              .mockResolvedValue(
+                err(
+                  new GoogleServiceError(
+                    'Service init failed',
+                    'sheets',
+                    'SERVICE_INIT_FAILED'
+                  )
+                )
+              ),
+            getServiceName: jest.fn().mockReturnValue('SheetsService'),
+            getServiceVersion: jest.fn().mockReturnValue('v4'),
+          }) as unknown as InstanceType<typeof SheetsService>
+      );
 
       const sheetsModule = new SheetsServiceModule();
       localRegistry.registerModule(sheetsModule);
@@ -184,7 +207,9 @@ describe('Service Registry Integration Tests', () => {
       const initResult = await localRegistry.initializeAll(failingAuthService);
 
       expect(initResult.isErr()).toBe(true);
-      expect(initResult._unsafeUnwrapErr().message).toContain('Failed to initialize Sheets service');
+      expect(initResult._unsafeUnwrapErr().message).toContain(
+        'Failed to initialize Sheets service'
+      );
       expect(localRegistry.getIsInitialized()).toBe(false);
       expect(sheetsModule.isInitialized()).toBe(false);
     });
@@ -199,25 +224,33 @@ describe('Service Registry Integration Tests', () => {
 
       expect(toolsResult.isErr()).toBe(true);
       expect(resourcesResult.isErr()).toBe(true);
-      expect(toolsResult._unsafeUnwrapErr().message).toContain('not initialized');
-      expect(resourcesResult._unsafeUnwrapErr().message).toContain('not initialized');
+      expect(toolsResult._unsafeUnwrapErr().message).toContain(
+        'not initialized'
+      );
+      expect(resourcesResult._unsafeUnwrapErr().message).toContain(
+        'not initialized'
+      );
     });
 
     it('should handle partial cleanup failures', async () => {
-      // Use a fresh registry for this test  
+      // Use a fresh registry for this test
       const localRegistry = new ServiceRegistry();
       const sheetsModule = new SheetsServiceModule();
       localRegistry.registerModule(sheetsModule);
-      
+
       // Ensure initialization succeeds first
       const initResult = await localRegistry.initializeAll(mockAuthService);
       expect(initResult.isOk()).toBe(true);
       expect(localRegistry.getIsInitialized()).toBe(true);
 
       // Mock cleanup failure for the module
-      jest.spyOn(sheetsModule, 'cleanup').mockResolvedValue(
-        err(new GoogleServiceError('Cleanup failed', 'sheets', 'CLEANUP_FAILED'))
-      );
+      jest
+        .spyOn(sheetsModule, 'cleanup')
+        .mockResolvedValue(
+          err(
+            new GoogleServiceError('Cleanup failed', 'sheets', 'CLEANUP_FAILED')
+          )
+        );
 
       const cleanupResult = await localRegistry.cleanup();
 
@@ -245,15 +278,15 @@ describe('Service Registry Integration Tests', () => {
           lastChecked: new Date(),
           metrics: {
             toolsRegistered: 3,
-            resourcesRegistered: 1
-          }
-        })
+            resourcesRegistered: 1,
+          },
+        }),
       };
 
       // Register both Sheets and Drive modules
       const sheetsModule = new SheetsServiceModule();
       serviceRegistry.registerModule(sheetsModule);
-      serviceRegistry.registerModule(mockDriveModule as any);
+      serviceRegistry.registerModule(mockDriveModule as ServiceModule);
 
       expect(serviceRegistry.getModuleNames()).toEqual(['sheets', 'drive']);
 
@@ -267,7 +300,7 @@ describe('Service Registry Integration Tests', () => {
       expect(toolsResult.isOk()).toBe(true);
       expect(resourcesResult.isOk()).toBe(true);
 
-      // Verify both modules are healthy  
+      // Verify both modules are healthy
       const healthStatus = serviceRegistry.getOverallHealthStatus();
       expect(healthStatus.summary.total).toBe(2);
       expect(healthStatus.summary.healthy).toBeGreaterThanOrEqual(1);
@@ -275,12 +308,15 @@ describe('Service Registry Integration Tests', () => {
       expect(healthStatus.modules.drive).toBeDefined();
 
       // Verify initialization order
-      expect(serviceRegistry.getInitializationOrder()).toEqual(['sheets', 'drive']);
+      expect(serviceRegistry.getInitializationOrder()).toEqual([
+        'sheets',
+        'drive',
+      ]);
     });
 
     it('should support service module versioning and metadata', () => {
       const sheetsModule = new SheetsServiceModule();
-      
+
       expect(sheetsModule.name).toBe('sheets');
       expect(sheetsModule.displayName).toBe('Google Sheets');
       expect(sheetsModule.version).toBe('1.0.0');
@@ -307,13 +343,15 @@ describe('Service Registry Integration Tests', () => {
       expect(sheetsModule.isInitialized()).toBe(true);
 
       const healthStatus = sheetsModule.getHealthStatus();
-      
+
       expect(healthStatus.metrics).toBeDefined();
       expect(healthStatus.metrics?.toolsRegistered).toBeGreaterThanOrEqual(0);
       expect(healthStatus.metrics?.resourcesRegistered).toBe(2);
-      expect(healthStatus.metrics?.initializationTime).toBeGreaterThanOrEqual(0);
+      expect(healthStatus.metrics?.initializationTime).toBeGreaterThanOrEqual(
+        0
+      );
       expect(healthStatus.lastChecked).toBeInstanceOf(Date);
-      
+
       // Verify initialization was reasonably fast (less than 1 second for mocked services)
       expect(endTime - startTime).toBeLessThan(1000);
     });
@@ -327,7 +365,9 @@ describe('Service Registry Integration Tests', () => {
 
       expect(result1.isOk()).toBe(true);
       expect(result2.isErr()).toBe(true);
-      expect(result2._unsafeUnwrapErr().message).toContain('already registered');
+      expect(result2._unsafeUnwrapErr().message).toContain(
+        'already registered'
+      );
       expect(serviceRegistry.getModuleNames()).toHaveLength(1);
     });
   });

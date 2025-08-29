@@ -1,9 +1,13 @@
-import { SheetsAddSheetTool } from '../../../../src/tools/sheets/add-sheet.tool.js';
-import { SheetsService } from '../../../../src/services/sheets.service.js';
-import { AuthService } from '../../../../src/services/auth.service.js';
+import { SheetsAddSheetTool } from '../../tools/sheets/add-sheet.tool.js';
+import { SheetsService } from '../../services/sheets.service.js';
+import { AuthService } from '../../services/auth.service.js';
 import { ok, err } from 'neverthrow';
-import { GoogleSheetsError, GoogleSheetsInvalidRangeError, GoogleAuthError } from '../../../../src/errors/index.js';
-import type { SheetsAddSheetResult, MCPToolResult } from '../../../../src/types/index.js';
+import {
+  GoogleSheetsError,
+  GoogleSheetsInvalidRangeError,
+  GoogleAuthError,
+} from '../../errors/index.js';
+import type { SheetsAddSheetResult, MCPToolResult } from '../../types/index.js';
 
 describe('SheetsAddSheetTool', () => {
   let tool: SheetsAddSheetTool;
@@ -15,7 +19,7 @@ describe('SheetsAddSheetTool', () => {
       initialize: jest.fn(),
       getAuthClient: jest.fn(),
       validateAuth: jest.fn().mockResolvedValue(ok(true)),
-      getGoogleAuth: jest.fn()
+      getGoogleAuth: jest.fn(),
     } as any;
 
     mockSheetsService = {
@@ -26,7 +30,7 @@ describe('SheetsAddSheetTool', () => {
       writeRange: jest.fn(),
       appendData: jest.fn(),
       addSheet: jest.fn(),
-      healthCheck: jest.fn()
+      healthCheck: jest.fn(),
     } as any;
 
     tool = new SheetsAddSheetTool(mockSheetsService, mockAuthService);
@@ -42,28 +46,36 @@ describe('SheetsAddSheetTool', () => {
     test('should return correct metadata', () => {
       const metadata = tool.getToolMetadata();
       expect(metadata.title).toBe('Add Sheet to Spreadsheet');
-      expect(metadata.description).toBe('Add a new sheet (tab) to an existing spreadsheet');
+      expect(metadata.description).toBe(
+        'Add a new sheet (tab) to an existing spreadsheet'
+      );
       expect(metadata.inputSchema).toHaveProperty('spreadsheetId');
       expect(metadata.inputSchema).toHaveProperty('title');
-      
-      // Check that the schema properties have the expected descriptions  
-      expect(metadata.inputSchema.spreadsheetId.description).toBe('The ID of the Google Spreadsheet');
-      expect(metadata.inputSchema.title.description).toBe('The title of the new sheet to add');
-      expect(metadata.inputSchema.index.description).toBe('Zero-based index where the sheet should be inserted (optional)');
+
+      // Check that the schema properties have the expected descriptions
+      expect(metadata.inputSchema.spreadsheetId.description).toBe(
+        'The ID of the Google Spreadsheet'
+      );
+      expect(metadata.inputSchema.title.description).toBe(
+        'The title of the new sheet to add'
+      );
+      expect(metadata.inputSchema.index.description).toBe(
+        'Zero-based index where the sheet should be inserted (optional)'
+      );
     });
   });
 
   describe('executeImpl', () => {
     const validParams = {
       spreadsheetId: 'test-spreadsheet-id',
-      title: 'New Sheet'
+      title: 'New Sheet',
     };
 
     const mockResult: SheetsAddSheetResult = {
       sheetId: 123456789,
       title: 'New Sheet',
       index: 1,
-      spreadsheetId: 'test-spreadsheet-id'
+      spreadsheetId: 'test-spreadsheet-id',
     };
 
     describe('successful execution', () => {
@@ -78,12 +90,16 @@ describe('SheetsAddSheetTool', () => {
           expect(response.content).toHaveLength(1);
           expect(response.content[0]).toEqual({
             type: 'text',
-            text: JSON.stringify({
-              sheetId: mockResult.sheetId,
-              title: mockResult.title,
-              index: mockResult.index,
-              spreadsheetId: mockResult.spreadsheetId
-            }, null, 2)
+            text: JSON.stringify(
+              {
+                sheetId: mockResult.sheetId,
+                title: mockResult.title,
+                index: mockResult.index,
+                spreadsheetId: mockResult.spreadsheetId,
+              },
+              null,
+              2
+            ),
           });
         }
 
@@ -96,7 +112,9 @@ describe('SheetsAddSheetTool', () => {
 
       test('should add sheet with specific index', async () => {
         const paramsWithIndex = { ...validParams, index: 0 };
-        mockSheetsService.addSheet.mockResolvedValue(ok({ ...mockResult, index: 0 }));
+        mockSheetsService.addSheet.mockResolvedValue(
+          ok({ ...mockResult, index: 0 })
+        );
 
         const result = await tool.executeImpl(paramsWithIndex);
 
@@ -117,7 +135,8 @@ describe('SheetsAddSheetTool', () => {
         if (result.isOk()) {
           const response = result.value;
           const responseText = response.content[0].text;
-          const parsed = JSON.parse(responseText);
+          expect(responseText).toBeDefined();
+          const parsed = JSON.parse(responseText!);
           expect(parsed).toHaveProperty('sheetId');
           expect(parsed).toHaveProperty('title');
           expect(parsed).toHaveProperty('index');
@@ -134,10 +153,17 @@ describe('SheetsAddSheetTool', () => {
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
           expect(result.error).toBeInstanceOf(GoogleSheetsError);
-          expect(result.error.message).toContain('Spreadsheet ID cannot be empty');
+          expect(result.error.message).toContain(
+            'Spreadsheet ID cannot be empty'
+          );
           expect(result.error.context?.validationErrors).toBeDefined();
-          const validationErrors = result.error.context?.validationErrors as any[];
-          expect(validationErrors.some(e => e.message === 'Spreadsheet ID cannot be empty')).toBe(true);
+          const validationErrors = result.error.context
+            ?.validationErrors as any[];
+          expect(
+            validationErrors.some(
+              e => e.message === 'Spreadsheet ID cannot be empty'
+            )
+          ).toBe(true);
         }
         expect(mockSheetsService.addSheet).not.toHaveBeenCalled();
       });
@@ -152,8 +178,13 @@ describe('SheetsAddSheetTool', () => {
           expect(result.error).toBeInstanceOf(GoogleSheetsError);
           expect(result.error.message).toContain('Sheet title cannot be empty');
           expect(result.error.context?.validationErrors).toBeDefined();
-          const validationErrors = result.error.context?.validationErrors as any[];
-          expect(validationErrors.some(e => e.message === 'Sheet title cannot be empty')).toBe(true);
+          const validationErrors = result.error.context
+            ?.validationErrors as any[];
+          expect(
+            validationErrors.some(
+              e => e.message === 'Sheet title cannot be empty'
+            )
+          ).toBe(true);
         }
         expect(mockSheetsService.addSheet).not.toHaveBeenCalled();
       });
@@ -166,10 +197,17 @@ describe('SheetsAddSheetTool', () => {
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
           expect(result.error).toBeInstanceOf(GoogleSheetsError);
-          expect(result.error.message).toContain('Sheet index must be non-negative');
+          expect(result.error.message).toContain(
+            'Sheet index must be non-negative'
+          );
           expect(result.error.context?.validationErrors).toBeDefined();
-          const validationErrors = result.error.context?.validationErrors as any[];
-          expect(validationErrors.some(e => e.message === 'Sheet index must be non-negative')).toBe(true);
+          const validationErrors = result.error.context
+            ?.validationErrors as any[];
+          expect(
+            validationErrors.some(
+              e => e.message === 'Sheet index must be non-negative'
+            )
+          ).toBe(true);
         }
         expect(mockSheetsService.addSheet).not.toHaveBeenCalled();
       });
@@ -184,8 +222,13 @@ describe('SheetsAddSheetTool', () => {
           expect(result.error).toBeInstanceOf(GoogleSheetsError);
           expect(result.error.message).toContain('Sheet title cannot be empty');
           expect(result.error.context?.validationErrors).toBeDefined();
-          const validationErrors = result.error.context?.validationErrors as any[];
-          expect(validationErrors.some(e => e.message === 'Sheet title cannot be empty')).toBe(true);
+          const validationErrors = result.error.context
+            ?.validationErrors as any[];
+          expect(
+            validationErrors.some(
+              e => e.message === 'Sheet title cannot be empty'
+            )
+          ).toBe(true);
         }
         expect(mockSheetsService.addSheet).not.toHaveBeenCalled();
       });
@@ -193,7 +236,11 @@ describe('SheetsAddSheetTool', () => {
 
     describe('authentication validation', () => {
       test('should fail when authentication validation fails', async () => {
-        const authError = new GoogleAuthError('Authentication failed', 'service-account', { requestId: 'test-request' });
+        const authError = new GoogleAuthError(
+          'Authentication failed',
+          'service-account',
+          { requestId: 'test-request' }
+        );
         mockAuthService.validateAuth.mockResolvedValue(err(authError));
 
         const result = await tool.executeImpl(validParams);
@@ -225,7 +272,9 @@ describe('SheetsAddSheetTool', () => {
       });
 
       test('should handle unexpected errors', async () => {
-        mockSheetsService.addSheet.mockRejectedValue(new Error('Unexpected error'));
+        mockSheetsService.addSheet.mockRejectedValue(
+          new Error('Unexpected error')
+        );
 
         const result = await tool.executeImpl(validParams);
 
@@ -242,8 +291,10 @@ describe('SheetsAddSheetTool', () => {
         const longTitle = 'A'.repeat(100);
         const paramsWithLongTitle = { ...validParams, title: longTitle };
         const mockResultWithLongTitle = { ...mockResult, title: longTitle };
-        
-        mockSheetsService.addSheet.mockResolvedValue(ok(mockResultWithLongTitle));
+
+        mockSheetsService.addSheet.mockResolvedValue(
+          ok(mockResultWithLongTitle)
+        );
 
         const result = await tool.executeImpl(paramsWithLongTitle);
 
@@ -258,9 +309,14 @@ describe('SheetsAddSheetTool', () => {
       test('should handle special characters in sheet title', async () => {
         const specialTitle = 'Sheet #1 (新しいシート) - 2024年';
         const paramsWithSpecialTitle = { ...validParams, title: specialTitle };
-        const mockResultWithSpecialTitle = { ...mockResult, title: specialTitle };
-        
-        mockSheetsService.addSheet.mockResolvedValue(ok(mockResultWithSpecialTitle));
+        const mockResultWithSpecialTitle = {
+          ...mockResult,
+          title: specialTitle,
+        };
+
+        mockSheetsService.addSheet.mockResolvedValue(
+          ok(mockResultWithSpecialTitle)
+        );
 
         const result = await tool.executeImpl(paramsWithSpecialTitle);
 
@@ -276,8 +332,10 @@ describe('SheetsAddSheetTool', () => {
         const maxIndex = 999;
         const paramsWithMaxIndex = { ...validParams, index: maxIndex };
         const mockResultWithMaxIndex = { ...mockResult, index: maxIndex };
-        
-        mockSheetsService.addSheet.mockResolvedValue(ok(mockResultWithMaxIndex));
+
+        mockSheetsService.addSheet.mockResolvedValue(
+          ok(mockResultWithMaxIndex)
+        );
 
         const result = await tool.executeImpl(paramsWithMaxIndex);
 

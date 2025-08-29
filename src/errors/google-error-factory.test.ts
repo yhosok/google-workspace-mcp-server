@@ -124,7 +124,7 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
 
       // Should identify this as invalid credentials based on structured data, not string matching
       const authError = GoogleErrorFactory.createAuthError(
-        new Error(invalidCredentialsError.message!) as any,
+        new Error(invalidCredentialsError.message!),
         'service-account',
         { originalGaxiosError: invalidCredentialsError }
       );
@@ -157,7 +157,7 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
       };
 
       const authError = GoogleErrorFactory.createAuthError(
-        new Error(missingCredsError.message!) as any,
+        new Error(missingCredsError.message!),
         'api-key',
         { originalGaxiosError: missingCredsError }
       );
@@ -191,7 +191,7 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
 
       // Should use structured reason 'notFound' instead of string matching on message
       const sheetsError = GoogleErrorFactory.createSheetsError(
-        new Error(notFoundError.message!) as any,
+        new Error(notFoundError.message!),
         'spreadsheet-123',
         'A1:B10',
         { originalGaxiosError: notFoundError }
@@ -228,7 +228,7 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
       };
 
       const sheetsError = GoogleErrorFactory.createSheetsError(
-        new Error(permissionError.message!) as any,
+        new Error(permissionError.message!),
         'spreadsheet-456',
         undefined,
         { originalGaxiosError: permissionError }
@@ -261,11 +261,11 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
           headers: {
             'retry-after': '120', // 2 minutes
           },
-        } as any,
+        },
       };
 
       const sheetsError = GoogleErrorFactory.createSheetsError(
-        new Error(rateLimitError.message!) as any,
+        new Error(rateLimitError.message!),
         'spreadsheet-789',
         'Sheet1!A1:Z100',
         { originalGaxiosError: rateLimitError }
@@ -300,7 +300,7 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
       };
 
       const sheetsError = GoogleErrorFactory.createSheetsError(
-        new Error(quotaExceededError.message!) as any,
+        new Error(quotaExceededError.message!),
         undefined,
         undefined,
         { originalGaxiosError: quotaExceededError }
@@ -334,7 +334,7 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
       };
 
       const sheetsError = GoogleErrorFactory.createSheetsError(
-        new Error(rangeError.message!) as any,
+        new Error(rangeError.message!),
         'spreadsheet-999',
         'Sheet1!A1:ZZ',
         { originalGaxiosError: rangeError }
@@ -380,7 +380,7 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
 
       // Should prioritize the first error for classification but include all details
       const sheetsError = GoogleErrorFactory.createSheetsError(
-        new Error(complexError.message!) as any,
+        new Error(complexError.message!),
         'spreadsheet-complex',
         'NonExistentSheet!A1:B2',
         { originalGaxiosError: complexError }
@@ -419,7 +419,7 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
       };
 
       const sheetsError = GoogleErrorFactory.createSheetsError(
-        new Error(serverError.message!) as any,
+        new Error(serverError.message!),
         'spreadsheet-503',
         'Sheet1!A1:B2',
         { originalGaxiosError: serverError }
@@ -465,7 +465,7 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
       };
 
       const authError = GoogleErrorFactory.createAuthError(
-        new Error(structuredError.message!) as any,
+        new Error(structuredError.message!),
         'service-account',
         { originalGaxiosError: structuredError }
       );
@@ -502,13 +502,15 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
 
     it('should fail: should handle edge cases gracefully with normalization', () => {
       // Test null error
-      const nullError = GoogleErrorFactory.createAuthError(null as any);
+      const nullError = GoogleErrorFactory.createAuthError(
+        null as unknown as Error
+      );
       expect(nullError).toBeInstanceOf(GoogleAuthError);
       expect(nullError.context?.normalizedError).toBeDefined();
 
       // Test undefined error
       const undefinedError = GoogleErrorFactory.createSheetsError(
-        undefined as any
+        undefined as unknown as Error
       );
       expect(undefinedError).toBeInstanceOf(GoogleSheetsError);
       expect(undefinedError.context?.normalizedError).toBeDefined();
@@ -517,13 +519,13 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
       const malformedError = {
         message: 'Malformed error',
         response: {
-          status: 'not-a-number',
+          status: 'not-a-number' as unknown as number,
           data: { invalid: 'structure' },
         },
-      } as any;
+      } as GaxiosErrorLike;
 
       const sheetsError = GoogleErrorFactory.createSheetsError(
-        malformedError,
+        new Error(malformedError.message),
         'test-spreadsheet',
         'A1:B1',
         { originalGaxiosError: malformedError }
@@ -555,7 +557,7 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
       };
 
       const sheetsError = GoogleErrorFactory.createSheetsError(
-        new Error(retryableServerError.message!) as any,
+        new Error(retryableServerError.message!),
         'spreadsheet-500',
         undefined,
         { originalGaxiosError: retryableServerError }
@@ -597,7 +599,7 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
       };
 
       const sheetsError = GoogleErrorFactory.createSheetsError(
-        new Error(misleadingError.message!) as any,
+        new Error(misleadingError.message!),
         'spreadsheet-misleading',
         undefined,
         { originalGaxiosError: misleadingError }
@@ -632,7 +634,7 @@ describe('GoogleErrorFactory with Normalized Error Integration (TDD Red Phase)',
       };
 
       const sheetsError = GoogleErrorFactory.createSheetsError(
-        new Error(mixedError.message!) as any,
+        new Error(mixedError.message!),
         'spreadsheet-mixed',
         undefined,
         { originalGaxiosError: mixedError }

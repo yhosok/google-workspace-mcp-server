@@ -1,9 +1,9 @@
-import { SheetsListTool } from '../../../../src/tools/sheets/list.tool.js';
-import { SheetsService } from '../../../../src/services/sheets.service.js';
-import { AuthService } from '../../../../src/services/auth.service.js';
+import { SheetsListTool } from './list.tool.js';
+import { SheetsService } from '../../services/sheets.service.js';
+import { AuthService } from '../../services/auth.service.js';
 import { ok, err } from 'neverthrow';
-import { GoogleSheetsError } from '../../../../src/errors/index.js';
-import type { SheetsListResult, MCPToolResult } from '../../../../src/types/index.js';
+import { GoogleSheetsError } from '../../errors/index.js';
+import type { SheetsListResult, MCPToolResult } from '../../types/index.js';
 
 describe('SheetsListTool', () => {
   let tool: SheetsListTool;
@@ -15,7 +15,7 @@ describe('SheetsListTool', () => {
       initialize: jest.fn(),
       getAuthClient: jest.fn(),
       validateAuth: jest.fn().mockResolvedValue(ok(true)),
-      getGoogleAuth: jest.fn()
+      getGoogleAuth: jest.fn(),
     } as any;
 
     mockSheetsService = {
@@ -25,7 +25,7 @@ describe('SheetsListTool', () => {
       readRange: jest.fn(),
       writeRange: jest.fn(),
       appendData: jest.fn(),
-      healthCheck: jest.fn()
+      healthCheck: jest.fn(),
     } as any;
 
     tool = new SheetsListTool(mockSheetsService, mockAuthService);
@@ -41,7 +41,9 @@ describe('SheetsListTool', () => {
     test('should return correct metadata', () => {
       const metadata = tool.getToolMetadata();
       expect(metadata.title).toBe('List Spreadsheets');
-      expect(metadata.description).toBe('List all spreadsheets in the configured Drive folder');
+      expect(metadata.description).toBe(
+        'List all spreadsheets in the configured Drive folder'
+      );
       expect(metadata.inputSchema).toEqual({});
     });
   });
@@ -53,30 +55,36 @@ describe('SheetsListTool', () => {
           id: 'sheet1',
           title: 'Test Sheet 1',
           url: 'https://docs.google.com/spreadsheets/d/sheet1',
-          modifiedTime: '2023-01-01T00:00:00Z'
+          modifiedTime: '2023-01-01T00:00:00Z',
         },
         {
           id: 'sheet2',
           title: 'Test Sheet 2',
           url: 'https://docs.google.com/spreadsheets/d/sheet2',
-          modifiedTime: '2023-01-02T00:00:00Z'
-        }
+          modifiedTime: '2023-01-02T00:00:00Z',
+        },
       ];
 
-      mockSheetsService.listSpreadsheets.mockResolvedValue(ok(mockSpreadsheets));
+      mockSheetsService.listSpreadsheets.mockResolvedValue(
+        ok(mockSpreadsheets)
+      );
 
       const result = await tool.executeImpl({});
-      
+
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         const mcpResult = result.value as MCPToolResult;
-        const resultData = JSON.parse(mcpResult.content[0].text) as SheetsListResult;
-        expect(resultData.spreadsheets).toEqual(mockSpreadsheets.map(sheet => ({
-          id: sheet.id,
-          title: sheet.title,
-          url: sheet.url,
-          modifiedTime: sheet.modifiedTime
-        })));
+        const text = mcpResult.content[0].text;
+        expect(text).toBeDefined();
+        const resultData = JSON.parse(text!) as SheetsListResult;
+        expect(resultData.spreadsheets).toEqual(
+          mockSpreadsheets.map(sheet => ({
+            id: sheet.id,
+            title: sheet.title,
+            url: sheet.url,
+            modifiedTime: sheet.modifiedTime,
+          }))
+        );
       }
     });
 
@@ -84,19 +92,25 @@ describe('SheetsListTool', () => {
       mockAuthService.validateAuth.mockResolvedValue(ok(false));
 
       const result = await tool.executeImpl({});
-      
+
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('Authentication validation failed');
+        expect(result.error.message).toContain(
+          'Authentication validation failed'
+        );
       }
     });
 
     test('should handle service error', async () => {
-      const serviceError = new GoogleSheetsError('Service failed', 'GOOGLE_SHEETS_API_ERROR', 500);
+      const serviceError = new GoogleSheetsError(
+        'Service failed',
+        'GOOGLE_SHEETS_API_ERROR',
+        500
+      );
       mockSheetsService.listSpreadsheets.mockResolvedValue(err(serviceError));
 
       const result = await tool.executeImpl({});
-      
+
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         expect(result.error).toBe(serviceError);
@@ -107,11 +121,13 @@ describe('SheetsListTool', () => {
       mockSheetsService.listSpreadsheets.mockResolvedValue(ok([]));
 
       const result = await tool.executeImpl({});
-      
+
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         const mcpResult = result.value as MCPToolResult;
-        const resultData = JSON.parse(mcpResult.content[0].text) as SheetsListResult;
+        const text = mcpResult.content[0].text;
+        expect(text).toBeDefined();
+        const resultData = JSON.parse(text!) as SheetsListResult;
         expect(resultData.spreadsheets).toEqual([]);
       }
     });
@@ -119,10 +135,12 @@ describe('SheetsListTool', () => {
 
   describe('error handling', () => {
     test('should handle unexpected errors', async () => {
-      mockSheetsService.listSpreadsheets.mockRejectedValue(new Error('Unexpected error'));
+      mockSheetsService.listSpreadsheets.mockRejectedValue(
+        new Error('Unexpected error')
+      );
 
       const result = await tool.executeImpl({});
-      
+
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         expect(result.error.message).toContain('Unexpected error');

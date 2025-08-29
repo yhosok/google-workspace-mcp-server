@@ -187,7 +187,7 @@ export class GoogleAuthMissingCredentialsError extends GoogleWorkspaceError {
  * OAuth2 specific authentication errors
  */
 export class GoogleOAuth2Error extends GoogleWorkspaceError {
-  public readonly authType: 'oauth2' = 'oauth2';
+  public readonly authType = 'oauth2' as const;
   public readonly redirectUri?: string;
   public readonly scopes?: string[];
 
@@ -201,7 +201,13 @@ export class GoogleOAuth2Error extends GoogleWorkspaceError {
     },
     cause?: Error
   ) {
-    super(message, errorCode, statusCode, { authType: 'oauth2', ...context }, cause);
+    super(
+      message,
+      errorCode,
+      statusCode,
+      { authType: 'oauth2', ...context },
+      cause
+    );
     this.redirectUri = context?.redirectUri;
     this.scopes = context?.scopes;
   }

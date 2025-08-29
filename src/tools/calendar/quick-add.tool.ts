@@ -3,9 +3,8 @@ import { BaseCalendarTools } from './base-calendar-tool.js';
 import type {
   CalendarQuickAddResult,
   MCPToolResult,
-  ToolMetadata,
 } from '../../types/index.js';
-import type { ToolExecutionContext } from '../base/tool-registry.js';
+import type { ToolExecutionContext, ToolMetadata } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
 

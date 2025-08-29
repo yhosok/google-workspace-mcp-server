@@ -1,6 +1,6 @@
 /**
  * Jest test setup configuration
- * 
+ *
  * This file configures the test environment to minimize log output
  * and improve test execution performance.
  */
@@ -26,7 +26,7 @@ process.env.GOOGLE_RETRY_RETRIABLE_CODES = '429,500,502,503,504';
 // Note: Don't set GOOGLE_REQUEST_TIMEOUT or GOOGLE_TOTAL_TIMEOUT here to test defaults
 
 // Import logger types and utilities
-import { logger, LogLevel } from '../src/utils/logger.js';
+import { logger, LogLevel } from './utils/logger.js';
 
 // Configure logger for test environment with minimal output
 // Only ERROR and FATAL level logs will be shown during tests
@@ -45,7 +45,7 @@ const originalConsole = {
   info: console.info,
   warn: console.warn,
   error: console.error,
-  log: console.log
+  log: console.log,
 };
 
 // Suppress console output during tests (except for errors)

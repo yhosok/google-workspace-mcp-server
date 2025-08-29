@@ -671,9 +671,10 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
     }
 
     // Generate CSRF protection state (allow test override)
-    const state = (process.env.NODE_ENV === 'test' && process.env.TEST_OAUTH_STATE) 
-      ? process.env.TEST_OAUTH_STATE 
-      : randomBytes(32).toString('hex');
+    const state =
+      process.env.NODE_ENV === 'test' && process.env.TEST_OAUTH_STATE
+        ? process.env.TEST_OAUTH_STATE
+        : randomBytes(32).toString('hex');
     const authFlowState: AuthFlowState = {
       state,
       redirectUri: this.config.redirectUri,
