@@ -281,6 +281,63 @@ export class GoogleOAuth2TokenStorageError extends GoogleOAuth2Error {
   }
 }
 
+/**
+ * Information about detected cache corruption
+ */
+export interface CorruptionInfo {
+  /** Source of the corruption (keytar or file storage) */
+  source: 'keytar' | 'file';
+  /** Timestamp when corruption was detected */
+  timestamp: number;
+  /** Path where corrupted data was backed up (for file corruption) */
+  backupPath?: string;
+  /** Error message describing the corruption */
+  error: string;
+  /** Additional details about the corruption for debugging */
+  details?: {
+    /** Missing required fields in credential structure */
+    missingFields?: string[];
+    /** The corrupted structure that was received */
+    receivedStructure?: any;
+    /** Type of corruption detected */
+    corruptionType?:
+      | 'ENCRYPTION_CORRUPTION'
+      | 'JSON_CORRUPTION'
+      | 'STRUCTURE_CORRUPTION';
+  };
+}
+
+/**
+ * Error thrown when OAuth2 token cache corruption is detected
+ * This error indicates that stored tokens are corrupted and cleanup/recovery is needed
+ */
+export class GoogleTokenCacheCorruptedError extends GoogleOAuth2Error {
+  /** Information about the detected corruption */
+  public readonly corruption: CorruptionInfo;
+
+  constructor(corruption: CorruptionInfo, cause?: Error) {
+    super(
+      `OAuth2 token cache corruption detected in ${corruption.source} storage: ${corruption.error}`,
+      'GOOGLE_OAUTH2_TOKEN_CACHE_CORRUPTED',
+      500,
+      {
+        corruptionSource: corruption.source,
+        corruptionTimestamp: corruption.timestamp,
+        backupPath: corruption.backupPath,
+        corruptionType: corruption.details?.corruptionType,
+      },
+      cause
+    );
+
+    this.corruption = corruption;
+    this.name = 'GoogleTokenCacheCorruptedError';
+  }
+
+  public isRetryable(): boolean {
+    return false; // Cache corruption requires cleanup and re-authentication
+  }
+}
+
 export class GoogleOAuth2RefreshTokenExpiredError extends GoogleOAuth2Error {
   constructor(context?: Record<string, unknown>) {
     super(

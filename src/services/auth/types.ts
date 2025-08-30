@@ -7,12 +7,18 @@ import type { OAuth2Client } from 'google-auth-library';
 
 /**
  * OAuth2 configuration parameters required for authentication.
+ * 
+ * Supports both confidential clients (with clientSecret) and public clients (without clientSecret).
+ * Public clients automatically use PKCE (Proof Key for Code Exchange) for enhanced security.
  */
 export interface OAuth2Config {
   /** Google OAuth2 client ID */
   readonly clientId: string;
-  /** Google OAuth2 client secret */
-  readonly clientSecret: string;
+  /** 
+   * Google OAuth2 client secret (optional for public clients).
+   * When omitted, PKCE will be used automatically for enhanced security.
+   */
+  readonly clientSecret?: string;
   /** OAuth2 redirect URI for callback */
   readonly redirectUri: string;
   /** OAuth2 scopes to request */
@@ -127,6 +133,7 @@ export interface FileSystemDependency {
     unlink(file: string): Promise<void>;
     access(file: string): Promise<void>;
     mkdir(dir: string, options?: { recursive?: boolean }): Promise<void>;
+    rename(oldPath: string, newPath: string): Promise<void>;
   };
 }
 

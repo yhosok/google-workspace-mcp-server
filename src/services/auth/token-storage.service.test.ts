@@ -18,6 +18,7 @@ import type {
   OAuth2Config,
   TokenStorageDependencies,
 } from './types.js';
+import { GoogleTokenCacheCorruptedError, CorruptionInfo } from '../../errors/index.js';
 
 // Mock keytar dependency
 const mockKeytar = {
@@ -36,6 +37,7 @@ const mockFs = {
     unlink: jest.fn<() => Promise<void>>(),
     access: jest.fn<() => Promise<void>>(),
     mkdir: jest.fn<() => Promise<void>>(),
+    rename: jest.fn<() => Promise<void>>(),
   },
 };
 
@@ -175,6 +177,8 @@ describe('TokenStorage Service', () => {
       });
 
       test('should return null when no tokens found in keytar', async () => {
+        // Mock file storage to also return null (no file exists)
+        mockFs.promises.readFile.mockRejectedValue(new Error("File not found"));
         mockKeytar.getPassword.mockResolvedValue(null);
 
         const result = await tokenStorage.getTokens();
@@ -212,6 +216,8 @@ describe('TokenStorage Service', () => {
       });
 
       test('should handle malformed JSON in keytar gracefully', async () => {
+        // After corruption cleanup, file storage should also return null
+        mockFs.promises.readFile.mockRejectedValue(new Error("File not found"));
         mockKeytar.getPassword.mockResolvedValue('invalid-json');
 
         const result = await tokenStorage.getTokens();
@@ -409,14 +415,442 @@ describe('TokenStorage Service', () => {
       expect(true).toBe(true); // Placeholder - implementation will verify memory clearing
     });
   });
-});
 
-// These tests will fail until TokenStorageService is implemented
-describe('TokenStorageService Implementation (Not Yet Implemented)', () => {
-  test('should throw when trying to instantiate', () => {
-    expect(() => {
-      // This will fail until we implement TokenStorageService
-      throw new Error('TokenStorageService not yet implemented');
-    }).toThrow('TokenStorageService not yet implemented');
+  // **PHASE B: CACHE CORRUPTION DETECTION - RED PHASE TESTS**
+  // These tests will fail until corruption detection is implemented
+  describe('Cache Corruption Detection and Recovery', () => {
+    describe('Corruption Detection', () => {
+      test('should detect corrupted encrypted files and throw GoogleTokenCacheCorruptedError', async () => {
+        // Setup: Keytar returns null, file exists but contains corrupted encrypted data
+        mockKeytar.getPassword.mockResolvedValue(null);
+        mockFs.promises.readFile.mockResolvedValue('corrupted-encrypted-data');
+        mockDecipher.update.mockImplementation(() => {
+          throw new Error('Invalid encrypted data');
+        });
+
+        await expect(async () => {
+          await tokenStorage.getTokens();
+        }).rejects.toThrow(GoogleTokenCacheCorruptedError);
+
+        // Verify corruption info contains proper details
+        try {
+          await tokenStorage.getTokens();
+        } catch (error: any) {
+          expect(error.corruption).toEqual({
+            source: 'file',
+            timestamp: expect.any(Number),
+            backupPath: expect.stringContaining('.corrupted-'),
+            error: expect.stringContaining('Invalid encrypted data'),
+            details: {
+              corruptionType: 'ENCRYPTION_CORRUPTION',
+            },
+          });
+        }
+      });
+
+      test('should detect invalid JSON after successful decryption', async () => {
+        // Setup: Keytar returns null, decryption succeeds but produces invalid JSON
+        mockKeytar.getPassword.mockResolvedValue(null);
+        mockFs.promises.readFile.mockResolvedValue('validencrypteddata');
+        mockDecipher.update.mockReturnValue('invalid-json-{[}');
+              mockDecipher.final.mockReturnValue("");
+              mockFs.promises.rename = jest.fn<() => Promise<void>>().mockResolvedValue();
+        mockDecipher.final.mockReturnValue('');
+
+        await expect(async () => {
+          await tokenStorage.getTokens();
+        }).rejects.toThrow(GoogleTokenCacheCorruptedError);
+      });
+
+      test('should detect malformed credential structures after JSON parsing', async () => {
+        // Setup: Keytar returns null, valid JSON but missing required credential fields
+        mockKeytar.getPassword.mockResolvedValue(null);
+        const invalidCredentials = {
+          tokens: { /* missing access_token */ },
+          clientConfig: { /* missing clientId */ },
+          // missing storedAt
+        };
+        
+        mockFs.promises.readFile.mockResolvedValue('validencrypteddata');
+        mockDecipher.update.mockReturnValue(JSON.stringify(invalidCredentials));
+        mockDecipher.final.mockReturnValue('');
+
+        await expect(async () => {
+          await tokenStorage.getTokens();
+        }).rejects.toThrow(GoogleTokenCacheCorruptedError);
+      });
+
+      test('should detect tampered keytar entries', async () => {
+        // Setup: Keytar returns corrupted JSON data
+        mockKeytar.getPassword.mockResolvedValue('{"corrupted": "data", "missing": "required_fields"}');
+
+        await expect(async () => {
+          await tokenStorage.getTokens();
+        }).rejects.toThrow(GoogleTokenCacheCorruptedError);
+
+        // Verify corruption source is keytar
+        try {
+          await tokenStorage.getTokens();
+        } catch (error: any) {
+          expect(error.corruption.source).toBe('keytar');
+        }
+      });
+    });
+
+    describe('Corruption Handling', () => {
+      test('should rename corrupted files to .corrupted-<timestamp> format', async () => {
+        // Setup: File corruption scenario
+        mockFs.promises.readFile.mockResolvedValue('corrupted-data');
+        mockDecipher.update.mockImplementation(() => {
+          throw new Error('Decryption failed');
+        });
+        mockFs.promises.rename = jest.fn<() => Promise<void>>().mockResolvedValue();
+
+        try {
+          await tokenStorage.getTokens();
+        } catch (error: any) {
+          // File should be renamed with timestamp
+          expect(mockFs.promises.rename).toHaveBeenCalledWith(
+            expect.stringContaining('oauth2-tokens.enc'),
+            expect.stringMatching(/oauth2-tokens\.enc\.corrupted-\d+$/)
+          );
+        }
+      });
+
+      test('should log corruption events with proper context', async () => {
+        // Mock console.error to capture log output
+        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        
+        mockKeytar.getPassword.mockResolvedValue('invalid-json');
+
+        try {
+          await tokenStorage.getTokens();
+        } catch (error) {
+          expect(consoleSpy).toHaveBeenCalledWith(
+            expect.stringContaining('Token cache corruption detected'),
+            expect.objectContaining({
+              source: 'keytar',
+              timestamp: expect.any(Number),
+            })
+          );
+        }
+
+        consoleSpy.mockRestore();
+      });
+
+      test('should enable new authentication after corruption cleanup', async () => {
+        // After corruption is handled, subsequent auth should work
+        mockKeytar.getPassword
+          .mockResolvedValueOnce('corrupted-data') // First call: corruption
+          .mockResolvedValueOnce(null); // Second call: clean state
+        
+        // Mock file storage to also return null (file doesn't exist after cleanup)
+        mockFs.promises.readFile
+          .mockRejectedValueOnce(new Error('File not found'))
+          .mockRejectedValueOnce(new Error('File not found'));
+
+        // First call should detect corruption and clean up
+        try {
+          await tokenStorage.getTokens();
+        } catch (error: any) {
+          expect(error).toBeInstanceOf(GoogleTokenCacheCorruptedError);
+        }
+
+        // Second call should return null (clean state for new auth)
+        const result = await tokenStorage.getTokens();
+        expect(result).toBeNull();
+      });
+
+      test('should handle multiple corruptions without conflicts', async () => {
+        // Setup: Multiple corruption events in sequence
+        const currentTime = Date.now();
+        jest.spyOn(Date, 'now')
+          .mockReturnValueOnce(currentTime)
+          .mockReturnValueOnce(currentTime)
+          .mockReturnValueOnce(currentTime + 1000)
+          .mockReturnValueOnce(currentTime + 1000);
+
+        // Mock keytar to return null so it falls back to file storage
+        mockKeytar.getPassword.mockResolvedValue(null);
+        mockFs.promises.readFile.mockResolvedValue('corrupted-data');
+        mockDecipher.update.mockImplementation(() => {
+          throw new Error('Decryption failed');
+        });
+        mockFs.promises.rename = jest.fn<() => Promise<void>>().mockResolvedValue();
+
+        // First corruption
+        try {
+          await tokenStorage.getTokens();
+        } catch (error1) {
+          // Second corruption (different timestamp)
+          try {
+            await tokenStorage.getTokens();
+          } catch (error2) {
+            // Should create different backup files
+            expect(mockFs.promises.rename).toHaveBeenNthCalledWith(1,
+              expect.any(String),
+              expect.stringContaining(`corrupted-${currentTime}`)
+            );
+            expect(mockFs.promises.rename).toHaveBeenNthCalledWith(2,
+              expect.any(String),
+              expect.stringContaining(`corrupted-${currentTime + 1000}`)
+            );
+          }
+        }
+      });
+    });
+
+    describe('Recovery Scenarios', () => {
+      test('should recover from keytar corruption by falling back to file storage', async () => {
+        // Setup: Keytar corrupted, file storage valid
+        mockKeytar.getPassword.mockResolvedValue('corrupted-keytar-data');
+        mockFs.promises.readFile.mockResolvedValue('valid-encrypted-data');
+        mockDecipher.update.mockReturnValue(JSON.stringify(mockStoredCredentials));
+        mockDecipher.final.mockReturnValue('');
+
+        // Should clean keytar corruption and return file storage data
+        const result = await tokenStorage.getTokens();
+        expect(result).toEqual(mockStoredCredentials);
+
+        // Keytar should be cleaned
+        expect(mockKeytar.deletePassword).toHaveBeenCalled();
+      });
+
+      test('should enable fresh authentication when file corruption is detected', async () => {
+        // Setup: File corrupted, keytar unavailable
+        mockKeytar.getPassword.mockResolvedValue(null);
+        mockFs.promises.readFile.mockResolvedValue('corrupted-file-data');
+        mockDecipher.update.mockImplementation(() => {
+          throw new Error('File corruption');
+        });
+        mockFs.promises.rename = jest.fn<() => Promise<void>>().mockResolvedValue();
+
+        try {
+          await tokenStorage.getTokens();
+        } catch (error: any) {
+          expect(error.corruption.source).toBe('file');
+        }
+
+        // After corruption handling, should return null for fresh auth
+        mockFs.promises.readFile.mockRejectedValue(new Error('File not found'));
+        const result = await tokenStorage.getTokens();
+        expect(result).toBeNull();
+      });
+
+      test('should trigger complete re-authentication when both storage methods are corrupted', async () => {
+        // Setup: Both keytar and file storage corrupted
+        mockKeytar.getPassword.mockResolvedValue('corrupted-keytar');
+        mockFs.promises.readFile.mockResolvedValue('corrupted-file');
+        mockDecipher.update.mockImplementation(() => {
+          throw new Error('Both corrupted');
+        });
+
+        // Should clean both storage methods
+        try {
+          await tokenStorage.getTokens();
+        } catch (error: any) {
+          expect(error.corruption.source).toMatch(/keytar|file/);
+        }
+
+        // Both should be cleaned
+        expect(mockKeytar.deletePassword).toHaveBeenCalled();
+        expect(mockFs.promises.rename).toHaveBeenCalled();
+      });
+
+      test('should properly clean up corrupted storage without affecting valid data', async () => {
+        // Setup: One corruption, one valid storage
+        let callCount = 0;
+        mockKeytar.getPassword.mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) return Promise.resolve('corrupted-data');
+          return Promise.resolve(JSON.stringify(mockStoredCredentials));
+        });
+
+        // First call detects corruption and cleans keytar
+        try {
+          await tokenStorage.getTokens();
+        } catch (error) {
+          expect(mockKeytar.deletePassword).toHaveBeenCalled();
+        }
+
+        // Second call should work with cleaned keytar
+        const result = await tokenStorage.getTokens();
+        expect(result).toEqual(mockStoredCredentials);
+      });
+    });
+
+    describe('Error Classification', () => {
+      test('should differentiate corruption from network errors', async () => {
+        // Network error - should not trigger corruption handling
+        mockKeytar.getPassword.mockRejectedValue(new Error('ENOTFOUND: Network error'));
+        // File also not available
+        mockFs.promises.readFile.mockRejectedValue(new Error('File not found'));
+
+        const result = await tokenStorage.getTokens();
+        expect(result).toBeNull(); // Should return null, not throw corruption error
+        expect(mockKeytar.deletePassword).not.toHaveBeenCalled();
+      });
+
+      test('should differentiate corruption from temporary file lock errors', async () => {
+        // File lock error - should not trigger corruption handling
+        mockFs.promises.readFile.mockRejectedValue(new Error('EBUSY: File is locked'));
+
+        const result = await tokenStorage.getTokens();
+        expect(result).toBeNull(); // Should return null, not throw corruption error
+        expect(mockFs.promises.rename).not.toHaveBeenCalled();
+      });
+
+      test('should properly classify different corruption types', async () => {
+        const corruptionScenarios = [
+          {
+            name: 'encryption corruption',
+            setup: () => {
+              mockKeytar.getPassword.mockResolvedValue(null);
+              mockFs.promises.readFile.mockResolvedValue('corrupted-encrypted');
+              mockDecipher.update.mockImplementation(() => {
+                throw new Error('Invalid encryption format');
+              });
+            },
+            expectedType: 'ENCRYPTION_CORRUPTION',
+          },
+          {
+            name: 'json corruption',
+            setup: () => {
+              mockKeytar.getPassword.mockResolvedValue(null);
+              mockFs.promises.readFile.mockResolvedValue('valid-encrypted');
+              mockDecipher.update.mockReturnValue('invalid-json-{[}');
+              mockDecipher.final.mockReturnValue("");
+              mockFs.promises.rename = jest.fn<() => Promise<void>>().mockResolvedValue();
+            },
+            expectedType: 'JSON_CORRUPTION',
+          },
+          {
+            name: 'structure corruption',
+            setup: () => {
+              mockKeytar.getPassword.mockResolvedValue(null);
+              mockFs.promises.readFile.mockResolvedValue('valid-encrypted');
+              mockDecipher.update.mockReturnValue('{"invalid": "structure"}');
+            },
+            expectedType: 'STRUCTURE_CORRUPTION',
+          },
+        ];
+
+        for (const scenario of corruptionScenarios) {
+          // Reset mocks for each scenario
+          jest.clearAllMocks();
+          scenario.setup();
+          
+          try {
+            await tokenStorage.getTokens();
+          } catch (error: any) {
+            expect(error.corruption.details.corruptionType).toBe(scenario.expectedType);
+          }
+        }
+      });
+
+      test('should provide detailed error reporting for different corruption types', async () => {
+        const mockTimestamp = Date.now();
+        jest.spyOn(Date, "now").mockReturnValue(mockTimestamp);
+        // Detailed error info for debugging
+        mockKeytar.getPassword.mockResolvedValue('{"malformed": "credentials"}');
+
+        try {
+          await tokenStorage.getTokens();
+        } catch (error: any) {
+          expect(error.corruption).toEqual({
+            source: 'keytar',
+            timestamp: mockTimestamp,
+            error: expect.stringContaining('Missing required credential fields'),
+            details: expect.objectContaining({
+              missingFields: expect.arrayContaining(['tokens.access_token', 'clientConfig.clientId', 'storedAt']),
+              receivedStructure: expect.any(Object),
+            }),
+          });
+        }
+      });
+    });
+
+    describe('Integration with OAuth2AuthProvider', () => {
+      test('should enable OAuth2AuthProvider to detect and handle corruption during token loading', async () => {
+        // OAuth2AuthProvider should catch corruption and trigger re-auth
+        mockKeytar.getPassword.mockResolvedValue('corrupted-oauth-data');
+
+        // This test will guide OAuth2AuthProvider integration
+        const mockOAuth2Provider = {
+          loadStoredTokens: async () => {
+            try {
+              return await tokenStorage.getTokens();
+            } catch (error: any) {
+              if (error.name === 'GoogleTokenCacheCorruptedError') {
+                // Should trigger re-authentication flow
+                return null; // Indicates need for fresh auth
+              }
+              throw error;
+            }
+          }
+        };
+
+        const result = await mockOAuth2Provider.loadStoredTokens();
+        expect(result).toBeNull(); // Should enable re-auth
+      });
+
+      test('should provide corruption metrics for monitoring', async () => {
+        // Corruption events should be trackable for monitoring
+        const mockMetrics = {
+          recordCorruptionEvent: jest.fn(),
+        };
+
+        mockKeytar.getPassword.mockResolvedValue('corrupted-data');
+        
+        // Mock the corruption handler to track metrics calls
+        const mockDate = Date.now();
+        jest.spyOn(Date, 'now').mockReturnValue(mockDate);
+
+        try {
+          await tokenStorage.getTokens();
+        } catch (error: any) {
+          // Integration point for metrics
+          mockMetrics.recordCorruptionEvent({
+            source: error.corruption.source,
+            timestamp: error.corruption.timestamp,
+            errorType: error.corruption.error,
+          });
+        }
+        
+        // Restore Date.now mock
+        jest.restoreAllMocks();
+
+        expect(mockMetrics.recordCorruptionEvent).toHaveBeenCalledWith({
+          source: 'keytar',
+          timestamp: mockDate,
+          errorType: expect.any(String),
+        });
+      });
+
+      test('should maintain OAuth2AuthProvider compatibility during recovery', async () => {
+        // After corruption recovery, OAuth2AuthProvider should work normally
+        mockKeytar.getPassword
+          .mockResolvedValueOnce('corrupted-data')  // Corruption
+          .mockResolvedValueOnce(null)              // Clean state
+          .mockResolvedValueOnce(JSON.stringify(mockStoredCredentials)); // New valid data
+
+        // First: corruption detected
+        try {
+          await tokenStorage.getTokens();
+        } catch (error: any) {
+          expect(error.name).toBe('GoogleTokenCacheCorruptedError');
+        }
+
+        // Second: clean state for re-auth
+        mockFs.promises.readFile.mockRejectedValue(new Error("File not found"));
+        const cleanResult = await tokenStorage.getTokens();
+        expect(cleanResult).toBeNull();
+
+        // Third: new tokens stored and retrieved successfully
+        await tokenStorage.saveTokens(mockStoredCredentials);
+        const newResult = await tokenStorage.getTokens();
+        expect(newResult).toEqual(mockStoredCredentials);
+      });
+    });
   });
 });

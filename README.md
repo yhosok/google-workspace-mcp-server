@@ -13,7 +13,7 @@ This MCP server implements the [Model Context Protocol](https://modelcontextprot
 - **Google Sheets Integration**: Full CRUD operations on spreadsheets with optional folder placement
 - **Google Calendar Integration**: Complete calendar management with event creation, updates, and deletion
 - **Google Drive Integration**: Smart file creation with folder management for organized workspace
-- **Dual Authentication Support**: Both Service Account and OAuth2 user authentication
+- **Dual Authentication Support**: Both Service Account and OAuth2 user authentication with PKCE security
 - **Advanced Timeout Control**: Dual-layer timeout protection with AbortController
 - **Configurable Retry/Backoff Strategy**: Intelligent retry handling for transient API failures
 - **Folder-Based Organization**: Optional GOOGLE_DRIVE_FOLDER_ID for organized file management
@@ -115,6 +115,8 @@ For the service account to access your Google Workspace resources:
 ### Option 2: OAuth2 User Authentication (Interactive)
 
 **Best for:** Personal use, development, accessing user's own resources
+
+This option uses PKCE (Proof Key for Code Exchange) for enhanced security, following RFC 7636 standards to protect against authorization code interception attacks.
 
 #### 1. Create OAuth2 Credentials
 
