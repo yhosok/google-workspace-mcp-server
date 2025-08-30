@@ -29,6 +29,7 @@ const mockGoogle = google as jest.Mocked<typeof google>;
 describe('CalendarService', () => {
   let calendarService: CalendarService;
   let mockAuthService: jest.Mocked<AuthService>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockCalendarApi: any;
   let mockAuth: jest.Mocked<OAuth2Client>;
 

@@ -1630,10 +1630,11 @@ export class GoogleErrorFactory {
     if (
       typeof cause === 'object' &&
       'status' in cause &&
-      typeof (cause as any).status === 'number'
+      typeof (cause as { status: unknown }).status === 'number'
     ) {
-      const statusCode = (cause as any).status;
-      const errorMessage = (cause as any).message || normalizedError.message;
+      const causeWithStatus = cause as { status: number; message?: string };
+      const statusCode = causeWithStatus.status;
+      const errorMessage = causeWithStatus.message || normalizedError.message;
 
       switch (statusCode) {
         case 404:

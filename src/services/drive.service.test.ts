@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { OAuth2Client } from 'google-auth-library';
+import { google } from 'googleapis';
 import { err, ok } from 'neverthrow';
 
 import { AuthService } from './auth.service.js';
 import { DriveService } from './drive.service.js';
-import { GoogleAuthError, GoogleDriveError } from '../errors/index.js';
+import {
+  GoogleAuthError,
+  GoogleDriveError,
+  GoogleWorkspaceResult,
+} from '../errors/index.js';
 import { createServiceLogger } from '../utils/logger.js';
 import { GoogleServiceRetryConfig } from './base/google-service.js';
 
@@ -13,24 +18,29 @@ jest.mock('./auth.service');
 jest.mock('../utils/logger');
 jest.mock('googleapis');
 
+// Create typed mocks
+const mockGoogle = google as jest.Mocked<typeof google>;
+
 describe('DriveService', () => {
   let driveService: DriveService;
   let mockAuthService: jest.Mocked<AuthService>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockLogger: any;
   let mockOAuth2Client: jest.Mocked<OAuth2Client>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockDriveApi: any;
 
   beforeEach(() => {
     // Setup mocks
     mockAuthService = {
       getAuthClient: jest.fn(),
-    } as any;
+    } as unknown as jest.Mocked<AuthService>;
     mockLogger = {
       info: jest.fn(),
       debug: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
-    } as any;
+    };
     mockOAuth2Client = new OAuth2Client() as jest.Mocked<OAuth2Client>;
 
     // Mock Drive API with flexible types
@@ -98,14 +108,13 @@ describe('DriveService', () => {
   describe('Initialization', () => {
     test('should initialize successfully with valid auth', async () => {
       // Mock google.drive to return our mock API
-      const mockGoogle = require('googleapis');
-      mockGoogle.google.drive.mockReturnValue(mockDriveApi);
+      mockGoogle.drive.mockReturnValue(mockDriveApi);
 
       const result = await driveService.initialize();
 
       expect(result.isOk()).toBe(true);
       expect(mockAuthService.getAuthClient).toHaveBeenCalledTimes(1);
-      expect(mockGoogle.google.drive).toHaveBeenCalledWith({
+      expect(mockGoogle.drive).toHaveBeenCalledWith({
         version: 'v3',
         auth: mockOAuth2Client,
       });
@@ -121,8 +130,7 @@ describe('DriveService', () => {
     });
 
     test('should prevent concurrent initialization attempts', async () => {
-      const mockGoogle = require('googleapis');
-      mockGoogle.google.drive.mockReturnValue(mockDriveApi);
+      mockGoogle.drive.mockReturnValue(mockDriveApi);
 
       // Start multiple initialization calls simultaneously
       const promises = [
@@ -134,7 +142,7 @@ describe('DriveService', () => {
       const results = await Promise.all(promises);
 
       // All should succeed
-      results.forEach((result: any) => {
+      results.forEach((result: GoogleWorkspaceResult<void>) => {
         expect(result.isOk()).toBe(true);
       });
 
@@ -150,8 +158,7 @@ describe('DriveService', () => {
         // Second attempt succeeds
         .mockResolvedValueOnce(ok(mockOAuth2Client));
 
-      const mockGoogle = require('googleapis');
-      mockGoogle.google.drive.mockReturnValue(mockDriveApi);
+      mockGoogle.drive.mockReturnValue(mockDriveApi);
 
       // First initialization should fail
       const result1 = await driveService.initialize();
@@ -167,8 +174,7 @@ describe('DriveService', () => {
 
   describe('Health Check', () => {
     test('should pass health check when service is operational', async () => {
-      const mockGoogle = require('googleapis');
-      mockGoogle.google.drive.mockReturnValue(mockDriveApi);
+      mockGoogle.drive.mockReturnValue(mockDriveApi);
 
       // Initialize first
       await driveService.initialize();
@@ -176,7 +182,7 @@ describe('DriveService', () => {
       // Mock successful files.list call
       mockDriveApi.files.list.mockResolvedValue({
         data: { files: [] },
-      } as any);
+      });
 
       const result = await driveService.healthCheck();
 
@@ -201,8 +207,7 @@ describe('DriveService', () => {
     });
 
     test('should fail health check when API call fails', async () => {
-      const mockGoogle = require('googleapis');
-      mockGoogle.google.drive.mockReturnValue(mockDriveApi);
+      mockGoogle.drive.mockReturnValue(mockDriveApi);
 
       // Initialize first
       await driveService.initialize();
@@ -218,8 +223,7 @@ describe('DriveService', () => {
 
   describe('createSpreadsheet', () => {
     beforeEach(async () => {
-      const mockGoogle = require('googleapis');
-      mockGoogle.google.drive.mockReturnValue(mockDriveApi);
+      mockGoogle.drive.mockReturnValue(mockDriveApi);
       await driveService.initialize();
     });
 
@@ -303,11 +307,15 @@ describe('DriveService', () => {
       }
 
       // Null title
-      const result2 = await driveService.createSpreadsheet(null as any);
+      const result2 = await driveService.createSpreadsheet(
+        null as unknown as string
+      );
       expect(result2.isErr()).toBe(true);
 
       // Undefined title
-      const result3 = await driveService.createSpreadsheet(undefined as any);
+      const result3 = await driveService.createSpreadsheet(
+        undefined as unknown as string
+      );
       expect(result3.isErr()).toBe(true);
 
       // Whitespace-only title
@@ -329,7 +337,9 @@ describe('DriveService', () => {
     });
 
     test('should handle invalid folder ID', async () => {
-      const error = new Error('File not found: invalid-folder-id') as any;
+      const error = new Error('File not found: invalid-folder-id') as Error & {
+        status: number;
+      };
       error.status = 404;
       mockDriveApi.files.create.mockRejectedValue(error);
 
@@ -358,8 +368,7 @@ describe('DriveService', () => {
 
   describe('Error Handling', () => {
     test('should convert generic errors to GoogleDriveError', async () => {
-      const mockGoogle = require('googleapis');
-      mockGoogle.google.drive.mockReturnValue(mockDriveApi);
+      mockGoogle.drive.mockReturnValue(mockDriveApi);
       await driveService.initialize();
 
       mockDriveApi.files.create.mockRejectedValue(new Error('Generic error'));
@@ -374,11 +383,12 @@ describe('DriveService', () => {
     });
 
     test('should preserve error context information', async () => {
-      const mockGoogle = require('googleapis');
-      mockGoogle.google.drive.mockReturnValue(mockDriveApi);
+      mockGoogle.drive.mockReturnValue(mockDriveApi);
       await driveService.initialize();
 
-      const error = new Error('Rate limit exceeded') as any;
+      const error = new Error('Rate limit exceeded') as Error & {
+        status: number;
+      };
       error.status = 429;
       mockDriveApi.files.create.mockRejectedValue(error);
 
@@ -406,8 +416,7 @@ describe('DriveService', () => {
 
   describe('Integration Patterns', () => {
     test('should follow SheetsService concurrent initialization pattern', async () => {
-      const mockGoogle = require('googleapis');
-      mockGoogle.google.drive.mockReturnValue(mockDriveApi);
+      mockGoogle.drive.mockReturnValue(mockDriveApi);
 
       // Test fast path - already initialized
       await driveService.initialize();
@@ -421,12 +430,11 @@ describe('DriveService', () => {
     });
 
     test('should implement proper Drive API client creation', async () => {
-      const mockGoogle = require('googleapis');
-      mockGoogle.google.drive.mockReturnValue(mockDriveApi);
+      mockGoogle.drive.mockReturnValue(mockDriveApi);
 
       await driveService.initialize();
 
-      expect(mockGoogle.google.drive).toHaveBeenCalledWith({
+      expect(mockGoogle.drive).toHaveBeenCalledWith({
         version: 'v3',
         auth: mockOAuth2Client,
       });

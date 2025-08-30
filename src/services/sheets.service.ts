@@ -11,6 +11,7 @@ import type {
 import {
   GoogleService,
   type GoogleServiceRetryConfig,
+  type ServiceContext,
 } from './base/google-service.js';
 import {
   GoogleWorkspaceResult,
@@ -1262,7 +1263,7 @@ export class SheetsService extends GoogleService {
     title: string,
     sheetTitles: readonly string[] | undefined,
     folderId: string,
-    context: any
+    context: ServiceContext
   ): Promise<SheetsCreateSpreadsheetResult> {
     if (!this.driveService) {
       throw new GoogleSheetsError(
@@ -1412,7 +1413,7 @@ export class SheetsService extends GoogleService {
   private async createSpreadsheetWithSheetsAPI(
     title: string,
     sheetTitles: readonly string[] | undefined,
-    context: any
+    context: ServiceContext
   ): Promise<SheetsCreateSpreadsheetResult> {
     // Prepare the spreadsheet properties
     const spreadsheetProperties: sheets_v4.Schema$SpreadsheetProperties = {

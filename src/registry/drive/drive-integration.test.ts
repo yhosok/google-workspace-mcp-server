@@ -8,7 +8,9 @@ import { ok } from 'neverthrow';
 // Mock DriveService
 jest.mock('../../services/drive.service.js');
 
-const MockedDriveService = DriveService as jest.MockedClass<typeof DriveService>;
+const MockedDriveService = DriveService as jest.MockedClass<
+  typeof DriveService
+>;
 
 describe('DriveServiceModule Integration', () => {
   let serviceRegistry: ServiceRegistry;
@@ -52,7 +54,7 @@ describe('DriveServiceModule Integration', () => {
     const moduleNames = serviceRegistry.getModuleNames();
     expect(moduleNames.length).toBe(1);
     expect(moduleNames[0]).toBe('drive');
-    
+
     const driveModuleInstance = serviceRegistry.getModule('drive');
     expect(driveModuleInstance).toBeDefined();
     expect(driveModuleInstance!.isInitialized()).toBe(true);

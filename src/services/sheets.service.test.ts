@@ -34,7 +34,9 @@ describe('SheetsService', () => {
   let sheetsService: SheetsService;
   let mockAuthService: jest.Mocked<AuthService>;
   let mockDriveService: jest.Mocked<DriveService>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockSheetsApi: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockDriveApi: any;
   let mockAuth: jest.Mocked<OAuth2Client>;
 

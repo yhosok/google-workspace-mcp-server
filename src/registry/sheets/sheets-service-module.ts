@@ -66,9 +66,12 @@ export class SheetsServiceModule implements ServiceModule {
       const driveInitResult = await this.driveService.initialize();
 
       if (driveInitResult.isErr()) {
-        this.logger.warn('Failed to initialize Drive service for Sheets module', {
-          error: driveInitResult.error.toJSON(),
-        });
+        this.logger.warn(
+          'Failed to initialize Drive service for Sheets module',
+          {
+            error: driveInitResult.error.toJSON(),
+          }
+        );
         // Continue without DriveService - this maintains backward compatibility
         this.driveService = undefined;
       }

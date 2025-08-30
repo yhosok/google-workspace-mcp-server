@@ -8,7 +8,9 @@ import { GoogleServiceError } from '../../errors/index.js';
 // Mock DriveService
 jest.mock('../../services/drive.service.js');
 
-const MockedDriveService = DriveService as jest.MockedClass<typeof DriveService>;
+const MockedDriveService = DriveService as jest.MockedClass<
+  typeof DriveService
+>;
 
 describe('DriveServiceModule', () => {
   let module: DriveServiceModule;
@@ -135,7 +137,7 @@ describe('DriveServiceModule', () => {
         }),
         getToolName: jest.fn().mockReturnValue('mock-tool'),
       };
-      
+
       // Inject a mock tool to test the error handling
       (module as any).tools = [mockTool];
 
@@ -312,7 +314,8 @@ describe('DriveServiceModule', () => {
       expect(resourceResult.isErr()).toBe(true);
 
       const toolError = toolResult._unsafeUnwrapErr() as GoogleServiceError;
-      const resourceError = resourceResult._unsafeUnwrapErr() as GoogleServiceError;
+      const resourceError =
+        resourceResult._unsafeUnwrapErr() as GoogleServiceError;
 
       expect(toolError.code).toBe('DRIVE_MODULE_NOT_INITIALIZED');
       expect(resourceError.code).toBe('DRIVE_MODULE_NOT_INITIALIZED');
