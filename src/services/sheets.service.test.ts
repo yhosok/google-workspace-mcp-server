@@ -1,8 +1,13 @@
 import { SheetsService } from './sheets.service.js';
 import { AuthService } from './auth.service.js';
+import { DriveService } from './drive.service.js';
 import { google } from 'googleapis';
 import { TEST_RETRY_CONFIG } from '../test-config.js';
-import { GoogleAuthError } from '../errors/index.js';
+import {
+  GoogleAuthError,
+  GoogleSheetsError,
+  GoogleDriveError,
+} from '../errors/index.js';
 import { err, ok } from 'neverthrow';
 import type { OAuth2Client } from 'google-auth-library';
 
@@ -28,9 +33,13 @@ const mockGoogle = google as jest.Mocked<typeof google>;
 describe('SheetsService', () => {
   let sheetsService: SheetsService;
   let mockAuthService: jest.Mocked<AuthService>;
+  let mockDriveService: jest.Mocked<DriveService>;
   let mockSheetsApi: any;
   let mockDriveApi: any;
   let mockAuth: jest.Mocked<OAuth2Client>;
+
+  // Environment variable mocking
+  const originalEnv = process.env;
 
   // Extended timeout for tests that might be slow (especially concurrent tests)
   jest.setTimeout(10000);
@@ -82,16 +91,27 @@ describe('SheetsService', () => {
       }),
     } as unknown as jest.Mocked<AuthService>;
 
+    // Create mock DriveService
+    mockDriveService = {
+      createSpreadsheet: jest.fn(),
+      initialize: jest.fn(),
+      healthCheck: jest.fn(),
+      getServiceStats: jest.fn(),
+    } as unknown as jest.Mocked<DriveService>;
+
     // Use fast retry config for testing to minimize execution time
     sheetsService = new SheetsService(
       mockAuthService,
-      undefined,
+      undefined, // driveService - will be set per test
+      undefined, // logger
       TEST_RETRY_CONFIG
     );
   });
 
   afterEach(() => {
     jest.clearAllMocks();
+    // Restore environment variables
+    process.env = { ...originalEnv };
   });
 
   describe('constructor', () => {
@@ -679,7 +699,8 @@ describe('SheetsService', () => {
       // Reset service to uninitialized state
       sheetsService = new SheetsService(
         mockAuthService,
-        undefined,
+        undefined, // driveService
+        undefined, // logger
         TEST_RETRY_CONFIG
       );
 
@@ -765,7 +786,8 @@ describe('SheetsService', () => {
     test('should handle concurrent calls when first initialization fails', async () => {
       sheetsService = new SheetsService(
         mockAuthService,
-        undefined,
+        undefined, // driveService
+        undefined, // logger
         TEST_RETRY_CONFIG
       );
 
@@ -893,6 +915,569 @@ describe('SheetsService', () => {
 
       // Should still be initialized
       expect(sheetsService['isInitialized']).toBe(true);
+    });
+  });
+
+  describe('createSpreadsheet with DriveService integration', () => {
+    beforeEach(() => {
+      // Mock successful API responses for Sheets API
+      mockSheetsApi.spreadsheets = {
+        get: jest.fn(),
+        values: {
+          get: jest.fn(),
+          update: jest.fn(),
+          append: jest.fn(),
+        },
+        batchUpdate: jest.fn(),
+      };
+    });
+
+    describe('when DriveService is available and GOOGLE_DRIVE_FOLDER_ID is set', () => {
+      beforeEach(() => {
+        // Set environment variable
+        process.env.GOOGLE_DRIVE_FOLDER_ID = 'test-folder-id';
+
+        // Create service with DriveService
+        sheetsService = new SheetsService(
+          mockAuthService,
+          mockDriveService,
+          undefined,
+          TEST_RETRY_CONFIG
+        );
+
+        // Mock successful DriveService response
+        mockDriveService.createSpreadsheet.mockResolvedValue(
+          ok({
+            id: 'drive-created-sheet-id',
+            name: 'Drive Created Sheet',
+            webViewLink:
+              'https://docs.google.com/spreadsheets/d/drive-created-sheet-id',
+            parents: ['test-folder-id'],
+            createdTime: '2023-01-01T00:00:00Z',
+          })
+        );
+      });
+
+      test('should use DriveService path for spreadsheet creation', async () => {
+        // Mock Sheets API response for getting spreadsheet structure
+        mockSheetsApi.spreadsheets.get.mockResolvedValue({
+          data: {
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  index: 0,
+                },
+              },
+            ],
+          },
+        });
+
+        const result = await sheetsService.createSpreadsheet('Test Sheet');
+
+        expect(result.isOk()).toBe(true);
+        expect(mockDriveService.createSpreadsheet).toHaveBeenCalledWith(
+          'Test Sheet',
+          'test-folder-id'
+        );
+
+        if (result.isOk()) {
+          expect(result.value).toEqual({
+            spreadsheetId: 'drive-created-sheet-id',
+            spreadsheetUrl:
+              'https://docs.google.com/spreadsheets/d/drive-created-sheet-id',
+            title: 'Drive Created Sheet',
+            sheets: [
+              {
+                sheetId: 0,
+                title: 'Sheet1',
+                index: 0,
+              },
+            ],
+          });
+        }
+      });
+
+      test('should create spreadsheet with custom sheet titles using DriveService', async () => {
+        const customSheetTitles = ['Summary', 'Data', 'Analysis'];
+
+        // Mock Sheets API responses
+        mockSheetsApi.spreadsheets.get.mockResolvedValue({
+          data: {
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  index: 0,
+                },
+              },
+            ],
+          },
+        });
+
+        mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({
+          data: {
+            replies: [
+              {
+                updateSheetProperties: {
+                  properties: { sheetId: 0, title: 'Summary' },
+                },
+              },
+              {
+                addSheet: {
+                  properties: { sheetId: 1, title: 'Data', index: 1 },
+                },
+              },
+              {
+                addSheet: {
+                  properties: { sheetId: 2, title: 'Analysis', index: 2 },
+                },
+              },
+            ],
+          },
+        });
+
+        const result = await sheetsService.createSpreadsheet(
+          'Test Sheet',
+          customSheetTitles
+        );
+
+        expect(result.isOk()).toBe(true);
+        expect(mockDriveService.createSpreadsheet).toHaveBeenCalledWith(
+          'Test Sheet',
+          'test-folder-id'
+        );
+        expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+
+        if (result.isOk()) {
+          expect(result.value.sheets).toHaveLength(3);
+          expect(result.value.sheets[0].title).toBe('Summary');
+        }
+      });
+
+      test('should handle DriveService errors gracefully', async () => {
+        // Mock DriveService failure
+        const driveError = new GoogleDriveError(
+          'Drive API error',
+          'GOOGLE_DRIVE_ERROR',
+          500
+        );
+        mockDriveService.createSpreadsheet.mockResolvedValue(err(driveError));
+
+        const result = await sheetsService.createSpreadsheet('Test Sheet');
+
+        expect(result.isErr()).toBe(true);
+        expect(mockDriveService.createSpreadsheet).toHaveBeenCalledWith(
+          'Test Sheet',
+          'test-folder-id'
+        );
+
+        if (result.isErr()) {
+          expect(result.error).toBeInstanceOf(GoogleSheetsError);
+          expect(result.error.message).toContain(
+            'Failed to create spreadsheet in folder'
+          );
+        }
+      });
+
+      test('should convert Drive errors to Sheets errors appropriately', async () => {
+        const driveError = new GoogleDriveError(
+          'Permission denied',
+          'GOOGLE_DRIVE_PERMISSION_DENIED',
+          403
+        );
+        mockDriveService.createSpreadsheet.mockResolvedValue(err(driveError));
+
+        const result = await sheetsService.createSpreadsheet('Test Sheet');
+
+        expect(result.isErr()).toBe(true);
+        if (result.isErr()) {
+          expect(result.error.message).toContain(
+            'Failed to create spreadsheet in folder'
+          );
+          // Error is properly propagated from DriveService and converted to SheetsError
+          expect(result.error).toBeInstanceOf(Error);
+        }
+      });
+    });
+
+    describe('when GOOGLE_DRIVE_FOLDER_ID is not set', () => {
+      beforeEach(() => {
+        // Unset environment variable
+        delete process.env.GOOGLE_DRIVE_FOLDER_ID;
+
+        // Create service with DriveService but no folder ID
+        sheetsService = new SheetsService(
+          mockAuthService,
+          mockDriveService,
+          undefined,
+          TEST_RETRY_CONFIG
+        );
+      });
+
+      test('should use traditional Sheets API when folder ID is not set', async () => {
+        // Mock traditional Sheets API create response
+        mockSheetsApi.spreadsheets.create = jest.fn().mockResolvedValue({
+          data: {
+            spreadsheetId: 'traditional-sheet-id',
+            properties: { title: 'Test Sheet' },
+            spreadsheetUrl:
+              'https://docs.google.com/spreadsheets/d/traditional-sheet-id',
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  index: 0,
+                },
+              },
+            ],
+          },
+        });
+
+        const result = await sheetsService.createSpreadsheet('Test Sheet');
+
+        expect(result.isOk()).toBe(true);
+        expect(mockDriveService.createSpreadsheet).not.toHaveBeenCalled();
+        expect(mockSheetsApi.spreadsheets.create).toHaveBeenCalled();
+
+        if (result.isOk()) {
+          expect(result.value.spreadsheetId).toBe('traditional-sheet-id');
+          expect(result.value.title).toBe('Test Sheet');
+        }
+      });
+
+      test('should use traditional Sheets API with empty folder ID', async () => {
+        process.env.GOOGLE_DRIVE_FOLDER_ID = '   '; // whitespace only
+
+        // Mock traditional Sheets API create response
+        mockSheetsApi.spreadsheets.create = jest.fn().mockResolvedValue({
+          data: {
+            spreadsheetId: 'empty-folder-sheet-id',
+            properties: { title: 'Test Sheet' },
+            spreadsheetUrl:
+              'https://docs.google.com/spreadsheets/d/empty-folder-sheet-id',
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  index: 0,
+                },
+              },
+            ],
+          },
+        });
+
+        const result = await sheetsService.createSpreadsheet('Test Sheet');
+
+        expect(result.isOk()).toBe(true);
+        expect(mockDriveService.createSpreadsheet).not.toHaveBeenCalled();
+        expect(mockSheetsApi.spreadsheets.create).toHaveBeenCalled();
+
+        if (result.isOk()) {
+          expect(result.value.spreadsheetId).toBe('empty-folder-sheet-id');
+        }
+      });
+    });
+
+    describe('when DriveService is not available', () => {
+      beforeEach(() => {
+        process.env.GOOGLE_DRIVE_FOLDER_ID = 'test-folder-id';
+
+        // Create service WITHOUT DriveService
+        sheetsService = new SheetsService(
+          mockAuthService,
+          undefined, // no DriveService
+          undefined,
+          TEST_RETRY_CONFIG
+        );
+      });
+
+      test('should use traditional Sheets API when DriveService is not available', async () => {
+        // Mock traditional Sheets API create response
+        mockSheetsApi.spreadsheets.create = jest.fn().mockResolvedValue({
+          data: {
+            spreadsheetId: 'no-drive-service-sheet-id',
+            properties: { title: 'Test Sheet' },
+            spreadsheetUrl:
+              'https://docs.google.com/spreadsheets/d/no-drive-service-sheet-id',
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  index: 0,
+                },
+              },
+            ],
+          },
+        });
+
+        const result = await sheetsService.createSpreadsheet('Test Sheet');
+
+        expect(result.isOk()).toBe(true);
+        expect(mockSheetsApi.spreadsheets.create).toHaveBeenCalled();
+
+        if (result.isOk()) {
+          expect(result.value.spreadsheetId).toBe('no-drive-service-sheet-id');
+        }
+      });
+    });
+
+    describe('input validation', () => {
+      beforeEach(() => {
+        process.env.GOOGLE_DRIVE_FOLDER_ID = 'test-folder-id';
+        sheetsService = new SheetsService(
+          mockAuthService,
+          mockDriveService,
+          undefined,
+          TEST_RETRY_CONFIG
+        );
+      });
+
+      test('should validate spreadsheet title is not empty', async () => {
+        const result = await sheetsService.createSpreadsheet('');
+
+        expect(result.isErr()).toBe(true);
+        if (result.isErr()) {
+          expect(result.error.message).toContain(
+            'Spreadsheet title cannot be empty'
+          );
+        }
+      });
+
+      test('should validate sheet titles are not empty', async () => {
+        const result = await sheetsService.createSpreadsheet('Test', [
+          'Valid',
+          '',
+        ]);
+
+        expect(result.isErr()).toBe(true);
+        if (result.isErr()) {
+          expect(result.error.message).toContain(
+            'Sheet titles cannot be empty'
+          );
+        }
+      });
+
+      test('should validate sheet titles are unique', async () => {
+        const result = await sheetsService.createSpreadsheet('Test', [
+          'Sheet1',
+          'Sheet1',
+        ]);
+
+        expect(result.isErr()).toBe(true);
+        if (result.isErr()) {
+          expect(result.error.message).toContain('Sheet titles must be unique');
+        }
+      });
+
+      test('should reject empty sheet titles array', async () => {
+        const result = await sheetsService.createSpreadsheet('Test', []);
+
+        expect(result.isErr()).toBe(true);
+        if (result.isErr()) {
+          expect(result.error.message).toContain(
+            'Sheet titles array cannot be empty'
+          );
+        }
+      });
+    });
+
+    describe('error handling scenarios', () => {
+      beforeEach(() => {
+        process.env.GOOGLE_DRIVE_FOLDER_ID = 'test-folder-id';
+        sheetsService = new SheetsService(
+          mockAuthService,
+          mockDriveService,
+          undefined,
+          TEST_RETRY_CONFIG
+        );
+      });
+
+      test('should handle DriveService unavailable error during execution', async () => {
+        // Mock successful initialization but DriveService failure during createSpreadsheet
+        mockDriveService.createSpreadsheet.mockImplementation(() => {
+          throw new Error('DriveService not available');
+        });
+
+        const result = await sheetsService.createSpreadsheet('Test Sheet');
+
+        expect(result.isErr()).toBe(true);
+      });
+
+      test('should handle Sheets API errors during sheet configuration', async () => {
+        // Mock successful DriveService creation
+        mockDriveService.createSpreadsheet.mockResolvedValue(
+          ok({
+            id: 'test-sheet-id',
+            name: 'Test Sheet',
+            webViewLink: 'https://docs.google.com/spreadsheets/d/test-sheet-id',
+            parents: ['test-folder-id'],
+            createdTime: '2023-01-01T00:00:00Z',
+          })
+        );
+
+        // Mock Sheets API failure
+        mockSheetsApi.spreadsheets.get.mockRejectedValue(
+          new Error('Sheets API error')
+        );
+
+        const result = await sheetsService.createSpreadsheet('Test Sheet', [
+          'Custom Sheet',
+        ]);
+
+        expect(result.isErr()).toBe(true);
+      });
+
+      test('should handle batch update failures gracefully', async () => {
+        mockDriveService.createSpreadsheet.mockResolvedValue(
+          ok({
+            id: 'test-sheet-id',
+            name: 'Test Sheet',
+            webViewLink: 'https://docs.google.com/spreadsheets/d/test-sheet-id',
+            parents: ['test-folder-id'],
+            createdTime: '2023-01-01T00:00:00Z',
+          })
+        );
+
+        mockSheetsApi.spreadsheets.get.mockResolvedValue({
+          data: {
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  index: 0,
+                },
+              },
+            ],
+          },
+        });
+
+        // Mock batch update failure
+        mockSheetsApi.spreadsheets.batchUpdate.mockRejectedValue(
+          new Error('Batch update failed')
+        );
+
+        const result = await sheetsService.createSpreadsheet('Test Sheet', [
+          'Custom Sheet',
+        ]);
+
+        expect(result.isErr()).toBe(true);
+      });
+    });
+
+    describe('performance and concurrency', () => {
+      beforeEach(() => {
+        process.env.GOOGLE_DRIVE_FOLDER_ID = 'test-folder-id';
+        sheetsService = new SheetsService(
+          mockAuthService,
+          mockDriveService,
+          undefined,
+          TEST_RETRY_CONFIG
+        );
+
+        mockDriveService.createSpreadsheet.mockImplementation(
+          (title, folderId) => {
+            return new Promise(resolve => {
+              setTimeout(() => {
+                resolve(
+                  ok({
+                    id: `sheet-${Math.random().toString(36).substr(2, 9)}`,
+                    name: title,
+                    webViewLink: `https://docs.google.com/spreadsheets/d/sheet-id`,
+                    parents: [folderId],
+                    createdTime: new Date().toISOString(),
+                  })
+                );
+              }, 50);
+            });
+          }
+        );
+      });
+
+      test('should handle concurrent spreadsheet creation requests', async () => {
+        mockSheetsApi.spreadsheets.get.mockResolvedValue({
+          data: {
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  index: 0,
+                },
+              },
+            ],
+          },
+        });
+
+        const promises = [
+          sheetsService.createSpreadsheet('Sheet 1'),
+          sheetsService.createSpreadsheet('Sheet 2'),
+          sheetsService.createSpreadsheet('Sheet 3'),
+        ];
+
+        const results = await Promise.all(promises);
+
+        // All should succeed
+        results.forEach(result => {
+          expect(result.isOk()).toBe(true);
+        });
+
+        // Each should have called DriveService
+        expect(mockDriveService.createSpreadsheet).toHaveBeenCalledTimes(3);
+      });
+
+      test('should maintain performance with multiple sheet configurations', async () => {
+        const startTime = Date.now();
+
+        mockSheetsApi.spreadsheets.get.mockResolvedValue({
+          data: {
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  index: 0,
+                },
+              },
+            ],
+          },
+        });
+
+        mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({
+          data: {
+            replies: [
+              { updateSheetProperties: {} },
+              {
+                addSheet: {
+                  properties: { sheetId: 1, title: 'Sheet2', index: 1 },
+                },
+              },
+              {
+                addSheet: {
+                  properties: { sheetId: 2, title: 'Sheet3', index: 2 },
+                },
+              },
+            ],
+          },
+        });
+
+        const result = await sheetsService.createSpreadsheet(
+          'Performance Test',
+          ['Sheet1', 'Sheet2', 'Sheet3']
+        );
+
+        const executionTime = Date.now() - startTime;
+
+        expect(result.isOk()).toBe(true);
+        // Should complete within reasonable time (accounting for mocked delays)
+        expect(executionTime).toBeLessThan(1000);
+      });
     });
   });
 });

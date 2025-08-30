@@ -312,7 +312,7 @@ export class SchemaFactory {
       'sheets-create': {
         title: 'Create New Spreadsheet',
         description:
-          'Create a new spreadsheet in the configured Google Drive folder',
+          'Create a new spreadsheet. If GOOGLE_DRIVE_FOLDER_ID is configured, the spreadsheet will be created in that folder; otherwise it will be created in the default location',
       },
     };
 

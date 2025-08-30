@@ -127,7 +127,7 @@ describe('AuthFactory Integration Tests', () => {
         expect(authInfo.value.scopes).toEqual([
           'https://www.googleapis.com/auth/spreadsheets',
           'https://www.googleapis.com/auth/calendar',
-          'https://www.googleapis.com/auth/drive.readonly',
+          'https://www.googleapis.com/auth/drive.file',
         ]);
       }
     });

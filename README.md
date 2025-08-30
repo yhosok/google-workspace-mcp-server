@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/yourusername/google-workspace-mcp-server/workflows/CI/badge.svg)](https://github.com/yourusername/google-workspace-mcp-server/actions)
 
-A Model Context Protocol (MCP) server for Google Workspace integration, providing seamless access to Google Sheets and other Google Workspace services.
+A Model Context Protocol (MCP) server for Google Workspace integration, providing seamless access to Google Sheets, Calendar, and Drive services with advanced folder management capabilities.
 
 ## Overview
 
@@ -10,29 +10,33 @@ This MCP server implements the [Model Context Protocol](https://modelcontextprot
 
 ### Key Features
 
-- **Google Sheets Integration**: Full CRUD operations on spreadsheets
+- **Google Sheets Integration**: Full CRUD operations on spreadsheets with optional folder placement
 - **Google Calendar Integration**: Complete calendar management with event creation, updates, and deletion
+- **Google Drive Integration**: Smart file creation with folder management for organized workspace
 - **Dual Authentication Support**: Both Service Account and OAuth2 user authentication
 - **Advanced Timeout Control**: Dual-layer timeout protection with AbortController
 - **Configurable Retry/Backoff Strategy**: Intelligent retry handling for transient API failures
+- **Folder-Based Organization**: Optional GOOGLE_DRIVE_FOLDER_ID for organized file management
 - **Extensible Architecture**: Plugin-based design for easy addition of new Google services
 - **Type-Safe Implementation**: Built with TypeScript for reliability and maintainability
-- **Comprehensive Testing**: Over 512 unit and integration tests with 100% pass rate
+- **Comprehensive Testing**: Over 785 unit and integration tests with 100% pass rate
 - **Production-Ready Error Handling**: Comprehensive error classification and recovery
 
 ### Architecture
 
 The server follows a modular architecture with these key components:
 
-- **Service Registry**: Manages service lifecycle and dependencies
+- **Service Registry**: Manages service lifecycle and dependencies (Sheets, Calendar, Drive)
+- **Service Collaboration**: DriveService integration for folder-based file creation
 - **Tool System**: Implements MCP tools for specific operations
 - **Resource System**: Exposes structured data through MCP resources
 - **Authentication Layer**: Handles Google API authentication and token management
+- **Intelligent Routing**: Automatic selection between Drive and Sheets APIs based on configuration
 
 ## Prerequisites
 
 - Node.js >= 18.0.0
-- A Google Cloud Project with Google Sheets API and Google Calendar API enabled
+- A Google Cloud Project with Google Sheets API, Google Calendar API, and Google Drive API enabled
 - Authentication credentials (Service Account or OAuth2 Client credentials)
 
 ## Installation
@@ -69,6 +73,7 @@ This server supports two authentication methods:
    - Navigate to "APIs & Services" > "Library"
    - Search for "Google Sheets API" and click "Enable"
    - Search for "Google Calendar API" and click "Enable"
+   - Search for "Google Drive API" and click "Enable"
 
 #### 2. Create a Service Account
 
@@ -134,7 +139,7 @@ GOOGLE_AUTH_MODE=oauth2
 GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
 GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
-GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar
+GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file
 ```
 
 #### 4. First-Time Authentication
@@ -174,14 +179,16 @@ GOOGLE_AUTH_MODE=oauth2
 GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
 GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
-GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar
+GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file
 GOOGLE_OAUTH_PORT=3000
 ```
 
-### Optional Settings
+### Optional Folder Configuration
 
 ```env
-# Google Drive Folder ID (optional - limits access to specific folder)
+# Optional folder placement for new spreadsheets
+# If set, new spreadsheets will be created in this folder
+# If not set, spreadsheets will be created in the default location (root)
 GOOGLE_DRIVE_FOLDER_ID=your-folder-id
 
 # Google API Retry Configuration (Optional)
@@ -246,7 +253,7 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
         "GOOGLE_OAUTH_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
         "GOOGLE_OAUTH_CLIENT_SECRET": "your-client-secret",
         "GOOGLE_OAUTH_REDIRECT_URI": "http://localhost:3000/oauth2callback",
-        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar"
+        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file"
       }
     }
   }
@@ -329,6 +336,43 @@ Creates a new spreadsheet with optional initial sheets.
 **Example usage in Claude:**
 ```
 "Create a new spreadsheet called 'Sales Report' with sheets for each quarter"
+```
+
+## Folder Management
+
+### Optional Folder Placement
+
+The server supports optional folder placement for new spreadsheets through the `GOOGLE_DRIVE_FOLDER_ID` environment variable:
+
+**When configured:**
+- New spreadsheets are created directly in the specified folder
+- Uses DriveService for efficient folder-based creation
+- Maintains all existing spreadsheet functionality
+
+**When not configured:**
+- Spreadsheets are created in the default location (root)
+- Uses traditional Sheets API for backward compatibility
+- No changes to existing functionality
+
+### Benefits
+
+- **Organization**: Keep spreadsheets organized in specific folders
+- **Performance**: Direct folder creation instead of create-then-move
+- **Backward Compatibility**: Existing users experience no changes
+- **Flexibility**: Per-environment folder configuration
+
+### Usage Examples
+
+**With folder configuration:**
+```bash
+# Create spreadsheet in specified folder
+GOOGLE_DRIVE_FOLDER_ID=1A2B3C4D5E6F7G8H9I0J
+```
+
+**Without folder configuration:**
+```bash
+# Create spreadsheet in root (default behavior)
+# GOOGLE_DRIVE_FOLDER_ID= (empty or not set)
 ```
 
 ### Calendar Tools
@@ -604,7 +648,9 @@ GOOGLE_RETRY_MAX_DELAY=60000
 - [x] OAuth2 user authentication with secure token storage
 - [x] Advanced retry/backoff strategy with timeout control
 - [x] Comprehensive error handling and logging
-- [ ] Google Drive file operations
+- [x] Google Drive service abstraction with folder management
+- [x] Optional folder-based spreadsheet creation (GOOGLE_DRIVE_FOLDER_ID)
+- [ ] Additional Google Drive file operations (upload, download, share)
 - [ ] Google Docs integration  
 - [ ] Batch operations support
 - [ ] Real-time updates via webhooks

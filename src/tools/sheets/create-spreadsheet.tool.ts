@@ -52,20 +52,6 @@ export class SheetsCreateSpreadsheetTool extends BaseSheetsTools<
       requestId,
     });
 
-    // Check environment variable first
-    if (
-      !process.env.GOOGLE_DRIVE_FOLDER_ID ||
-      process.env.GOOGLE_DRIVE_FOLDER_ID.trim() === ''
-    ) {
-      const error = GoogleErrorFactory.createSheetsError(
-        new Error('GOOGLE_DRIVE_FOLDER_ID environment variable is required'),
-        undefined,
-        undefined,
-        { operation: 'sheets-create', requestId }
-      );
-      return err(error);
-    }
-
     // Validate authentication
     const authResult = await this.validateAuthentication(requestId);
     if (authResult.isErr()) {

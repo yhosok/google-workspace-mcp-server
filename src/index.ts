@@ -5,6 +5,7 @@ import {
   ServiceRegistry,
   SheetsServiceModule,
   CalendarServiceModule,
+  DriveServiceModule,
 } from './registry/index.js';
 import { loadConfig } from './config/index.js';
 import { createServiceLogger } from './utils/logger.js';
@@ -36,6 +37,13 @@ async function initializeServices(): Promise<void> {
 
   // サービスレジストリの初期化
   serviceRegistry = new ServiceRegistry();
+
+  // Drive サービスモジュールの登録 (Sheets の依存関係として先に登録)
+  const driveModule = new DriveServiceModule();
+  const driveRegisterResult = serviceRegistry.registerModule(driveModule);
+  if (driveRegisterResult.isErr()) {
+    throw driveRegisterResult.error;
+  }
 
   // Sheets サービスモジュールの登録
   const sheetsModule = new SheetsServiceModule();
