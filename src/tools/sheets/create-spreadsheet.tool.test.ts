@@ -17,7 +17,7 @@ describe('SheetsCreateSpreadsheetTool', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    process.env = { ...originalEnv, GOOGLE_DRIVE_FOLDER_ID: 'test-folder-id' };
+    process.env = { ...originalEnv };
 
     mockAuthService = {
       initialize: jest.fn(),
@@ -56,7 +56,7 @@ describe('SheetsCreateSpreadsheetTool', () => {
       const metadata = tool.getToolMetadata();
       expect(metadata.title).toBe('Create New Spreadsheet');
       expect(metadata.description).toBe(
-        'Create a new spreadsheet in the configured Google Drive folder'
+        'Create a new spreadsheet. If GOOGLE_DRIVE_FOLDER_ID is configured, the spreadsheet will be created in that folder; otherwise it will be created in the default location'
       );
       expect(metadata.inputSchema).toHaveProperty('title');
       expect(metadata.inputSchema).toHaveProperty('sheetTitles');
@@ -310,50 +310,61 @@ describe('SheetsCreateSpreadsheetTool', () => {
       });
     });
 
-    describe('environment validation', () => {
-      test('should fail when GOOGLE_DRIVE_FOLDER_ID is not set', async () => {
+    describe('folder configuration behavior', () => {
+      test('should work when GOOGLE_DRIVE_FOLDER_ID is not set', async () => {
         delete process.env.GOOGLE_DRIVE_FOLDER_ID;
+        mockSheetsService.createSpreadsheet.mockResolvedValue(ok(mockResult));
 
         const result = await tool.executeImpl(validParams);
 
-        expect(result.isErr()).toBe(true);
-        if (result.isErr()) {
-          expect(result.error).toBeInstanceOf(GoogleSheetsError);
-          expect(result.error.message).toContain(
-            'GOOGLE_DRIVE_FOLDER_ID environment variable is required'
-          );
+        expect(result.isOk()).toBe(true);
+        if (result.isOk()) {
+          const response = result.value;
+          expect(response.content).toHaveLength(1);
+          expect(response.content[0]).toEqual({
+            type: 'text',
+            text: JSON.stringify(
+              {
+                spreadsheetId: mockResult.spreadsheetId,
+                spreadsheetUrl: mockResult.spreadsheetUrl,
+                title: mockResult.title,
+                sheets: mockResult.sheets,
+              },
+              null,
+              2
+            ),
+          });
         }
-        expect(mockSheetsService.createSpreadsheet).not.toHaveBeenCalled();
+        expect(mockSheetsService.createSpreadsheet).toHaveBeenCalledWith(
+          'My New Spreadsheet',
+          undefined
+        );
       });
 
-      test('should fail when GOOGLE_DRIVE_FOLDER_ID is empty', async () => {
+      test('should work when GOOGLE_DRIVE_FOLDER_ID is empty', async () => {
         process.env.GOOGLE_DRIVE_FOLDER_ID = '';
+        mockSheetsService.createSpreadsheet.mockResolvedValue(ok(mockResult));
 
         const result = await tool.executeImpl(validParams);
 
-        expect(result.isErr()).toBe(true);
-        if (result.isErr()) {
-          expect(result.error).toBeInstanceOf(GoogleSheetsError);
-          expect(result.error.message).toContain(
-            'GOOGLE_DRIVE_FOLDER_ID environment variable is required'
-          );
-        }
-        expect(mockSheetsService.createSpreadsheet).not.toHaveBeenCalled();
+        expect(result.isOk()).toBe(true);
+        expect(mockSheetsService.createSpreadsheet).toHaveBeenCalledWith(
+          'My New Spreadsheet',
+          undefined
+        );
       });
 
-      test('should fail when GOOGLE_DRIVE_FOLDER_ID is whitespace only', async () => {
-        process.env.GOOGLE_DRIVE_FOLDER_ID = '   ';
+      test('should work when GOOGLE_DRIVE_FOLDER_ID is set', async () => {
+        process.env.GOOGLE_DRIVE_FOLDER_ID = 'test-folder-id';
+        mockSheetsService.createSpreadsheet.mockResolvedValue(ok(mockResult));
 
         const result = await tool.executeImpl(validParams);
 
-        expect(result.isErr()).toBe(true);
-        if (result.isErr()) {
-          expect(result.error).toBeInstanceOf(GoogleSheetsError);
-          expect(result.error.message).toContain(
-            'GOOGLE_DRIVE_FOLDER_ID environment variable is required'
-          );
-        }
-        expect(mockSheetsService.createSpreadsheet).not.toHaveBeenCalled();
+        expect(result.isOk()).toBe(true);
+        expect(mockSheetsService.createSpreadsheet).toHaveBeenCalledWith(
+          'My New Spreadsheet',
+          undefined
+        );
       });
     });
 

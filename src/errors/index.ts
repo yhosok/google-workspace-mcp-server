@@ -735,12 +735,136 @@ export class GoogleCalendarInvalidOperationError extends GoogleCalendarError {
 }
 
 /**
+ * Google Drive Service Errors
+ */
+export class GoogleDriveError extends GoogleWorkspaceError {
+  public readonly fileId?: string;
+  public readonly folderId?: string;
+
+  constructor(
+    message: string,
+    code: string,
+    statusCode: number = 500,
+    fileId?: string,
+    folderId?: string,
+    context?: Record<string, unknown>,
+    cause?: Error
+  ) {
+    super(message, code, statusCode, { fileId, folderId, ...context }, cause);
+    this.fileId = fileId;
+    this.folderId = folderId;
+  }
+
+  public isRetryable(): boolean {
+    // Rate limit and quota errors are typically retryable
+    return (
+      this.errorCode === 'GOOGLE_DRIVE_RATE_LIMIT' ||
+      this.errorCode === 'GOOGLE_DRIVE_QUOTA_EXCEEDED' ||
+      this.statusCode >= 500
+    ); // Server errors are retryable
+  }
+}
+
+/**
+ * Drive specific error subtypes
+ */
+export class GoogleDriveNotFoundError extends GoogleDriveError {
+  constructor(
+    fileId: string,
+    context?: Record<string, unknown>,
+    cause?: Error
+  ) {
+    super(
+      `File not found: ${fileId}`,
+      'GOOGLE_DRIVE_FILE_NOT_FOUND',
+      404,
+      fileId,
+      undefined,
+      context,
+      cause
+    );
+  }
+
+  public isRetryable(): boolean {
+    return false;
+  }
+}
+
+export class GoogleDrivePermissionError extends GoogleDriveError {
+  constructor(
+    fileId?: string,
+    folderId?: string,
+    context?: Record<string, unknown>,
+    cause?: Error
+  ) {
+    const resourceInfo = fileId || folderId || 'resource';
+    super(
+      `Permission denied for ${resourceInfo}`,
+      'GOOGLE_DRIVE_PERMISSION_DENIED',
+      403,
+      fileId,
+      folderId,
+      context,
+      cause
+    );
+  }
+
+  public isRetryable(): boolean {
+    return false;
+  }
+}
+
+export class GoogleDriveRateLimitError extends GoogleDriveError {
+  public readonly retryAfterMs?: number;
+
+  constructor(
+    retryAfterMs?: number,
+    context?: Record<string, unknown>,
+    cause?: Error
+  ) {
+    super(
+      'Rate limit exceeded for Google Drive API',
+      'GOOGLE_DRIVE_RATE_LIMIT',
+      429,
+      undefined,
+      undefined,
+      { retryAfterMs, ...context },
+      cause
+    );
+    this.retryAfterMs = retryAfterMs;
+  }
+
+  public isRetryable(): boolean {
+    return true;
+  }
+}
+
+export class GoogleDriveQuotaExceededError extends GoogleDriveError {
+  constructor(context?: Record<string, unknown>, cause?: Error) {
+    super(
+      'Daily quota exceeded for Google Drive API',
+      'GOOGLE_DRIVE_QUOTA_EXCEEDED',
+      429,
+      undefined,
+      undefined,
+      context,
+      cause
+    );
+  }
+
+  public isRetryable(): boolean {
+    return true;
+  }
+}
+
+/**
  * Type definitions for Result pattern integration
  */
 export type GoogleWorkspaceResult<T> = Result<T, GoogleWorkspaceError>;
 export type GoogleAuthResult<T> = Result<T, GoogleAuthError>;
 export type GoogleSheetsResult<T> = Result<T, GoogleSheetsError>;
 export type GoogleCalendarResult<T> = Result<T, GoogleCalendarError>;
+export type GoogleDriveResult<T> = Result<T, GoogleDriveError>;
 
 /**
  * Helper functions for creating Results
@@ -765,6 +889,10 @@ export const calendarOk = <T>(value: T): GoogleCalendarResult<T> =>
 export const calendarErr = (
   error: GoogleCalendarError
 ): GoogleCalendarResult<never> => new Err(error);
+
+export const driveOk = <T>(value: T): GoogleDriveResult<T> => new Ok(value);
+export const driveErr = (error: GoogleDriveError): GoogleDriveResult<never> =>
+  new Err(error);
 
 /**
  * Error factory functions for common error scenarios
@@ -1370,6 +1498,265 @@ export class GoogleErrorFactory {
       normalizedError.httpStatus,
       calendarId,
       eventId,
+      enrichedContext,
+      cause
+    );
+  }
+
+  /**
+   * Create a Drive error from a generic error
+   *
+   * @param cause - The original error that occurred
+   * @param fileId - The ID of the file being accessed (if applicable)
+   * @param folderId - The ID of the folder being accessed (if applicable)
+   * @param context - Additional context data
+   * @returns Appropriate GoogleDriveError subclass
+   */
+  static createDriveError(
+    cause: Error | null | undefined,
+    fileId?: string,
+    folderId?: string,
+    context?: Record<string, unknown>
+  ): GoogleDriveError {
+    // Handle null/undefined errors gracefully
+    if (!cause) {
+      return new GoogleDriveError(
+        'Unknown Drive error',
+        'GOOGLE_DRIVE_ERROR',
+        500,
+        fileId,
+        folderId,
+        context
+      );
+    }
+
+    // If it's already a GoogleDriveError, return it as-is
+    if (cause instanceof GoogleDriveError) {
+      return cause;
+    }
+
+    // If it's a GoogleAuthError, convert it to DriveError while preserving status
+    if (cause instanceof GoogleAuthError) {
+      return new GoogleDriveError(
+        cause.message,
+        'GOOGLE_DRIVE_AUTH_ERROR',
+        cause.statusCode,
+        fileId,
+        folderId,
+        { ...context, authType: cause.authType },
+        cause
+      );
+    }
+
+    // Extract normalized error information
+    const errorToExtract = context?.originalGaxiosError || cause;
+    const normalizedError = extractGoogleApiError(errorToExtract);
+    const enrichedContext = {
+      normalizedError,
+      ...context,
+    };
+
+    // Helper function to override error message when normalized message is more specific
+    const overrideMessageIfBetter = <T extends GoogleDriveError>(
+      errorInstance: T
+    ): T => {
+      if (
+        normalizedError.message &&
+        normalizedError.message !== cause.message
+      ) {
+        Object.defineProperty(errorInstance, 'message', {
+          value: normalizedError.message,
+          writable: false,
+          configurable: false,
+        });
+      }
+      return errorInstance;
+    };
+
+    // Helper function to extract retry-after from headers
+    const extractRetryAfter = (): number | undefined => {
+      if (context?.originalGaxiosError) {
+        const gaxiosError = context.originalGaxiosError as GaxiosErrorLike;
+        const retryAfterHeader = gaxiosError?.response?.headers?.[
+          'retry-after'
+        ] as string | undefined;
+        if (retryAfterHeader) {
+          return parseInt(retryAfterHeader, 10) * 1000;
+        }
+      }
+      return undefined;
+    };
+
+    // Priority 1: Use structured reason field for classification
+    if (normalizedError.reason) {
+      switch (normalizedError.reason) {
+        case 'notFound':
+          return overrideMessageIfBetter(
+            new GoogleDriveNotFoundError(
+              fileId || folderId || 'unknown',
+              enrichedContext
+            )
+          );
+
+        case 'forbidden':
+          return overrideMessageIfBetter(
+            new GoogleDrivePermissionError(fileId, folderId, enrichedContext)
+          );
+
+        case 'rateLimitExceeded':
+          return new GoogleDriveRateLimitError(
+            extractRetryAfter(),
+            enrichedContext
+          );
+
+        case 'quotaExceeded':
+          return new GoogleDriveQuotaExceededError(enrichedContext);
+
+        case 'backendError':
+        case 'internalServerError':
+          return new GoogleDriveError(
+            normalizedError.message,
+            'GOOGLE_DRIVE_SERVER_ERROR',
+            normalizedError.httpStatus,
+            fileId,
+            folderId,
+            enrichedContext,
+            cause
+          );
+      }
+    }
+
+    // Check for simple status/message objects (common in tests)
+    if (
+      typeof cause === 'object' &&
+      'status' in cause &&
+      typeof (cause as { status: unknown }).status === 'number'
+    ) {
+      const causeWithStatus = cause as { status: number; message?: string };
+      const statusCode = causeWithStatus.status;
+      const errorMessage = causeWithStatus.message || normalizedError.message;
+
+      switch (statusCode) {
+        case 404:
+          return new GoogleDriveNotFoundError(
+            fileId || folderId || 'unknown',
+            enrichedContext
+          );
+        case 403:
+          return new GoogleDrivePermissionError(
+            fileId,
+            folderId,
+            enrichedContext
+          );
+        case 429:
+          return new GoogleDriveRateLimitError(undefined, enrichedContext);
+        default:
+          return new GoogleDriveError(
+            errorMessage,
+            'GOOGLE_DRIVE_ERROR',
+            statusCode,
+            fileId,
+            folderId,
+            enrichedContext,
+            cause
+          );
+      }
+    }
+
+    // Priority 2: Use HTTP status code for classification
+    switch (normalizedError.httpStatus) {
+      case 404:
+        return overrideMessageIfBetter(
+          new GoogleDriveNotFoundError(
+            fileId || folderId || 'unknown',
+            enrichedContext
+          )
+        );
+
+      case 403:
+        return overrideMessageIfBetter(
+          new GoogleDrivePermissionError(fileId, folderId, enrichedContext)
+        );
+
+      case 429:
+        // Distinguish between rate limit and quota based on context
+        if (
+          normalizedError.reason === 'quotaExceeded' ||
+          normalizedError.domain === 'usageLimits' ||
+          normalizedError.message.toLowerCase().includes('quota')
+        ) {
+          return new GoogleDriveQuotaExceededError(enrichedContext);
+        }
+        return new GoogleDriveRateLimitError(
+          extractRetryAfter(),
+          enrichedContext
+        );
+
+      case 400:
+        return new GoogleDriveError(
+          normalizedError.message,
+          'GOOGLE_DRIVE_INVALID_REQUEST',
+          400,
+          fileId,
+          folderId,
+          enrichedContext,
+          cause
+        );
+
+      case 500:
+      case 502:
+      case 503:
+      case 504:
+        return new GoogleDriveError(
+          normalizedError.message,
+          'GOOGLE_DRIVE_SERVER_ERROR',
+          normalizedError.httpStatus,
+          fileId,
+          folderId,
+          enrichedContext,
+          cause
+        );
+    }
+
+    // Priority 3: Fallback to string matching only if no structured data available
+    if (!normalizedError.reason && cause.message) {
+      const message = cause.message.toLowerCase();
+
+      if (message.includes('not found')) {
+        return new GoogleDriveNotFoundError(
+          fileId || folderId || 'unknown',
+          enrichedContext
+        );
+      }
+
+      if (message.includes('permission') || message.includes('forbidden')) {
+        return new GoogleDrivePermissionError(
+          fileId,
+          folderId,
+          enrichedContext
+        );
+      }
+
+      if (message.includes('rate limit')) {
+        const retryAfterMatch = cause.message.match(/retry after (\d+)/i);
+        const retryAfterMs = retryAfterMatch
+          ? parseInt(retryAfterMatch[1], 10) * 1000
+          : undefined;
+        return new GoogleDriveRateLimitError(retryAfterMs, enrichedContext);
+      }
+
+      if (message.includes('quota') || message.includes('exceeded')) {
+        return new GoogleDriveQuotaExceededError(enrichedContext);
+      }
+    }
+
+    // Default fallback
+    return new GoogleDriveError(
+      normalizedError.message,
+      'GOOGLE_DRIVE_ERROR',
+      normalizedError.httpStatus,
+      fileId,
+      folderId,
       enrichedContext,
       cause
     );

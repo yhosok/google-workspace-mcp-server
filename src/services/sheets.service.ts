@@ -1,6 +1,7 @@
 import { google, sheets_v4, drive_v3 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import type { AuthService } from './auth.service.js';
+import type { DriveService } from './drive.service.js';
 import type {
   SpreadsheetInfo,
   SheetData,
@@ -10,6 +11,7 @@ import type {
 import {
   GoogleService,
   type GoogleServiceRetryConfig,
+  type ServiceContext,
 } from './base/google-service.js';
 import {
   GoogleWorkspaceResult,
@@ -58,6 +60,7 @@ import { loadConfig } from '../config/index.js';
  */
 export class SheetsService extends GoogleService {
   private authService: AuthService;
+  private driveService?: DriveService;
   private sheetsApi?: sheets_v4.Sheets;
   private driveApi?: drive_v3.Drive;
 
@@ -76,6 +79,7 @@ export class SheetsService extends GoogleService {
    * Creates a new SheetsService instance.
    *
    * @param authService - The authentication service for Google API credentials
+   * @param driveService - Optional DriveService for advanced folder operations
    * @param logger - Optional custom logger instance. If not provided, creates a service-specific logger
    * @param retryConfig - Optional retry configuration. If not provided, uses default retry settings
    *
@@ -84,8 +88,11 @@ export class SheetsService extends GoogleService {
    * // Basic usage
    * const service = new SheetsService(authService);
    *
+   * // With DriveService for folder operations
+   * const service = new SheetsService(authService, driveService);
+   *
    * // With custom logger and retry config
-   * const service = new SheetsService(authService, customLogger, {
+   * const service = new SheetsService(authService, driveService, customLogger, {
    *   maxAttempts: 3,
    *   baseDelay: 1000,
    *   maxDelay: 30000
@@ -94,12 +101,14 @@ export class SheetsService extends GoogleService {
    */
   constructor(
     authService: AuthService,
+    driveService?: DriveService,
     logger?: Logger,
     retryConfig?: GoogleServiceRetryConfig
   ) {
     const serviceLogger = logger || createServiceLogger('sheets-service');
     super(new OAuth2Client(), serviceLogger, retryConfig); // Temporary client, will be replaced
     this.authService = authService;
+    this.driveService = driveService;
   }
 
   public getServiceName(): string {
@@ -1132,7 +1141,8 @@ export class SheetsService extends GoogleService {
    *
    * **Sheet Creation**: Can create multiple initial sheets or defaults to 'Sheet1'.
    *
-   * **Requirements**: GOOGLE_DRIVE_FOLDER_ID environment variable must be set.
+   * **Folder Placement**: If GOOGLE_DRIVE_FOLDER_ID is set and DriveService is available,
+   * creates the spreadsheet in the specified folder. Otherwise uses traditional Sheets API.
    *
    * @param title - The title for the new spreadsheet (cannot be empty)
    * @param sheetTitles - Optional array of initial sheet titles (must be unique)
@@ -1198,20 +1208,8 @@ export class SheetsService extends GoogleService {
       }
     }
 
-    // Check for GOOGLE_DRIVE_FOLDER_ID
+    // Load configuration (GOOGLE_DRIVE_FOLDER_ID is optional)
     const config = loadConfig();
-    if (
-      !config.GOOGLE_DRIVE_FOLDER_ID ||
-      config.GOOGLE_DRIVE_FOLDER_ID.trim() === ''
-    ) {
-      return sheetsErr(
-        new GoogleSheetsError(
-          'GOOGLE_DRIVE_FOLDER_ID environment variable is required',
-          'GOOGLE_SHEETS_CONFIG_ERROR',
-          500
-        )
-      );
-    }
 
     const context = this.createContext('createSpreadsheet', {
       title,
@@ -1221,40 +1219,127 @@ export class SheetsService extends GoogleService {
     return this.executeAsyncWithRetry(async () => {
       await this.ensureInitialized();
 
-      if (!this.sheetsApi || !this.driveApi) {
+      if (!this.sheetsApi) {
         throw new GoogleSheetsError(
-          'Sheets or Drive API not initialized',
+          'Sheets API not initialized',
           'GOOGLE_SHEETS_NOT_INITIALIZED',
           500
         );
       }
 
-      // Prepare the spreadsheet properties
-      const spreadsheetProperties: sheets_v4.Schema$SpreadsheetProperties = {
-        title: title.trim(),
-      };
+      // Check if we should use DriveService for folder-based creation
+      const useDriveService =
+        this.driveService &&
+        config.GOOGLE_DRIVE_FOLDER_ID &&
+        config.GOOGLE_DRIVE_FOLDER_ID.trim() !== '';
 
-      // Prepare sheets if provided
-      let sheetsToCreate: sheets_v4.Schema$Sheet[] = [];
-      if (sheetTitles && sheetTitles.length > 0) {
-        sheetsToCreate = sheetTitles.map((sheetTitle, index) => ({
-          properties: {
-            title: sheetTitle.trim(),
-            index,
-            sheetType: 'GRID',
-            gridProperties: {
-              rowCount: 1000,
-              columnCount: 26,
-            },
-          },
-        }));
+      if (useDriveService) {
+        // NEW PATH: Use DriveService to create spreadsheet directly in folder
+        return this.createSpreadsheetWithDriveService(
+          title,
+          sheetTitles,
+          config.GOOGLE_DRIVE_FOLDER_ID!,
+          context
+        );
       } else {
-        // Default single sheet
-        sheetsToCreate = [
-          {
+        // OLD PATH: Use traditional Sheets API creation (backward compatible)
+        return this.createSpreadsheetWithSheetsAPI(title, sheetTitles, context);
+      }
+    }, context).andThen(result => sheetsOk(result));
+  }
+
+  /**
+   * Creates a spreadsheet using DriveService for direct folder placement.
+   * This is the preferred method when DriveService is available and folder ID is configured.
+   *
+   * @param title - The spreadsheet title
+   * @param sheetTitles - Optional sheet titles to create
+   * @param folderId - The target folder ID
+   * @param context - The execution context
+   * @returns Promise resolving to spreadsheet creation result
+   * @private
+   */
+  private async createSpreadsheetWithDriveService(
+    title: string,
+    sheetTitles: readonly string[] | undefined,
+    folderId: string,
+    context: ServiceContext
+  ): Promise<SheetsCreateSpreadsheetResult> {
+    if (!this.driveService) {
+      throw new GoogleSheetsError(
+        'DriveService not available',
+        'GOOGLE_SHEETS_DRIVE_SERVICE_UNAVAILABLE',
+        500
+      );
+    }
+
+    // Step 1: Create spreadsheet in folder using DriveService
+    const driveResult = await this.driveService.createSpreadsheet(
+      title.trim(),
+      folderId
+    );
+
+    if (driveResult.isErr()) {
+      // Convert DriveError to SheetsError for consistency
+      const driveError = driveResult.error;
+      throw new GoogleSheetsError(
+        `Failed to create spreadsheet in folder: ${driveError.message}`,
+        'GOOGLE_SHEETS_DRIVE_CREATE_FAILED',
+        driveError.statusCode || 500
+      );
+    }
+
+    const driveSpreadsheet = driveResult.value;
+    const spreadsheetId = driveSpreadsheet.id;
+    const spreadsheetUrl = driveSpreadsheet.webViewLink;
+
+    this.logger.info('Created spreadsheet using DriveService', {
+      spreadsheetId,
+      title: driveSpreadsheet.name,
+      folderId,
+      requestId: context.requestId,
+    });
+
+    // Step 2: Configure sheets using Sheets API if custom sheets are requested
+    let sheets: Array<{ sheetId: number; title: string; index: number }> = [];
+
+    if (sheetTitles && sheetTitles.length > 0) {
+      // Get current spreadsheet structure
+      const getResponse = await this.sheetsApi!.spreadsheets.get({
+        spreadsheetId,
+      });
+
+      const existingSheets = getResponse.data.sheets || [];
+      const defaultSheet = existingSheets[0]; // Usually 'Sheet1'
+
+      // Build batch update requests
+      const requests: sheets_v4.Schema$Request[] = [];
+
+      // First, rename the default sheet to the first requested name
+      if (defaultSheet && defaultSheet.properties?.sheetId !== undefined) {
+        requests.push({
+          updateSheetProperties: {
             properties: {
-              title: 'Sheet1',
-              index: 0,
+              sheetId: defaultSheet.properties.sheetId,
+              title: sheetTitles[0].trim(),
+            },
+            fields: 'title',
+          },
+        });
+        sheets.push({
+          sheetId: defaultSheet.properties.sheetId || 0,
+          title: sheetTitles[0].trim(),
+          index: 0,
+        });
+      }
+
+      // Add additional sheets if requested
+      for (let i = 1; i < sheetTitles.length; i++) {
+        requests.push({
+          addSheet: {
+            properties: {
+              title: sheetTitles[i].trim(),
+              index: i,
               sheetType: 'GRID',
               gridProperties: {
                 rowCount: 1000,
@@ -1262,84 +1347,160 @@ export class SheetsService extends GoogleService {
               },
             },
           },
-        ];
-      }
-
-      // Create the spreadsheet
-      const createResponse = await this.sheetsApi.spreadsheets.create({
-        requestBody: {
-          properties: spreadsheetProperties,
-          sheets: sheetsToCreate,
-        },
-      });
-
-      if (!createResponse.data.spreadsheetId) {
-        throw new GoogleSheetsError(
-          'Failed to create spreadsheet - no spreadsheet ID returned',
-          'GOOGLE_SHEETS_CREATE_FAILED',
-          500
-        );
-      }
-
-      const spreadsheetId = createResponse.data.spreadsheetId;
-      const spreadsheetUrl =
-        createResponse.data.spreadsheetUrl ||
-        `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
-
-      // Move the spreadsheet to the configured Drive folder
-      try {
-        await this.driveApi.files.update({
-          fileId: spreadsheetId,
-          addParents: config.GOOGLE_DRIVE_FOLDER_ID,
-          removeParents: 'root',
-          fields: 'id, parents',
         });
-      } catch (driveError) {
-        // Log the Drive API error but don't fail the entire operation
-        this.logger.warn(
-          'Failed to move spreadsheet to Drive folder, but spreadsheet was created',
-          {
-            spreadsheetId,
-            folderId: config.GOOGLE_DRIVE_FOLDER_ID,
-            error:
-              driveError instanceof Error
-                ? driveError.message
-                : String(driveError),
-            requestId: context.requestId,
-          }
-        );
       }
 
-      // Prepare the result
-      const sheets = createResponse.data.sheets?.map(sheet => ({
-        sheetId: sheet.properties?.sheetId || 0,
-        title: sheet.properties?.title || 'Sheet1',
-        index: sheet.properties?.index || 0,
-      })) || [
+      // Execute batch update if there are requests
+      if (requests.length > 0) {
+        const batchResponse = await this.sheetsApi!.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: { requests },
+        });
+
+        // Extract sheet information from responses
+        if (batchResponse.data.replies) {
+          for (let i = 1; i < sheetTitles.length; i++) {
+            const reply = batchResponse.data.replies[i];
+            if (reply.addSheet?.properties) {
+              sheets.push({
+                sheetId: reply.addSheet.properties.sheetId || i,
+                title: reply.addSheet.properties.title || sheetTitles[i].trim(),
+                index: reply.addSheet.properties.index || i,
+              });
+            }
+          }
+        }
+      }
+    } else {
+      // No custom sheets requested, use default structure
+      sheets = [
         {
           sheetId: 0,
           title: 'Sheet1',
           index: 0,
         },
       ];
+    }
 
-      const result: SheetsCreateSpreadsheetResult = {
-        spreadsheetId,
-        spreadsheetUrl,
-        title: createResponse.data.properties?.title || title.trim(),
-        sheets,
-      };
+    const result: SheetsCreateSpreadsheetResult = {
+      spreadsheetId,
+      spreadsheetUrl,
+      title: driveSpreadsheet.name,
+      sheets,
+    };
 
-      this.logger.info('Successfully created new spreadsheet', {
-        spreadsheetId,
-        title: result.title,
-        sheetsCount: sheets.length,
-        folderId: config.GOOGLE_DRIVE_FOLDER_ID,
-        requestId: context.requestId,
-      });
+    this.logger.info('Successfully created spreadsheet with DriveService', {
+      spreadsheetId,
+      title: result.title,
+      sheetsCount: sheets.length,
+      folderId,
+      requestId: context.requestId,
+    });
 
-      return result;
-    }, context).andThen(result => sheetsOk(result));
+    return result;
+  }
+
+  /**
+   * Creates a spreadsheet using traditional Sheets API.
+   * This is the fallback method when DriveService is not available or no folder is configured.
+   *
+   * @param title - The spreadsheet title
+   * @param sheetTitles - Optional sheet titles to create
+   * @param context - The execution context
+   * @returns Promise resolving to spreadsheet creation result
+   * @private
+   */
+  private async createSpreadsheetWithSheetsAPI(
+    title: string,
+    sheetTitles: readonly string[] | undefined,
+    context: ServiceContext
+  ): Promise<SheetsCreateSpreadsheetResult> {
+    // Prepare the spreadsheet properties
+    const spreadsheetProperties: sheets_v4.Schema$SpreadsheetProperties = {
+      title: title.trim(),
+    };
+
+    // Prepare sheets if provided
+    let sheetsToCreate: sheets_v4.Schema$Sheet[] = [];
+    if (sheetTitles && sheetTitles.length > 0) {
+      sheetsToCreate = sheetTitles.map((sheetTitle, index) => ({
+        properties: {
+          title: sheetTitle.trim(),
+          index,
+          sheetType: 'GRID',
+          gridProperties: {
+            rowCount: 1000,
+            columnCount: 26,
+          },
+        },
+      }));
+    } else {
+      // Default single sheet
+      sheetsToCreate = [
+        {
+          properties: {
+            title: 'Sheet1',
+            index: 0,
+            sheetType: 'GRID',
+            gridProperties: {
+              rowCount: 1000,
+              columnCount: 26,
+            },
+          },
+        },
+      ];
+    }
+
+    // Create the spreadsheet
+    const createResponse = await this.sheetsApi!.spreadsheets.create({
+      requestBody: {
+        properties: spreadsheetProperties,
+        sheets: sheetsToCreate,
+      },
+    });
+
+    if (!createResponse.data.spreadsheetId) {
+      throw new GoogleSheetsError(
+        'Failed to create spreadsheet - no spreadsheet ID returned',
+        'GOOGLE_SHEETS_CREATE_FAILED',
+        500
+      );
+    }
+
+    const spreadsheetId = createResponse.data.spreadsheetId;
+    const spreadsheetUrl =
+      createResponse.data.spreadsheetUrl ||
+      `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
+
+    // Prepare the result
+    const sheets = createResponse.data.sheets?.map(sheet => ({
+      sheetId: sheet.properties?.sheetId || 0,
+      title: sheet.properties?.title || 'Sheet1',
+      index: sheet.properties?.index || 0,
+    })) || [
+      {
+        sheetId: 0,
+        title: 'Sheet1',
+        index: 0,
+      },
+    ];
+
+    const result: SheetsCreateSpreadsheetResult = {
+      spreadsheetId,
+      spreadsheetUrl,
+      title: createResponse.data.properties?.title || title.trim(),
+      sheets,
+    };
+
+    this.logger.info('Successfully created spreadsheet with Sheets API', {
+      spreadsheetId,
+      title: result.title,
+      sheetsCount: sheets.length,
+      method: 'sheets-api',
+      requestId: context.requestId,
+    });
+
+    return result;
   }
 
   /**

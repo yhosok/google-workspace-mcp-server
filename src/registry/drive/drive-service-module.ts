@@ -1,21 +1,25 @@
+/**
+ * Drive Service Module
+ *
+ * This module implements the ServiceModule interface for Google Drive functionality,
+ * providing centralized management of Drive service, tools, and resources within
+ * the MCP server architecture.
+ *
+ * Features:
+ * - Drive service lifecycle management
+ * - Tool registration and initialization (prepared for future tools)
+ * - Health monitoring and status reporting
+ * - Error handling and recovery
+ * - Resource exposure for drive data (prepared for future resources)
+ */
+
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type {
   ServiceModule,
   ServiceModuleHealthStatus,
 } from '../service-module.interface.js';
 import type { AuthService } from '../../services/auth.service.js';
-import { SheetsService } from '../../services/sheets.service.js';
 import { DriveService } from '../../services/drive.service.js';
-import { SheetsResources } from '../../resources/sheets-resources.js';
-import {
-  SheetsListTool,
-  SheetsReadTool,
-  SheetsWriteTool,
-  SheetsAppendTool,
-  SheetsAddSheetTool,
-  SheetsCreateSpreadsheetTool,
-} from '../../tools/sheets/index.js';
 import type { ToolRegistry } from '../../tools/base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import {
@@ -25,17 +29,15 @@ import {
 import { Logger, createServiceLogger } from '../../utils/logger.js';
 
 /**
- * Service module for Google Sheets integration
- * Manages the lifecycle of Sheets tools, resources, and services
+ * Service module for Google Drive integration
+ * Manages the lifecycle of Drive tools, resources, and services
  */
-export class SheetsServiceModule implements ServiceModule {
-  public readonly name = 'sheets';
-  public readonly displayName = 'Google Sheets';
+export class DriveServiceModule implements ServiceModule {
+  public readonly name = 'drive';
+  public readonly displayName = 'Google Drive';
   public readonly version = '1.0.0';
 
-  private sheetsService?: SheetsService;
   private driveService?: DriveService;
-  private sheetsResources?: SheetsResources;
   private tools: ToolRegistry[] = [];
   private logger: Logger;
   private initialized = false;
@@ -43,11 +45,11 @@ export class SheetsServiceModule implements ServiceModule {
   private initializationTime?: number;
 
   constructor(logger?: Logger) {
-    this.logger = logger || createServiceLogger('sheets-service-module');
+    this.logger = logger || createServiceLogger('drive-service-module');
   }
 
   /**
-   * Initialize the Sheets service module
+   * Initialize the Drive service module
    */
   public async initialize(
     authService: AuthService
@@ -59,62 +61,42 @@ export class SheetsServiceModule implements ServiceModule {
     this.initializationStartTime = Date.now();
 
     try {
-      this.logger.info('Initializing Sheets service module');
+      this.logger.info('Initializing Drive service module');
 
-      // Initialize Drive service (for folder operations)
+      // Initialize Drive service
       this.driveService = new DriveService(authService);
-      const driveInitResult = await this.driveService.initialize();
-
-      if (driveInitResult.isErr()) {
-        this.logger.warn(
-          'Failed to initialize Drive service for Sheets module',
-          {
-            error: driveInitResult.error.toJSON(),
-          }
-        );
-        // Continue without DriveService - this maintains backward compatibility
-        this.driveService = undefined;
-      }
-
-      // Initialize Sheets service (with optional DriveService)
-      this.sheetsService = new SheetsService(authService, this.driveService);
-      const initResult = await this.sheetsService.initialize();
+      const initResult = await this.driveService.initialize();
 
       if (initResult.isErr()) {
-        this.logger.error('Failed to initialize Sheets service', {
+        this.logger.error('Failed to initialize Drive service', {
           error: initResult.error.toJSON(),
         });
         return err(
           new GoogleServiceError(
-            `Failed to initialize Sheets service: ${initResult.error.message}`,
+            `Failed to initialize Drive service: ${initResult.error.message}`,
             this.name,
-            'SHEETS_SERVICE_INIT_FAILED',
+            'DRIVE_SERVICE_INIT_FAILED',
             500,
             { originalError: initResult.error }
           )
         );
       }
 
-      // Initialize resources
-      this.sheetsResources = new SheetsResources(
-        authService,
-        this.sheetsService
-      );
-
-      // Create tool instances
+      // Create tool instances (currently empty, prepared for future tools)
       this.tools = [
-        new SheetsListTool(this.sheetsService, authService),
-        new SheetsReadTool(this.sheetsService, authService),
-        new SheetsWriteTool(this.sheetsService, authService),
-        new SheetsAppendTool(this.sheetsService, authService),
-        new SheetsAddSheetTool(this.sheetsService, authService),
-        new SheetsCreateSpreadsheetTool(this.sheetsService, authService),
+        // TODO: Future Drive tools would be initialized here:
+        // new DriveListTool(this.driveService, authService),
+        // new DriveCreateFolderTool(this.driveService, authService),
+        // new DriveDeleteTool(this.driveService, authService),
+        // new DriveShareTool(this.driveService, authService),
+        // new DriveDownloadTool(this.driveService, authService),
+        // new DriveUploadTool(this.driveService, authService),
       ];
 
       this.initialized = true;
       this.initializationTime = Date.now() - this.initializationStartTime;
 
-      this.logger.info('Sheets service module initialized successfully', {
+      this.logger.info('Drive service module initialized successfully', {
         initializationTime: this.initializationTime,
         toolsCreated: this.tools.length,
       });
@@ -124,16 +106,16 @@ export class SheetsServiceModule implements ServiceModule {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      this.logger.error('Sheets service module initialization failed', {
+      this.logger.error('Drive service module initialization failed', {
         error: errorMessage,
         stack: error instanceof Error ? error.stack : undefined,
       });
 
       return err(
         new GoogleServiceError(
-          `Sheets service module initialization failed: ${errorMessage}`,
+          `Drive service module initialization failed: ${errorMessage}`,
           this.name,
-          'SHEETS_MODULE_INIT_FAILED',
+          'DRIVE_MODULE_INIT_FAILED',
           500,
           { error: errorMessage }
         )
@@ -142,15 +124,15 @@ export class SheetsServiceModule implements ServiceModule {
   }
 
   /**
-   * Register all Sheets tools with the MCP server
+   * Register all Drive tools with the MCP server
    */
   public registerTools(server: McpServer): Result<void, GoogleWorkspaceError> {
-    if (!this.initialized || !this.tools.length) {
+    if (!this.initialized) {
       return err(
         new GoogleServiceError(
-          'Sheets service module not initialized. Call initialize() first.',
+          'Drive service module not initialized. Call initialize() first.',
           this.name,
-          'SHEETS_MODULE_NOT_INITIALIZED',
+          'DRIVE_MODULE_NOT_INITIALIZED',
           500,
           {}
         )
@@ -191,7 +173,7 @@ export class SheetsServiceModule implements ServiceModule {
         }
       }
 
-      this.logger.info('All Sheets tools registered successfully', {
+      this.logger.info('All Drive tools registered successfully', {
         registeredCount,
         moduleName: this.name,
       });
@@ -219,17 +201,17 @@ export class SheetsServiceModule implements ServiceModule {
   }
 
   /**
-   * Register all Sheets resources with the MCP server
+   * Register all Drive resources with the MCP server
    */
   public registerResources(
     server: McpServer
   ): Result<void, GoogleWorkspaceError> {
-    if (!this.initialized || !this.sheetsResources) {
+    if (!this.initialized) {
       return err(
         new GoogleServiceError(
-          'Sheets service module not initialized. Call initialize() first.',
+          'Drive service module not initialized. Call initialize() first.',
           this.name,
-          'SHEETS_MODULE_NOT_INITIALIZED',
+          'DRIVE_MODULE_NOT_INITIALIZED',
           500,
           {}
         )
@@ -237,65 +219,15 @@ export class SheetsServiceModule implements ServiceModule {
     }
 
     try {
-      let registeredCount = 0;
+      // TODO: Implement Drive resources when needed
+      // Resources could include:
+      // - Drive file metadata resource
+      // - Folder structure resource
+      // - File content resource
+      // - Sharing permissions resource
 
-      // Register spreadsheet-schema resource
-      server.registerResource(
-        'spreadsheet-schema',
-        'schema://spreadsheets',
-        {
-          title: 'Spreadsheet Schema',
-          description:
-            'Schema information for Google Sheets tools and resources',
-          mimeType: 'application/json',
-        },
-        async uri => {
-          const result = await this.sheetsResources!.getSpreadsheetSchema(
-            uri.href
-          );
-          return {
-            contents: [result],
-          } as any;
-        }
-      );
-      registeredCount++;
-
-      this.logger.debug('Resource registered successfully', {
-        resourceName: 'spreadsheet-schema',
-        moduleName: this.name,
-      });
-
-      // Register spreadsheet-data resource (dynamic URI)
-      server.registerResource(
-        'spreadsheet-data',
-        new ResourceTemplate('spreadsheet://{spreadsheetId}', {
-          list: undefined,
-        }),
-        {
-          title: 'Spreadsheet Data',
-          description:
-            'Metadata and structure information for a specific spreadsheet',
-          mimeType: 'application/json',
-        },
-        async (uri, { spreadsheetId }) => {
-          const result = await this.sheetsResources!.getSpreadsheetData(
-            uri.href,
-            spreadsheetId as string
-          );
-          return {
-            contents: [result],
-          } as any;
-        }
-      );
-      registeredCount++;
-
-      this.logger.debug('Resource registered successfully', {
-        resourceName: 'spreadsheet-data',
-        moduleName: this.name,
-      });
-
-      this.logger.info('All Sheets resources registered successfully', {
-        registeredCount,
+      this.logger.info('Drive resources registration completed', {
+        registeredCount: 0,
         moduleName: this.name,
       });
 
@@ -326,27 +258,25 @@ export class SheetsServiceModule implements ServiceModule {
    */
   public async cleanup(): Promise<Result<void, GoogleWorkspaceError>> {
     try {
-      this.logger.info('Cleaning up Sheets service module');
+      this.logger.info('Cleaning up Drive service module');
 
       // Clear tools
       this.tools = [];
 
       // Reset services
-      this.sheetsService = undefined;
       this.driveService = undefined;
-      this.sheetsResources = undefined;
 
       // Reset state
       this.initialized = false;
       this.initializationTime = undefined;
 
-      this.logger.info('Sheets service module cleanup completed successfully');
+      this.logger.info('Drive service module cleanup completed successfully');
       return ok(undefined);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      this.logger.error('Sheets service module cleanup failed', {
+      this.logger.error('Drive service module cleanup failed', {
         error: errorMessage,
       });
 
@@ -381,24 +311,17 @@ export class SheetsServiceModule implements ServiceModule {
       message: this.initialized ? undefined : 'Service module not initialized',
       metrics: {
         toolsRegistered: this.tools.length,
-        resourcesRegistered: 2, // spreadsheet-schema and spreadsheet-data
+        resourcesRegistered: 0, // No resources implemented yet
         initializationTime: this.initializationTime,
       },
     };
   }
 
   /**
-   * Get the Sheets service instance (for testing purposes)
+   * Get the Drive service instance (for testing purposes)
    */
-  public getSheetsService(): SheetsService | undefined {
-    return this.sheetsService;
-  }
-
-  /**
-   * Get the Sheets resources instance (for testing purposes)
-   */
-  public getSheetsResources(): SheetsResources | undefined {
-    return this.sheetsResources;
+  public getDriveService(): DriveService | undefined {
+    return this.driveService;
   }
 
   /**
