@@ -96,53 +96,16 @@ export class AuthFactory {
   ): Promise<AuthProvider> {
     logger?.info('AuthFactory: Creating authentication provider', {
       hasServiceAccount: !!config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH,
-      hasOAuthConfig: !!config.GOOGLE_OAUTH_CLIENT_ID,
-      hasOAuthSecret: !!config.GOOGLE_OAUTH_CLIENT_SECRET,
+      hasOAuthConfig: !!(
+        config.GOOGLE_OAUTH_CLIENT_ID && config.GOOGLE_OAUTH_CLIENT_SECRET
+      ),
       explicitAuthMode: config.GOOGLE_AUTH_MODE,
     });
-
-    // Provide helpful logging about authentication configuration
-    if (config.GOOGLE_AUTH_MODE) {
-      logger?.info(`AuthFactory: Explicit authentication mode selected: ${config.GOOGLE_AUTH_MODE}`);
-    } else {
-      logger?.info('AuthFactory: Auto-detecting authentication mode from available configuration');
-    }
 
     // Determine authentication type from configuration
     const authType = this.determineAuthType(config);
 
-    // Provide detailed information about the selected authentication method
-    if (authType === 'service-account') {
-      logger?.info('AuthFactory: Service Account authentication selected', {
-        authType,
-        keyPath: config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH ? '[CONFIGURED]' : '[NOT_SET]',
-        description: 'Server-to-server authentication using JWT tokens',
-        bestFor: 'Automated workflows, server applications, organization-wide access',
-        security: 'High (no user interaction required)',
-      });
-    } else if (authType === 'oauth2') {
-      const clientType = config.GOOGLE_OAUTH_CLIENT_SECRET ? 'confidential' : 'public';
-      const usesPKCE = !config.GOOGLE_OAUTH_CLIENT_SECRET;
-      
-      logger?.info('AuthFactory: OAuth2 authentication selected', {
-        authType,
-        clientType,
-        usesPKCE,
-        clientId: config.GOOGLE_OAUTH_CLIENT_ID ? '[CONFIGURED]' : '[NOT_SET]',
-        hasClientSecret: !!config.GOOGLE_OAUTH_CLIENT_SECRET,
-        description: `${clientType} client OAuth2 authentication`,
-        bestFor: clientType === 'public' 
-          ? 'CLI tools, desktop applications, development environments'
-          : 'Web applications with secure backend',
-        security: usesPKCE 
-          ? 'High (PKCE protection, no client secret needed)'
-          : 'Medium (requires secure client secret storage)',
-      });
-
-      if (usesPKCE) {
-        logger?.info('AuthFactory: PKCE (Proof Key for Code Exchange) will be used for enhanced security');
-      }
-    }
+    logger?.info('AuthFactory: Determined authentication type', { authType });
 
     // Validate configuration for the selected auth type
     const validationResult = this.validateConfig(config, authType);
@@ -150,14 +113,12 @@ export class AuthFactory {
       logger?.error('AuthFactory: Configuration validation failed', {
         authType,
         error: validationResult.error.message,
-        troubleshooting: 'Check environment variables and ensure required credentials are properly configured',
       });
       throw validationResult.error;
     }
 
     logger?.info('AuthFactory: Configuration validated successfully', {
       authType,
-      message: `${authType} authentication configuration is valid and ready to use`,
     });
 
     // Create the appropriate provider
@@ -168,46 +129,11 @@ export class AuthFactory {
 
         case 'oauth2': {
           const oauth2Config = this.extractOAuth2Config(config);
-          const clientType = oauth2Config.clientSecret ? 'confidential' : 'public';
-          
-          logger?.info('AuthFactory: Creating OAuth2 provider', {
-            clientType,
+          logger?.debug('AuthFactory: Creating OAuth2 provider with config', {
             clientId: oauth2Config.clientId,
             redirectUri: oauth2Config.redirectUri,
             scopes: oauth2Config.scopes,
             port: oauth2Config.port,
-            hasClientSecret: !!oauth2Config.clientSecret,
-            securityMode: clientType === 'public' ? 'PKCE' : 'Client Secret',
-            tokenStorage: 'Secure OS keychain with encrypted file fallback',
-          });
-
-          if (clientType === 'public') {
-            logger?.info('AuthFactory: Public client configuration detected', {
-              securityFeatures: [
-                'PKCE (Proof Key for Code Exchange)',
-                'State parameter for CSRF protection',
-                'Secure token storage in OS keychain',
-                'No client secret required'
-              ],
-              recommendation: 'This is the recommended secure configuration for CLI tools and desktop applications'
-            });
-          } else {
-            logger?.warn('AuthFactory: Confidential client configuration detected', {
-              securityNotes: [
-                'Client secret must be kept secure',
-                'Consider using public client (PKCE) for better security',
-                'Ensure client secret is not committed to version control'
-              ],
-              recommendation: 'Consider removing GOOGLE_OAUTH_CLIENT_SECRET to use PKCE instead'
-            });
-          }
-
-          logger?.debug('AuthFactory: OAuth2 configuration details', {
-            clientId: oauth2Config.clientId,
-            redirectUri: oauth2Config.redirectUri,
-            scopes: oauth2Config.scopes,
-            port: oauth2Config.port,
-            clientType,
           });
 
           const tokenStorage = await TokenStorageService.create();
@@ -280,7 +206,9 @@ export class AuthFactory {
 
     // Auto-detect based on available configuration
     const hasServiceAccount = !!config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH;
-    const hasOAuthConfig = !!config.GOOGLE_OAUTH_CLIENT_ID; // OAuth2 supports public clients (client ID only)
+    const hasOAuthConfig = !!(
+      config.GOOGLE_OAUTH_CLIENT_ID && config.GOOGLE_OAUTH_CLIENT_SECRET
+    );
 
     if (hasServiceAccount && !hasOAuthConfig) {
       return 'service-account';
@@ -399,8 +327,18 @@ export class AuthFactory {
       );
     }
 
-    // Note: GOOGLE_OAUTH_CLIENT_SECRET is optional for public clients (PKCE flow)
-    // This allows for more secure OAuth2 implementation without requiring client secrets
+    if (
+      config.GOOGLE_OAUTH_CLIENT_SECRET === undefined ||
+      config.GOOGLE_OAUTH_CLIENT_SECRET === null
+    ) {
+      return err(
+        new GoogleAuthMissingCredentialsError('oauth2', {
+          operation: 'MISSING_OAUTH_CLIENT_SECRET',
+          message:
+            'OAuth2 authentication requires GOOGLE_OAUTH_CLIENT_SECRET to be set',
+        })
+      );
+    }
 
     // Validate field formats
     if (
@@ -415,17 +353,14 @@ export class AuthFactory {
       );
     }
 
-    // Validate client secret format if provided (optional for public clients)
     if (
-      config.GOOGLE_OAUTH_CLIENT_SECRET !== undefined &&
-      config.GOOGLE_OAUTH_CLIENT_SECRET !== null &&
-      (typeof config.GOOGLE_OAUTH_CLIENT_SECRET !== 'string' ||
-        config.GOOGLE_OAUTH_CLIENT_SECRET.trim() === '')
+      typeof config.GOOGLE_OAUTH_CLIENT_SECRET !== 'string' ||
+      config.GOOGLE_OAUTH_CLIENT_SECRET.trim() === ''
     ) {
       return err(
         new GoogleAuthInvalidCredentialsError('oauth2', {
           operation: 'INVALID_OAUTH_CLIENT_SECRET',
-          message: 'GOOGLE_OAUTH_CLIENT_SECRET must be a non-empty string when provided',
+          message: 'GOOGLE_OAUTH_CLIENT_SECRET must be a non-empty string',
         })
       );
     }
@@ -466,28 +401,28 @@ export class AuthFactory {
   /**
    * Extract OAuth2 configuration from environment config.
    *
-   * Creates a properly typed OAuth2Config object with defaults already
-   * applied by the config loading process.
+   * Creates a properly typed OAuth2Config object with sensible defaults
+   * for optional fields.
    *
    * @private
    * @param config - Environment configuration
    * @returns OAuth2 configuration object
    */
   private static extractOAuth2Config(config: EnvironmentConfig): OAuth2Config {
-    // configで既にデフォルト値が適用済みなので、単純に使用
     const scopes = config.GOOGLE_OAUTH_SCOPES
-      ? config.GOOGLE_OAUTH_SCOPES.split(',').map(s => s.trim()).filter(s => s.length > 0)
+      ? config.GOOGLE_OAUTH_SCOPES.split(',').map(s => s.trim())
       : DEFAULT_SCOPES;
 
-    const redirectUri = config.GOOGLE_OAUTH_REDIRECT_URI!; // configで必ず設定される
-    const port = config.GOOGLE_OAUTH_PORT || DEFAULT_OAUTH_PORT;
+    const redirectUri =
+      config.GOOGLE_OAUTH_REDIRECT_URI ||
+      `http://localhost:${config.GOOGLE_OAUTH_PORT || DEFAULT_OAUTH_PORT}/oauth2callback`;
 
     return {
       clientId: config.GOOGLE_OAUTH_CLIENT_ID!,
-      clientSecret: config.GOOGLE_OAUTH_CLIENT_SECRET,
+      clientSecret: config.GOOGLE_OAUTH_CLIENT_SECRET!,
       redirectUri,
       scopes,
-      port,
+      port: config.GOOGLE_OAUTH_PORT || DEFAULT_OAUTH_PORT,
     };
   }
 }

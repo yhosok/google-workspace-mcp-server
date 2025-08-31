@@ -35,15 +35,14 @@ export class AuthService extends GoogleService {
   private initializationPromise: Promise<void> | null = null;
 
   constructor(config: EnvironmentConfig, logger?: Logger) {
-    // Validate basic configuration - OAuth2 now supports public clients (PKCE) without client secret
+    // Validate basic configuration
     if (
       !config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH &&
-      !config.GOOGLE_OAUTH_CLIENT_ID
+      (!config.GOOGLE_OAUTH_CLIENT_ID || !config.GOOGLE_OAUTH_CLIENT_SECRET)
     ) {
       throw new GoogleAuthMissingCredentialsError('service-account', {
         message:
-          'Either service account key path or OAuth2 client ID is required for AuthService. ' +
-          'For OAuth2, client secret is optional (public clients use PKCE for enhanced security).',
+          'Either service account key path or OAuth2 credentials are required for AuthService',
       });
     }
 
@@ -104,11 +103,10 @@ export class AuthService extends GoogleService {
       this.logger.info('Creating authentication provider via AuthFactory', {
         service: this.getServiceName(),
         hasServiceAccount: !!this.config.GOOGLE_SERVICE_ACCOUNT_KEY_PATH,
-        hasOAuth2Config: !!this.config.GOOGLE_OAUTH_CLIENT_ID,
-        hasOAuth2Secret: !!this.config.GOOGLE_OAUTH_CLIENT_SECRET,
-        oauth2ClientType: this.config.GOOGLE_OAUTH_CLIENT_SECRET
-          ? 'confidential'
-          : 'public',
+        hasOAuth2Config: !!(
+          this.config.GOOGLE_OAUTH_CLIENT_ID &&
+          this.config.GOOGLE_OAUTH_CLIENT_SECRET
+        ),
       });
 
       this.provider = await AuthFactory.createAuthProvider(

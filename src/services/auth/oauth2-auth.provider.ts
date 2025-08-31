@@ -900,30 +900,13 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
 
       this.oauth2Client = new OAuth2Client(oauth2ClientConfig);
 
-      // Add enhanced logging for client type detection and security features
+      // Add logging for client type detection
       const clientType = this.config.clientSecret ? 'confidential' : 'public';
-      const usesPKCE = !this.config.clientSecret;
-      
-      this.logger.info(`OAuth2AuthProvider: Initializing ${clientType} OAuth2 client`, {
+      this.logger.info(`Initializing ${clientType} OAuth2 client`, {
         service: this.getServiceName(),
         clientType,
-        usesPKCE,
-        securityMode: usesPKCE ? 'PKCE (Enhanced Security)' : 'Client Secret',
-        tokenStorage: 'OS Keychain with encrypted fallback',
-        operation: 'initialize',
+        hasPKCE: true, // Always true now with PKCE implementation
       });
-
-      if (usesPKCE) {
-        this.logger.info('OAuth2AuthProvider: PKCE security mode enabled', {
-          service: this.getServiceName(),
-          securityBenefits: [
-            'No client secret stored or transmitted',
-            'Protection against authorization code interception',
-            'Enhanced security for public clients'
-          ],
-          operation: 'initialize',
-        });
-      }
 
       // For public clients, verify PKCE is available during initialization
       if (!this.config.clientSecret) {
@@ -1000,7 +983,7 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
   }
 
   /**
-   * Validate OAuth2 configuration and provide security logging.
+   * Validate OAuth2 configuration.
    * @private
    */
   private validateConfig(config: OAuth2Config): OAuth2Config {
@@ -1034,61 +1017,6 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
       new URL(config.redirectUri);
     } catch {
       throw new Error('OAuth2Config: redirectUri must be a valid URL');
-    }
-
-    // Client type detection and security logging
-    const clientType = config.clientSecret ? 'confidential' : 'public';
-    const usesPKCE = !config.clientSecret;
-
-    this.logger.info('OAuth2AuthProvider: Configuration validated', {
-      service: this.getServiceName(),
-      clientType,
-      usesPKCE,
-      clientIdConfigured: !!config.clientId,
-      hasClientSecret: !!config.clientSecret,
-      redirectUri: config.redirectUri,
-      scopesCount: config.scopes.length,
-      port: config.port || 3000,
-    });
-
-    // Provide security information based on client type
-    if (clientType === 'public') {
-      this.logger.info('OAuth2AuthProvider: Public client security features', {
-        service: this.getServiceName(),
-        securityFeatures: [
-          'PKCE (Proof Key for Code Exchange) enabled',
-          'State parameter for CSRF protection',
-          'No client secret required or stored',
-          'Secure token storage with OS keychain'
-        ],
-        securityLevel: 'High',
-        recommendation: 'This is the recommended secure configuration for CLI and desktop applications',
-      });
-    } else {
-      this.logger.warn('OAuth2AuthProvider: Confidential client security considerations', {
-        service: this.getServiceName(),
-        securityNotes: [
-          'Client secret must be kept secure',
-          'Risk of secret exposure in configuration',
-          'Consider using public client (PKCE) for better security'
-        ],
-        securityLevel: 'Medium',
-        recommendation: 'Consider removing client secret to enable PKCE mode for enhanced security',
-        mitigations: [
-          'Ensure client secret is not committed to version control',
-          'Use secure environment variable storage',
-          'Rotate client secret regularly'
-        ]
-      });
-    }
-
-    // Additional security validation for localhost redirects
-    if (config.redirectUri.startsWith('http://localhost')) {
-      this.logger.debug('OAuth2AuthProvider: Localhost redirect URI detected', {
-        service: this.getServiceName(),
-        redirectUri: config.redirectUri,
-        securityNote: 'Localhost redirects are secure for development and CLI applications',
-      });
     }
 
     return {

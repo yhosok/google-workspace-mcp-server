@@ -100,18 +100,6 @@ describe('AuthFactory', () => {
       expect(authType).toBe('oauth2');
     });
 
-    it('should auto-detect oauth2 when only OAuth2 client ID exists (public client)', () => {
-      // Public client対応: client IDのみでOAuth2自動判定
-      const config: EnvironmentConfig = {
-        GOOGLE_OAUTH_CLIENT_ID: 'client-id',
-        // client secretは意図的に設定しない
-        GOOGLE_DRIVE_FOLDER_ID: 'folder-id',
-      };
-
-      const authType = AuthFactory.determineAuthType(config);
-      expect(authType).toBe('oauth2');
-    });
-
     it('should prefer service account when both configurations exist', () => {
       const config: EnvironmentConfig = {
         GOOGLE_SERVICE_ACCOUNT_KEY_PATH: '/path/to/key.json',
@@ -230,43 +218,20 @@ describe('AuthFactory', () => {
         );
       });
 
-      it('should pass validation when client secret is missing (public client support)', () => {
+      it('should fail validation when client secret is missing', () => {
         const config: EnvironmentConfig = {
           GOOGLE_OAUTH_CLIENT_ID: 'client-id',
           GOOGLE_DRIVE_FOLDER_ID: 'folder-id',
         };
 
         const result = AuthFactory.validateConfig(config, 'oauth2');
-        expect(result.isOk()).toBe(true);
-      });
-
-      describe('Public Client Configuration', () => {
-        it('should pass validation for OAuth2 public client (client ID only)', () => {
-          // Public client対応: client secretなしでvalidation通過
-          const config: EnvironmentConfig = {
-            GOOGLE_OAUTH_CLIENT_ID: 'client-id',
-            // client secretは意図的に設定しない
-            GOOGLE_DRIVE_FOLDER_ID: 'folder-id',
-          };
-
-          const result = AuthFactory.validateConfig(config, 'oauth2');
-          expect(result.isOk()).toBe(true);
-        });
-
-        it('should pass validation for OAuth2 public client with custom configuration', () => {
-          // Public client対応: オプション設定ありでもvalidation通過
-          const config: EnvironmentConfig = {
-            GOOGLE_OAUTH_CLIENT_ID: 'client-id',
-            // client secretは意図的に設定しない
-            GOOGLE_OAUTH_REDIRECT_URI: 'http://localhost:8080/callback',
-            GOOGLE_OAUTH_PORT: 8080,
-            GOOGLE_OAUTH_SCOPES: 'scope1,scope2',
-            GOOGLE_DRIVE_FOLDER_ID: 'folder-id',
-          };
-
-          const result = AuthFactory.validateConfig(config, 'oauth2');
-          expect(result.isOk()).toBe(true);
-        });
+        expect(result.isErr()).toBe(true);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAuthMissingCredentialsError
+        );
+        expect(result._unsafeUnwrapErr().context?.message).toContain(
+          'GOOGLE_OAUTH_CLIENT_SECRET'
+        );
       });
 
       it('should fail validation when client ID is empty', () => {
@@ -406,9 +371,6 @@ describe('AuthFactory', () => {
           GOOGLE_AUTH_MODE: 'oauth2',
           GOOGLE_OAUTH_CLIENT_ID: 'client-id',
           GOOGLE_OAUTH_CLIENT_SECRET: 'client-secret',
-          GOOGLE_OAUTH_REDIRECT_URI: 'http://localhost:3000/oauth2callback',
-          GOOGLE_OAUTH_SCOPES: 'https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file',
-          GOOGLE_OAUTH_PORT: 3000,
           GOOGLE_DRIVE_FOLDER_ID: 'folder-id',
         };
 
@@ -471,8 +433,6 @@ describe('AuthFactory', () => {
           GOOGLE_AUTH_MODE: 'oauth2',
           GOOGLE_OAUTH_CLIENT_ID: 'client-id',
           GOOGLE_OAUTH_CLIENT_SECRET: 'client-secret',
-          GOOGLE_OAUTH_REDIRECT_URI: 'http://localhost:8080/oauth2callback',
-          GOOGLE_OAUTH_SCOPES: 'https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file',
           GOOGLE_OAUTH_PORT: 8080,
           GOOGLE_DRIVE_FOLDER_ID: 'folder-id',
         };
@@ -490,74 +450,6 @@ describe('AuthFactory', () => {
           mockTokenStorage,
           mockLogger
         );
-      });
-
-      describe('Public Client Provider Creation', () => {
-        it('should create OAuth2 public client provider successfully', async () => {
-          // Public client対応: client secretなしでprovider作成成功
-          const config: EnvironmentConfig = {
-            GOOGLE_AUTH_MODE: 'oauth2',
-            GOOGLE_OAUTH_CLIENT_ID: 'client-id',
-            GOOGLE_OAUTH_REDIRECT_URI: 'http://localhost:3000/oauth2callback',
-            GOOGLE_OAUTH_SCOPES: 'https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file',
-            GOOGLE_OAUTH_PORT: 3000,
-            // client secretは意図的に設定しない
-            GOOGLE_DRIVE_FOLDER_ID: 'folder-id',
-          };
-
-          const mockProvider = { authType: 'oauth2' } as any;
-          MockedOAuth2AuthProvider.mockReturnValue(mockProvider);
-
-          const result = await AuthFactory.createAuthProvider(config, mockLogger);
-
-          expect(result).toBe(mockProvider);
-          expect(MockedTokenStorageService.create).toHaveBeenCalled();
-          expect(MockedOAuth2AuthProvider).toHaveBeenCalledWith(
-            expect.objectContaining({
-              clientId: 'client-id',
-              clientSecret: undefined, // Public clientはclient secretなし
-              redirectUri: 'http://localhost:3000/oauth2callback',
-              scopes: [
-                'https://www.googleapis.com/auth/spreadsheets',
-                'https://www.googleapis.com/auth/calendar',
-                'https://www.googleapis.com/auth/drive.file',
-              ],
-              port: 3000,
-            }),
-            mockTokenStorage,
-            mockLogger
-          );
-        });
-
-        it('should handle extractOAuth2Config for public client correctly', async () => {
-          // extractOAuth2Config動作テスト: client secretがundefinedでも正しくconfig作成
-          const config: EnvironmentConfig = {
-            GOOGLE_AUTH_MODE: 'oauth2',
-            GOOGLE_OAUTH_CLIENT_ID: 'test-client-id',
-            // GOOGLE_OAUTH_CLIENT_SECRETは意図的に設定しない
-            GOOGLE_OAUTH_REDIRECT_URI: 'http://localhost:4000/callback',
-            GOOGLE_OAUTH_PORT: 4000,
-            GOOGLE_OAUTH_SCOPES: 'test-scope1,test-scope2',
-            GOOGLE_DRIVE_FOLDER_ID: 'folder-id',
-          };
-
-          const mockProvider = { authType: 'oauth2' } as any;
-          MockedOAuth2AuthProvider.mockReturnValue(mockProvider);
-
-          await AuthFactory.createAuthProvider(config, mockLogger);
-
-          expect(MockedOAuth2AuthProvider).toHaveBeenCalledWith(
-            expect.objectContaining({
-              clientId: 'test-client-id',
-              clientSecret: undefined, // undefinedであることを確認
-              redirectUri: 'http://localhost:4000/callback',
-              scopes: ['test-scope1', 'test-scope2'],
-              port: 4000,
-            }),
-            mockTokenStorage,
-            mockLogger
-          );
-        });
       });
     });
 
@@ -730,26 +622,13 @@ describe('AuthFactory', () => {
         );
 
         expect(mockLogger.info).toHaveBeenCalledWith(
-          'AuthFactory: Auto-detecting authentication mode from available configuration'
-        );
-
-        expect(mockLogger.info).toHaveBeenCalledWith(
-          'AuthFactory: Service Account authentication selected',
-          expect.objectContaining({
-            authType: 'service-account',
-            keyPath: '[CONFIGURED]',
-            description: 'Server-to-server authentication using JWT tokens',
-            bestFor: 'Automated workflows, server applications, organization-wide access',
-            security: 'High (no user interaction required)',
-          })
+          'AuthFactory: Determined authentication type',
+          { authType: 'service-account' }
         );
 
         expect(mockLogger.info).toHaveBeenCalledWith(
           'AuthFactory: Configuration validated successfully',
-          expect.objectContaining({
-            authType: 'service-account',
-            message: 'service-account authentication configuration is valid and ready to use',
-          })
+          { authType: 'service-account' }
         );
       });
 

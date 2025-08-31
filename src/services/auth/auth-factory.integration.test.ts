@@ -106,9 +106,6 @@ describe('AuthFactory Integration Tests', () => {
         GOOGLE_AUTH_MODE: 'oauth2',
         GOOGLE_OAUTH_CLIENT_ID: 'test-client-id.apps.googleusercontent.com',
         GOOGLE_OAUTH_CLIENT_SECRET: 'test-client-secret',
-        GOOGLE_OAUTH_REDIRECT_URI: 'http://localhost:3000/oauth2callback',
-        GOOGLE_OAUTH_SCOPES: 'https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file',
-        GOOGLE_OAUTH_PORT: 3000,
         GOOGLE_DRIVE_FOLDER_ID: 'test-folder-id',
       };
 
@@ -206,9 +203,6 @@ describe('AuthFactory Integration Tests', () => {
         GOOGLE_OAUTH_CLIENT_ID:
           'auto-detect-client-id.apps.googleusercontent.com',
         GOOGLE_OAUTH_CLIENT_SECRET: 'auto-detect-client-secret',
-        GOOGLE_OAUTH_REDIRECT_URI: 'http://localhost:3000/oauth2callback',
-        GOOGLE_OAUTH_SCOPES: 'https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file',
-        GOOGLE_OAUTH_PORT: 3000,
         GOOGLE_DRIVE_FOLDER_ID: 'test-folder-id',
       };
 
@@ -239,19 +233,17 @@ describe('AuthFactory Integration Tests', () => {
       // attempts to read the non-existent file
     });
 
-    it('should successfully create OAuth2 public client provider', async () => {
+    it('should validate OAuth2 configuration during factory creation', async () => {
       const config: EnvironmentConfig = {
         GOOGLE_AUTH_MODE: 'oauth2',
         GOOGLE_OAUTH_CLIENT_ID: 'test-client-id',
-        GOOGLE_OAUTH_REDIRECT_URI: 'http://localhost:3000/oauth2callback',
-        GOOGLE_OAUTH_SCOPES: 'https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file',
-        GOOGLE_OAUTH_PORT: 3000,
-        // Missing client secret - now valid for public clients
+        // Missing client secret
         GOOGLE_DRIVE_FOLDER_ID: 'test-folder-id',
       };
 
-      const provider = await AuthFactory.createAuthProvider(config, logger);
-      expect(provider.authType).toBe('oauth2');
+      await expect(
+        AuthFactory.createAuthProvider(config, logger)
+      ).rejects.toThrow('Missing required authentication credentials');
     });
   });
 
@@ -260,9 +252,6 @@ describe('AuthFactory Integration Tests', () => {
       const config: EnvironmentConfig = {
         GOOGLE_OAUTH_CLIENT_ID: 'logger-test-client-id',
         GOOGLE_OAUTH_CLIENT_SECRET: 'logger-test-client-secret',
-        GOOGLE_OAUTH_REDIRECT_URI: 'http://localhost:3000/oauth2callback',
-        GOOGLE_OAUTH_SCOPES: 'https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file',
-        GOOGLE_OAUTH_PORT: 3000,
         GOOGLE_DRIVE_FOLDER_ID: 'test-folder-id',
       };
 
@@ -343,9 +332,6 @@ describe('AuthFactory Integration Tests', () => {
             GOOGLE_AUTH_MODE: 'oauth2',
             GOOGLE_OAUTH_CLIENT_ID: 'health-test-client-id',
             GOOGLE_OAUTH_CLIENT_SECRET: 'health-test-client-secret',
-            GOOGLE_OAUTH_REDIRECT_URI: 'http://localhost:3000/oauth2callback',
-            GOOGLE_OAUTH_SCOPES: 'https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file',
-            GOOGLE_OAUTH_PORT: 3000,
             GOOGLE_DRIVE_FOLDER_ID: 'test-folder-id',
           } as EnvironmentConfig,
         },
