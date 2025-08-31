@@ -382,3 +382,75 @@ export interface AuthInfo {
     hasToken: boolean;
   };
 }
+
+// Google Drive related types
+export interface DriveFileInfo {
+  id: string;
+  name: string;
+  mimeType: string;
+  createdTime: string;
+  modifiedTime: string;
+  webViewLink?: string;
+  webContentLink?: string;
+  parents?: string[];
+  size?: string;
+  version?: string;
+  description?: string;
+  owners?: Array<{
+    displayName?: string;
+    emailAddress?: string;
+    me?: boolean;
+  }>;
+  permissions?: Array<{
+    id?: string;
+    type?: string;
+    role?: string;
+  }>;
+}
+
+export interface DriveFileListOptions {
+  query?: string;
+  pageSize?: number;
+  pageToken?: string;
+  orderBy?: string;
+  fields?: string;
+}
+
+export interface DriveFileListResult {
+  files: DriveFileInfo[];
+  nextPageToken?: string;
+  incompleteSearch: boolean;
+}
+
+export interface DriveFileOptions {
+  fields?: string;
+}
+
+export interface DriveFileContentOptions {
+  exportFormat?:
+    | 'pdf'
+    | 'docx'
+    | 'odt'
+    | 'rtf'
+    | 'txt'
+    | 'html'
+    | 'epub'
+    | 'xlsx'
+    | 'ods'
+    | 'csv'
+    | 'pptx'
+    | 'odp'
+    | 'txt'
+    | 'jpeg'
+    | 'png'
+    | 'svg';
+  maxFileSize?: number;
+}
+
+export interface DriveFileContent {
+  content: string | Buffer;
+  mimeType: string;
+  size: number;
+  isExported: boolean;
+  exportFormat?: string;
+}

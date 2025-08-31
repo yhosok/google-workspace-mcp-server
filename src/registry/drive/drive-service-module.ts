@@ -20,6 +20,11 @@ import type {
 } from '../service-module.interface.js';
 import type { AuthService } from '../../services/auth.service.js';
 import { DriveService } from '../../services/drive.service.js';
+import {
+  ListFilesTool,
+  GetFileTool,
+  GetFileContentTool,
+} from '../../tools/drive/index.js';
 import type { ToolRegistry } from '../../tools/base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import {
@@ -82,15 +87,11 @@ export class DriveServiceModule implements ServiceModule {
         );
       }
 
-      // Create tool instances (currently empty, prepared for future tools)
+      // Create tool instances
       this.tools = [
-        // TODO: Future Drive tools would be initialized here:
-        // new DriveListTool(this.driveService, authService),
-        // new DriveCreateFolderTool(this.driveService, authService),
-        // new DriveDeleteTool(this.driveService, authService),
-        // new DriveShareTool(this.driveService, authService),
-        // new DriveDownloadTool(this.driveService, authService),
-        // new DriveUploadTool(this.driveService, authService),
+        new ListFilesTool(this.driveService, authService, this.logger),
+        new GetFileTool(this.driveService, authService, this.logger),
+        new GetFileContentTool(this.driveService, authService, this.logger),
       ];
 
       this.initialized = true;

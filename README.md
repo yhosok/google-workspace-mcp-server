@@ -475,6 +475,60 @@ Deletes a calendar event with optional attendee notifications.
 "Delete the meeting [event-id] from my calendar and notify all attendees"
 ```
 
+### Drive Tools
+
+#### `google-workspace__drive-list`
+Lists files in Google Drive with optional filtering and search capabilities.
+
+**Parameters:**
+- `query` (optional): Search query string (e.g., "name contains 'report'" or "mimeType='application/vnd.google-apps.spreadsheet'")
+- `maxResults` (optional): Maximum number of files to return (default: 10, max: 1000)
+- `orderBy` (optional): Sort order (name, createdTime, modifiedTime, size)
+- `folderId` (optional): List files only in specific folder
+- `pageToken` (optional): Token for pagination
+
+**Example usage in Claude:**
+```
+"List all my Google Drive files"
+"Show me spreadsheets created in the last month"
+"Find files with 'budget' in the name"
+"List files in folder [folder-id]"
+```
+
+#### `google-workspace__drive-get`
+Retrieves comprehensive metadata for a specific Google Drive file.
+
+**Parameters:**
+- `fileId` (required): The ID of the file to retrieve
+- `includePermissions` (optional): Include file sharing permissions (default: false)
+
+**Example usage in Claude:**
+```
+"Get details for file [file-id]"
+"Show me metadata for this document including who has access"
+```
+
+#### `google-workspace__drive-get-content`
+Downloads and retrieves the content of a Google Drive file, with automatic export for Google Workspace files.
+
+**Parameters:**
+- `fileId` (required): The ID of the file to download
+- `exportFormat` (optional): Export format for Google Workspace files (pdf, docx, xlsx, pptx, odt, txt, html, etc.)
+
+**Supported Export Formats:**
+- **Google Docs**: pdf, docx, odt, txt, html
+- **Google Sheets**: pdf, xlsx, csv, tsv, ods, html
+- **Google Slides**: pdf, pptx, odp, txt, html, jpeg, png
+- **Google Drawings**: pdf, svg, png, jpeg
+
+**Example usage in Claude:**
+```
+"Download file [file-id]"
+"Export this Google Doc as PDF"
+"Get the content of this spreadsheet as Excel format"
+"Download this presentation as PowerPoint"
+```
+
 ## Retry and Error Handling
 
 ### Automatic Retry Strategy
@@ -662,7 +716,8 @@ GOOGLE_RETRY_MAX_DELAY=60000
 - [x] Comprehensive error handling and logging
 - [x] Google Drive service abstraction with folder management
 - [x] Optional folder-based spreadsheet creation (GOOGLE_DRIVE_FOLDER_ID)
-- [ ] Additional Google Drive file operations (upload, download, share)
+- [x] Google Drive search and reference functionality (list, get, get-content)
+- [ ] Additional Google Drive file operations (upload, modify, share)
 - [ ] Google Docs integration  
 - [ ] Batch operations support
 - [ ] Real-time updates via webhooks

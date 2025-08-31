@@ -298,7 +298,7 @@ export interface CorruptionInfo {
     /** Missing required fields in credential structure */
     missingFields?: string[];
     /** The corrupted structure that was received */
-    receivedStructure?: any;
+    receivedStructure?: unknown;
     /** Type of corruption detected */
     corruptionType?:
       | 'ENCRYPTION_CORRUPTION'
