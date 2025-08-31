@@ -2,21 +2,37 @@ import { DriveServiceModule } from './drive-service-module.js';
 import type { AuthService } from '../../services/auth.service.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { DriveService } from '../../services/drive.service.js';
+import {
+  ListFilesTool,
+  GetFileTool,
+  GetFileContentTool,
+} from '../../tools/drive/index.js';
 import { ok, err } from 'neverthrow';
 import { GoogleServiceError } from '../../errors/index.js';
 
 // Mock DriveService
 jest.mock('../../services/drive.service.js');
 
+// Mock Drive tools
+jest.mock('../../tools/drive/index.js');
+
 const MockedDriveService = DriveService as jest.MockedClass<
   typeof DriveService
 >;
+
+// Mock tool constructors
+const MockedListFilesTool = ListFilesTool as jest.MockedClass<typeof ListFilesTool>;
+const MockedGetFileTool = GetFileTool as jest.MockedClass<typeof GetFileTool>;
+const MockedGetFileContentTool = GetFileContentTool as jest.MockedClass<typeof GetFileContentTool>;
 
 describe('DriveServiceModule', () => {
   let module: DriveServiceModule;
   let mockAuthService: AuthService;
   let mockServer: McpServer;
   let mockDriveService: jest.Mocked<DriveService>;
+  let mockListFilesTool: any;
+  let mockGetFileTool: any;
+  let mockGetFileContentTool: any;
 
   beforeEach(() => {
     module = new DriveServiceModule();
@@ -33,6 +49,24 @@ describe('DriveServiceModule', () => {
     } as unknown as jest.Mocked<DriveService>;
 
     MockedDriveService.mockImplementation(() => mockDriveService);
+
+    // Setup tool mocks
+    mockListFilesTool = {
+      getToolName: jest.fn().mockReturnValue('google-workspace__drive-list'),
+      registerTool: jest.fn(),
+    };
+    mockGetFileTool = {
+      getToolName: jest.fn().mockReturnValue('google-workspace__drive-get'),
+      registerTool: jest.fn(),
+    };
+    mockGetFileContentTool = {
+      getToolName: jest.fn().mockReturnValue('google-workspace__drive-get-content'),
+      registerTool: jest.fn(),
+    };
+
+    MockedListFilesTool.mockImplementation(() => mockListFilesTool);
+    MockedGetFileTool.mockImplementation(() => mockGetFileTool);
+    MockedGetFileContentTool.mockImplementation(() => mockGetFileContentTool);
   });
 
   afterEach(() => {
@@ -61,8 +95,8 @@ describe('DriveServiceModule', () => {
       expect(module.isInitialized()).toBe(true);
       expect(mockDriveService.initialize).toHaveBeenCalled();
 
-      // Check that service is created and tools array is initialized (currently empty)
-      expect(module.getTools()).toHaveLength(0); // No tools yet, prepared for future
+      // Check that service is created and tools array is initialized
+      expect(module.getTools()).toHaveLength(3); // Three tools registered
       expect(module.getDriveService()).toBeDefined();
     });
 
@@ -112,12 +146,15 @@ describe('DriveServiceModule', () => {
       await module.initialize(mockAuthService);
     });
 
-    it('should register all tools successfully (currently empty)', () => {
+    it('should register all tools successfully', () => {
       const result = module.registerTools(mockServer);
 
       expect(result.isOk()).toBe(true);
-      // Currently no tools to register, but the mechanism works
-      expect(module.getTools()).toHaveLength(0);
+      // Three tools should be registered
+      expect(module.getTools()).toHaveLength(3);
+      expect(mockListFilesTool.registerTool).toHaveBeenCalledWith(mockServer);
+      expect(mockGetFileTool.registerTool).toHaveBeenCalledWith(mockServer);
+      expect(mockGetFileContentTool.registerTool).toHaveBeenCalledWith(mockServer);
     });
 
     it('should fail if not initialized', () => {
@@ -236,7 +273,7 @@ describe('DriveServiceModule', () => {
 
       expect(healthStatus.status).toBe('healthy');
       expect(healthStatus.message).toBeUndefined();
-      expect(healthStatus.metrics?.toolsRegistered).toBe(0); // No tools yet
+      expect(healthStatus.metrics?.toolsRegistered).toBe(3); // Three tools registered
       expect(healthStatus.metrics?.resourcesRegistered).toBe(0); // No resources yet
       expect(healthStatus.metrics?.initializationTime).toBeDefined();
     });
@@ -263,7 +300,7 @@ describe('DriveServiceModule', () => {
 
     it('should provide access to internal services for testing', () => {
       expect(module.getDriveService()).toBeDefined();
-      expect(module.getTools()).toHaveLength(0); // Currently no tools
+      expect(module.getTools()).toHaveLength(3); // Three tools registered
     });
 
     it('should return undefined for services when not initialized', async () => {
@@ -295,7 +332,7 @@ describe('DriveServiceModule', () => {
 
       // Verify the tools array can accept new tools
       (module as any).tools.push(mockTool);
-      expect(module.getTools()).toHaveLength(1);
+      expect(module.getTools()).toHaveLength(4); // 3 existing + 1 mock
 
       const result = module.registerTools(mockServer);
       expect(result.isOk()).toBe(true);

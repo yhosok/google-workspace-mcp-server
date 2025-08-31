@@ -436,6 +436,490 @@ export class DriveService extends GoogleService {
   }
 
   /**
+   * Lists files from Google Drive with optional filtering and pagination.
+   *
+   * Retrieves a list of files from the user's Google Drive, with support for:
+   * - Search queries using Google Drive search syntax
+   * - Pagination with page tokens and custom page sizes
+   * - Field selection to optimize performance
+   * - Custom ordering options
+   *
+   * **Use Cases**:
+   * - File browser implementation
+   * - Search functionality
+   * - Bulk operations setup
+   * - Drive content audit
+   *
+   * @param options Optional filtering and pagination parameters
+   * @returns Promise resolving to file list or error
+   *
+   * @example
+   * ```typescript
+   * // List recent files
+   * const result = await service.listFiles();
+   *
+   * // Search for specific files
+   * const searchResult = await service.listFiles({
+   *   query: "name contains 'report' and mimeType = 'application/pdf'"
+   * });
+   *
+   * // Paginated listing
+   * const pageResult = await service.listFiles({
+   *   pageSize: 50,
+   *   pageToken: 'next-page-token'
+   * });
+   * ```
+   */
+  public async listFiles(
+    options?: import('../types/index.js').DriveFileListOptions
+  ): Promise<
+    GoogleDriveResult<import('../types/index.js').DriveFileListResult>
+  > {
+    // Input validation
+    if (options?.pageSize !== undefined) {
+      if (
+        typeof options.pageSize !== 'number' ||
+        options.pageSize < 1 ||
+        options.pageSize > 1000
+      ) {
+        return driveErr(
+          new GoogleDriveError(
+            'pageSize must be between 1 and 1000',
+            'GOOGLE_DRIVE_INVALID_INPUT',
+            400,
+            undefined,
+            undefined,
+            { reason: 'Invalid pageSize parameter' }
+          )
+        );
+      }
+    }
+
+    const context = this.createContext('listFiles', {
+      options,
+    });
+
+    return this.executeAsyncWithRetry(async () => {
+      // Check initialization status first
+      if (!this.isInitialized || !this.driveApi) {
+        throw new GoogleDriveError(
+          'Drive API not initialized',
+          'GOOGLE_DRIVE_NOT_INITIALIZED',
+          500
+        );
+      }
+
+      await this.ensureInitialized();
+
+      // Build request parameters
+      const requestParams: {
+        q?: string;
+        pageSize?: number;
+        pageToken?: string;
+        orderBy?: string;
+        fields: string;
+      } = {
+        fields:
+          options?.fields ||
+          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
+        pageSize: options?.pageSize || 100,
+        orderBy: options?.orderBy || 'modifiedTime desc',
+        ...(options?.query && { q: options.query }),
+        ...(options?.pageToken && { pageToken: options.pageToken }),
+      };
+
+      // Call Drive API
+      const response = await this.driveApi.files.list(requestParams);
+
+      // Validate response
+      if (!response.data) {
+        throw new GoogleDriveError(
+          'Failed to list files - no data returned',
+          'GOOGLE_DRIVE_API_ERROR',
+          500
+        );
+      }
+
+      const result: import('../types/index.js').DriveFileListResult = {
+        files: (response.data.files || []).map(file => ({
+          id: file.id || '',
+          name: file.name || '',
+          mimeType: file.mimeType || '',
+          createdTime: file.createdTime || '',
+          modifiedTime: file.modifiedTime || '',
+          webViewLink: file.webViewLink || undefined,
+          webContentLink: file.webContentLink || undefined,
+          parents: file.parents || undefined,
+          size: file.size || undefined,
+          version: file.version || undefined,
+          description: file.description || undefined,
+          owners: file.owners?.map(owner => ({
+            displayName: owner.displayName || undefined,
+            emailAddress: owner.emailAddress || undefined,
+            me: owner.me || undefined,
+          })),
+          permissions: file.permissions?.map(permission => ({
+            id: permission.id || undefined,
+            type: permission.type || undefined,
+            role: permission.role || undefined,
+          })),
+        })),
+        nextPageToken: response.data.nextPageToken || undefined,
+        incompleteSearch: response.data.incompleteSearch || false,
+      };
+
+      this.logger.info('Successfully listed files', {
+        fileCount: result.files.length,
+        hasNextPage: !!result.nextPageToken,
+        requestId: context.requestId,
+      });
+
+      return result;
+    }, context).andThen(result => driveOk(result));
+  }
+
+  /**
+   * Retrieves detailed metadata for a specific file.
+   *
+   * Gets comprehensive information about a single file including:
+   * - Basic metadata (name, type, dates, size)
+   * - Access URLs (view and download links)
+   * - Permission and ownership information
+   * - Custom properties and descriptions
+   *
+   * **Use Cases**:
+   * - File property inspection
+   * - Access control verification
+   * - File detail display
+   * - Pre-operation validation
+   *
+   * @param fileId The ID of the file to retrieve
+   * @param options Optional parameters for field selection
+   * @returns Promise resolving to file metadata or error
+   *
+   * @example
+   * ```typescript
+   * // Get full file metadata
+   * const result = await service.getFile('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+   *
+   * // Get specific fields only
+   * const minimalResult = await service.getFile('file-id', {
+   *   fields: 'id, name, mimeType, size'
+   * });
+   * ```
+   */
+  public async getFile(
+    fileId: string,
+    options?: import('../types/index.js').DriveFileOptions
+  ): Promise<GoogleDriveResult<import('../types/index.js').DriveFileInfo>> {
+    // Input validation
+    if (!fileId || typeof fileId !== 'string' || fileId.trim() === '') {
+      return driveErr(
+        new GoogleDriveError(
+          'fileId cannot be empty',
+          'GOOGLE_DRIVE_INVALID_INPUT',
+          400,
+          fileId,
+          undefined,
+          { reason: 'File ID parameter is required' }
+        )
+      );
+    }
+
+    const context = this.createContext('getFile', {
+      fileId,
+      options,
+    });
+
+    return this.executeAsyncWithRetry(async () => {
+      // Check initialization status first
+      if (!this.isInitialized || !this.driveApi) {
+        throw new GoogleDriveError(
+          'Drive API not initialized',
+          'GOOGLE_DRIVE_NOT_INITIALIZED',
+          500,
+          fileId
+        );
+      }
+
+      await this.ensureInitialized();
+
+      // Build request parameters
+      const requestParams: {
+        fileId: string;
+        fields: string;
+      } = {
+        fileId: fileId.trim(),
+        fields:
+          options?.fields ||
+          'id, name, mimeType, createdTime, modifiedTime, webViewLink, webContentLink, parents, size, version, description, owners, permissions',
+      };
+
+      // Call Drive API
+      const response = await this.driveApi.files.get(requestParams);
+
+      // Validate response
+      if (!response.data) {
+        throw new GoogleDriveError(
+          'Failed to get file - no data returned',
+          'GOOGLE_DRIVE_API_ERROR',
+          500,
+          fileId
+        );
+      }
+
+      const file = response.data;
+      const result: import('../types/index.js').DriveFileInfo = {
+        id: file.id || '',
+        name: file.name || '',
+        mimeType: file.mimeType || '',
+        createdTime: file.createdTime || '',
+        modifiedTime: file.modifiedTime || '',
+        webViewLink: file.webViewLink || undefined,
+        webContentLink: file.webContentLink || undefined,
+        parents: file.parents || undefined,
+        size: file.size || undefined,
+        version: file.version || undefined,
+        description: file.description || undefined,
+        owners: file.owners?.map(owner => ({
+          displayName: owner.displayName || undefined,
+          emailAddress: owner.emailAddress || undefined,
+          me: owner.me || undefined,
+        })),
+        permissions: file.permissions?.map(permission => ({
+          id: permission.id || undefined,
+          type: permission.type || undefined,
+          role: permission.role || undefined,
+        })),
+      };
+
+      this.logger.info('Successfully retrieved file metadata', {
+        fileId: result.id,
+        fileName: result.name,
+        mimeType: result.mimeType,
+        requestId: context.requestId,
+      });
+
+      return result;
+    }, context).andThen(result => driveOk(result));
+  }
+
+  /**
+   * Downloads file content or exports Google Workspace files.
+   *
+   * Handles both regular file downloads and Google Workspace file exports:
+   * - Regular files: Direct binary/text content download
+   * - Google Docs: Export to PDF, DOCX, ODT, RTF, TXT, HTML, EPUB
+   * - Google Sheets: Export to XLSX, ODS, CSV, PDF
+   * - Google Slides: Export to PPTX, ODP, PDF, TXT, JPEG, PNG, SVG
+   *
+   * **Important**: Large file size validation and memory management included.
+   *
+   * **Use Cases**:
+   * - File backup and archival
+   * - Format conversion workflows
+   * - Content processing pipelines
+   * - Document generation from templates
+   *
+   * @param fileId The ID of the file to download
+   * @param options Optional export format and size limits
+   * @returns Promise resolving to file content or error
+   *
+   * @example
+   * ```typescript
+   * // Download regular file
+   * const result = await service.getFileContent('regular-file-id');
+   *
+   * // Export Google Doc as PDF
+   * const pdfResult = await service.getFileContent('doc-id', {
+   *   exportFormat: 'pdf'
+   * });
+   *
+   * // Export Google Sheets as Excel
+   * const excelResult = await service.getFileContent('sheet-id', {
+   *   exportFormat: 'xlsx'
+   * });
+   * ```
+   */
+  public async getFileContent(
+    fileId: string,
+    options?: import('../types/index.js').DriveFileContentOptions
+  ): Promise<GoogleDriveResult<import('../types/index.js').DriveFileContent>> {
+    // Input validation
+    if (!fileId || typeof fileId !== 'string' || fileId.trim() === '') {
+      return driveErr(
+        new GoogleDriveError(
+          'fileId cannot be empty',
+          'GOOGLE_DRIVE_INVALID_INPUT',
+          400,
+          fileId,
+          undefined,
+          { reason: 'File ID parameter is required' }
+        )
+      );
+    }
+
+    const maxFileSize = options?.maxFileSize || 10 * 1024 * 1024; // 10MB default
+
+    const context = this.createContext('getFileContent', {
+      fileId,
+      options,
+    });
+
+    return this.executeAsyncWithRetry(async () => {
+      // Check initialization status first
+      if (!this.isInitialized || !this.driveApi) {
+        throw new GoogleDriveError(
+          'Drive API not initialized',
+          'GOOGLE_DRIVE_NOT_INITIALIZED',
+          500,
+          fileId
+        );
+      }
+
+      await this.ensureInitialized();
+
+      // First, get file metadata to determine the file type and size
+      const metadataResponse = await this.driveApi.files.get({
+        fileId: fileId.trim(),
+        fields: 'id, mimeType, size',
+      });
+
+      if (!metadataResponse.data) {
+        throw new GoogleDriveError(
+          'Failed to get file metadata',
+          'GOOGLE_DRIVE_API_ERROR',
+          500,
+          fileId
+        );
+      }
+
+      const file = metadataResponse.data;
+      const mimeType = file.mimeType || '';
+      const fileSize = parseInt(file.size || '0', 10);
+
+      // Validate file size
+      if (fileSize > maxFileSize) {
+        throw new GoogleDriveError(
+          `File size too large (${Math.round(fileSize / 1024 / 1024)}MB exceeds limit of ${Math.round(maxFileSize / 1024 / 1024)}MB)`,
+          'GOOGLE_DRIVE_FILE_TOO_LARGE',
+          413,
+          fileId
+        );
+      }
+
+      // Define Google Workspace MIME types and their export formats
+      const googleWorkspaceMimeTypes: Record<string, Record<string, string>> = {
+        'application/vnd.google-apps.document': {
+          pdf: 'application/pdf',
+          docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          odt: 'application/vnd.oasis.opendocument.text',
+          rtf: 'application/rtf',
+          txt: 'text/plain',
+          html: 'text/html',
+          epub: 'application/epub+zip',
+        },
+        'application/vnd.google-apps.spreadsheet': {
+          xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          ods: 'application/vnd.oasis.opendocument.spreadsheet',
+          csv: 'text/csv',
+          pdf: 'application/pdf',
+        },
+        'application/vnd.google-apps.presentation': {
+          pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          odp: 'application/vnd.oasis.opendocument.presentation',
+          pdf: 'application/pdf',
+          txt: 'text/plain',
+          jpeg: 'image/jpeg',
+          png: 'image/png',
+          svg: 'image/svg+xml',
+        },
+      };
+
+      let content: string | Buffer;
+      let resultMimeType: string;
+      let isExported = false;
+      let exportFormat: string | undefined;
+      let contentSize: number;
+
+      // Check if it's a Google Workspace file that needs to be exported
+      if (mimeType in googleWorkspaceMimeTypes) {
+        const availableFormats = googleWorkspaceMimeTypes[mimeType];
+        const requestedFormat = options?.exportFormat || 'pdf'; // Default to PDF for Google Workspace files
+
+        // Validate export format
+        if (!(requestedFormat in availableFormats)) {
+          throw new GoogleDriveError(
+            `Unsupported export format '${requestedFormat}' for file type '${mimeType}'. Available formats: ${Object.keys(availableFormats).join(', ')}`,
+            'GOOGLE_DRIVE_INVALID_EXPORT_FORMAT',
+            400,
+            fileId
+          );
+        }
+
+        const exportMimeType = availableFormats[requestedFormat];
+
+        // Export the Google Workspace file
+        const exportResponse = await this.driveApi.files.export({
+          fileId: fileId.trim(),
+          mimeType: exportMimeType,
+        });
+
+        content = exportResponse.data as string | Buffer;
+        resultMimeType = exportMimeType;
+        isExported = true;
+        exportFormat = requestedFormat;
+
+        // For exported files, use content-length from headers or calculate from content
+        contentSize =
+          exportResponse.headers && exportResponse.headers['content-length']
+            ? parseInt(exportResponse.headers['content-length'] as string, 10)
+            : typeof content === 'string'
+              ? Buffer.byteLength(content, 'utf8')
+              : content.length;
+      } else {
+        // Download regular file content
+        const contentResponse = await this.driveApi.files.get({
+          fileId: fileId.trim(),
+          alt: 'media',
+        });
+
+        content = contentResponse.data as string | Buffer;
+        resultMimeType = mimeType;
+
+        // For regular files, use content-length from headers or calculate from actual content
+        contentSize =
+          contentResponse.headers && contentResponse.headers['content-length']
+            ? parseInt(contentResponse.headers['content-length'] as string, 10)
+            : typeof content === 'string'
+              ? Buffer.byteLength(content, 'utf8')
+              : content.length;
+      }
+
+      const result = {
+        content,
+        mimeType: resultMimeType,
+        size: contentSize,
+        isExported,
+        exportFormat,
+      };
+
+      this.logger.info('Successfully retrieved file content', {
+        fileId,
+        fileName: file.name,
+        originalMimeType: mimeType,
+        resultMimeType,
+        isExported,
+        exportFormat,
+        contentSize,
+        requestId: context.requestId,
+      });
+
+      return result;
+    }, context).andThen(result => driveOk(result));
+  }
+
+  /**
    * Retrieves current service statistics and status information.
    *
    * Provides diagnostic information about the service state including:

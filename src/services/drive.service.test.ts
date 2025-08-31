@@ -49,6 +49,8 @@ describe('DriveService', () => {
         create: jest.fn(),
         update: jest.fn(),
         list: jest.fn(),
+        get: jest.fn(),
+        export: jest.fn(),
       },
     };
 
@@ -452,6 +454,685 @@ describe('DriveService', () => {
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         expect(result.error.statusCode).toBe(401);
+      }
+    });
+  });
+
+  describe('listFiles', () => {
+    beforeEach(async () => {
+      mockGoogle.drive.mockReturnValue(mockDriveApi);
+      await driveService.initialize();
+    });
+
+    test('should list files successfully with default parameters', async () => {
+      const mockResponse = {
+        data: {
+          files: [
+            {
+              id: 'file1',
+              name: 'Document 1',
+              mimeType: 'application/vnd.google-apps.document',
+              createdTime: '2024-01-01T12:00:00.000Z',
+              modifiedTime: '2024-01-01T12:00:00.000Z',
+              webViewLink: 'https://docs.google.com/document/d/file1',
+              parents: ['root'],
+              size: '1024',
+            },
+            {
+              id: 'file2',
+              name: 'Spreadsheet 1',
+              mimeType: 'application/vnd.google-apps.spreadsheet',
+              createdTime: '2024-01-02T12:00:00.000Z',
+              modifiedTime: '2024-01-02T12:00:00.000Z',
+              webViewLink: 'https://docs.google.com/spreadsheets/d/file2',
+              parents: ['folder1'],
+              size: '2048',
+            },
+          ],
+          nextPageToken: 'next-page-token',
+          incompleteSearch: false,
+        },
+      };
+
+      mockDriveApi.files.list.mockResolvedValue(mockResponse);
+
+      const result = await driveService.listFiles();
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.files).toHaveLength(2);
+        expect(result.value.files[0].id).toBe('file1');
+        expect(result.value.files[0].name).toBe('Document 1');
+        expect(result.value.nextPageToken).toBe('next-page-token');
+        expect(result.value.incompleteSearch).toBe(false);
+      }
+
+      expect(mockDriveApi.files.list).toHaveBeenCalledWith({
+        pageSize: 100,
+        fields:
+          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
+        orderBy: 'modifiedTime desc',
+      });
+    });
+
+    test('should list files with search query', async () => {
+      const mockResponse = {
+        data: {
+          files: [
+            {
+              id: 'file1',
+              name: 'Test Document',
+              mimeType: 'application/vnd.google-apps.document',
+              createdTime: '2024-01-01T12:00:00.000Z',
+              modifiedTime: '2024-01-01T12:00:00.000Z',
+              webViewLink: 'https://docs.google.com/document/d/file1',
+              parents: ['root'],
+              size: '1024',
+            },
+          ],
+          nextPageToken: undefined,
+          incompleteSearch: false,
+        },
+      };
+
+      mockDriveApi.files.list.mockResolvedValue(mockResponse);
+
+      const result = await driveService.listFiles({
+        query: "name contains 'Test'",
+      });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.files).toHaveLength(1);
+        expect(result.value.files[0].name).toBe('Test Document');
+      }
+
+      expect(mockDriveApi.files.list).toHaveBeenCalledWith({
+        q: "name contains 'Test'",
+        pageSize: 100,
+        fields:
+          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
+        orderBy: 'modifiedTime desc',
+      });
+    });
+
+    test('should list files with custom page size and pagination', async () => {
+      const mockResponse = {
+        data: {
+          files: [
+            {
+              id: 'file1',
+              name: 'Document 1',
+              mimeType: 'application/vnd.google-apps.document',
+              createdTime: '2024-01-01T12:00:00.000Z',
+              modifiedTime: '2024-01-01T12:00:00.000Z',
+              webViewLink: 'https://docs.google.com/document/d/file1',
+              parents: ['root'],
+            },
+          ],
+          nextPageToken: undefined,
+          incompleteSearch: false,
+        },
+      };
+
+      mockDriveApi.files.list.mockResolvedValue(mockResponse);
+
+      const result = await driveService.listFiles({
+        pageSize: 10,
+        pageToken: 'existing-page-token',
+      });
+
+      expect(result.isOk()).toBe(true);
+      expect(mockDriveApi.files.list).toHaveBeenCalledWith({
+        pageSize: 10,
+        pageToken: 'existing-page-token',
+        fields:
+          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
+        orderBy: 'modifiedTime desc',
+      });
+    });
+
+    test('should handle empty results', async () => {
+      const mockResponse = {
+        data: {
+          files: [],
+          nextPageToken: undefined,
+          incompleteSearch: false,
+        },
+      };
+
+      mockDriveApi.files.list.mockResolvedValue(mockResponse);
+
+      const result = await driveService.listFiles();
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.files).toHaveLength(0);
+        expect(result.value.nextPageToken).toBeUndefined();
+      }
+    });
+
+    test('should handle 401 Unauthorized error', async () => {
+      const error = new Error('Unauthorized') as Error & { status: number };
+      error.status = 401;
+      mockDriveApi.files.list.mockRejectedValue(error);
+
+      const result = await driveService.listFiles();
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error).toBeInstanceOf(GoogleDriveError);
+        expect(result.error.statusCode).toBe(401);
+        expect(result.error.message).toContain('Unauthorized');
+      }
+    });
+
+    test('should handle 403 Forbidden error', async () => {
+      const error = new Error('Insufficient permissions') as Error & {
+        status: number;
+      };
+      error.status = 403;
+      mockDriveApi.files.list.mockRejectedValue(error);
+
+      const result = await driveService.listFiles();
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(403);
+      }
+    });
+
+    test('should handle 429 Rate Limit error', async () => {
+      const error = new Error('Rate limit exceeded') as Error & {
+        status: number;
+      };
+      error.status = 429;
+      mockDriveApi.files.list.mockRejectedValue(error);
+
+      const result = await driveService.listFiles();
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(429);
+      }
+    });
+
+    test('should handle 500 Internal Server Error', async () => {
+      const error = new Error('Internal server error') as Error & {
+        status: number;
+      };
+      error.status = 500;
+      mockDriveApi.files.list.mockRejectedValue(error);
+
+      const result = await driveService.listFiles();
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(500);
+      }
+    });
+
+    test('should validate page size parameter', async () => {
+      const result = await driveService.listFiles({ pageSize: 0 });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain(
+          'pageSize must be between 1 and 1000'
+        );
+      }
+    });
+
+    test('should validate large page size parameter', async () => {
+      const result = await driveService.listFiles({ pageSize: 1001 });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain(
+          'pageSize must be between 1 and 1000'
+        );
+      }
+    });
+
+    test('should require service initialization', async () => {
+      const uninitializedService = new DriveService(mockAuthService);
+
+      const result = await uninitializedService.listFiles();
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('GOOGLE_DRIVE_NOT_INITIALIZED');
+      }
+    });
+  });
+
+  describe('getFile', () => {
+    beforeEach(async () => {
+      mockGoogle.drive.mockReturnValue(mockDriveApi);
+      mockDriveApi.files.get = jest.fn();
+      await driveService.initialize();
+    });
+
+    test('should get file metadata successfully', async () => {
+      const mockResponse = {
+        data: {
+          id: 'file123',
+          name: 'Test Document',
+          mimeType: 'application/vnd.google-apps.document',
+          createdTime: '2024-01-01T12:00:00.000Z',
+          modifiedTime: '2024-01-01T13:00:00.000Z',
+          webViewLink: 'https://docs.google.com/document/d/file123',
+          webContentLink:
+            'https://docs.google.com/document/d/file123/export?format=pdf',
+          parents: ['parent-folder-id'],
+          size: '2048',
+          version: '1',
+          description: 'A test document',
+          owners: [
+            {
+              displayName: 'John Doe',
+              emailAddress: 'john.doe@example.com',
+              me: true,
+            },
+          ],
+          permissions: [
+            {
+              id: 'permission1',
+              type: 'user',
+              role: 'owner',
+            },
+          ],
+        },
+      };
+
+      mockDriveApi.files.get.mockResolvedValue(mockResponse);
+
+      const result = await driveService.getFile('file123');
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.id).toBe('file123');
+        expect(result.value.name).toBe('Test Document');
+        expect(result.value.mimeType).toBe(
+          'application/vnd.google-apps.document'
+        );
+        expect(result.value.size).toBe('2048');
+        expect(result.value.owners).toHaveLength(1);
+        expect(result.value.owners![0].displayName).toBe('John Doe');
+      }
+
+      expect(mockDriveApi.files.get).toHaveBeenCalledWith({
+        fileId: 'file123',
+        fields:
+          'id, name, mimeType, createdTime, modifiedTime, webViewLink, webContentLink, parents, size, version, description, owners, permissions',
+      });
+    });
+
+    test('should get file with custom fields', async () => {
+      const mockResponse = {
+        data: {
+          id: 'file123',
+          name: 'Test Document',
+          mimeType: 'application/vnd.google-apps.document',
+        },
+      };
+
+      mockDriveApi.files.get.mockResolvedValue(mockResponse);
+
+      const result = await driveService.getFile('file123', {
+        fields: 'id, name, mimeType',
+      });
+
+      expect(result.isOk()).toBe(true);
+      expect(mockDriveApi.files.get).toHaveBeenCalledWith({
+        fileId: 'file123',
+        fields: 'id, name, mimeType',
+      });
+    });
+
+    test('should handle 404 Not Found error', async () => {
+      const error = new Error('File not found') as Error & { status: number };
+      error.status = 404;
+      mockDriveApi.files.get.mockRejectedValue(error);
+
+      const result = await driveService.getFile('non-existent-file');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error).toBeInstanceOf(GoogleDriveError);
+        expect(result.error.statusCode).toBe(404);
+        expect(result.error.message).toContain('File not found');
+      }
+    });
+
+    test('should handle 401 Unauthorized error', async () => {
+      const error = new Error('Unauthorized') as Error & { status: number };
+      error.status = 401;
+      mockDriveApi.files.get.mockRejectedValue(error);
+
+      const result = await driveService.getFile('file123');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(401);
+      }
+    });
+
+    test('should handle 403 Forbidden error', async () => {
+      const error = new Error('Access denied') as Error & { status: number };
+      error.status = 403;
+      mockDriveApi.files.get.mockRejectedValue(error);
+
+      const result = await driveService.getFile('file123');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(403);
+      }
+    });
+
+    test('should validate fileId parameter', async () => {
+      const result1 = await driveService.getFile('');
+
+      expect(result1.isErr()).toBe(true);
+      if (result1.isErr()) {
+        expect(result1.error.message).toContain('fileId cannot be empty');
+      }
+
+      const result2 = await driveService.getFile(null as unknown as string);
+
+      expect(result2.isErr()).toBe(true);
+      if (result2.isErr()) {
+        expect(result2.error.message).toContain('fileId cannot be empty');
+      }
+    });
+
+    test('should require service initialization', async () => {
+      const uninitializedService = new DriveService(mockAuthService);
+
+      const result = await uninitializedService.getFile('file123');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('GOOGLE_DRIVE_NOT_INITIALIZED');
+      }
+    });
+  });
+
+  describe('getFileContent', () => {
+    beforeEach(async () => {
+      mockGoogle.drive.mockReturnValue(mockDriveApi);
+      mockDriveApi.files.get = jest.fn();
+      mockDriveApi.files.export = jest.fn();
+      await driveService.initialize();
+    });
+
+    test('should get file content for regular file', async () => {
+      const mockFileResponse = {
+        data: {
+          id: 'file123',
+          mimeType: 'text/plain',
+          size: '1024',
+        },
+      };
+
+      const mockContentResponse = {
+        data: 'This is the file content',
+        headers: {
+          'content-type': 'text/plain',
+          'content-length': '24',
+        },
+      };
+
+      mockDriveApi.files.get
+        .mockResolvedValueOnce(mockFileResponse) // First call for metadata
+        .mockResolvedValueOnce(mockContentResponse); // Second call for content
+
+      const result = await driveService.getFileContent('file123');
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.content).toBe('This is the file content');
+        expect(result.value.mimeType).toBe('text/plain');
+        expect(result.value.size).toBe(24);
+        expect(result.value.isExported).toBe(false);
+      }
+
+      expect(mockDriveApi.files.get).toHaveBeenNthCalledWith(1, {
+        fileId: 'file123',
+        fields: 'id, mimeType, size',
+      });
+      expect(mockDriveApi.files.get).toHaveBeenNthCalledWith(2, {
+        fileId: 'file123',
+        alt: 'media',
+      });
+    });
+
+    test('should export Google Docs file to PDF', async () => {
+      const mockFileResponse = {
+        data: {
+          id: 'doc123',
+          mimeType: 'application/vnd.google-apps.document',
+          size: undefined, // Google Apps files don't have size
+        },
+      };
+
+      const mockExportResponse = {
+        data: 'PDF content here...',
+        headers: {
+          'content-type': 'application/pdf',
+          'content-length': '2048',
+        },
+      };
+
+      mockDriveApi.files.get.mockResolvedValue(mockFileResponse);
+      mockDriveApi.files.export.mockResolvedValue(mockExportResponse);
+
+      const result = await driveService.getFileContent('doc123');
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.content).toBe('PDF content here...');
+        expect(result.value.mimeType).toBe('application/pdf');
+        expect(result.value.size).toBe(2048);
+        expect(result.value.isExported).toBe(true);
+        expect(result.value.exportFormat).toBe('pdf');
+      }
+
+      expect(mockDriveApi.files.get).toHaveBeenCalledWith({
+        fileId: 'doc123',
+        fields: 'id, mimeType, size',
+      });
+      expect(mockDriveApi.files.export).toHaveBeenCalledWith({
+        fileId: 'doc123',
+        mimeType: 'application/pdf',
+      });
+    });
+
+    test('should export Google Sheets file to Excel', async () => {
+      const mockFileResponse = {
+        data: {
+          id: 'sheet123',
+          mimeType: 'application/vnd.google-apps.spreadsheet',
+        },
+      };
+
+      const mockExportResponse = {
+        data: 'Excel binary content...',
+        headers: {
+          'content-type':
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'content-length': '4096',
+        },
+      };
+
+      mockDriveApi.files.get.mockResolvedValue(mockFileResponse);
+      mockDriveApi.files.export.mockResolvedValue(mockExportResponse);
+
+      const result = await driveService.getFileContent('sheet123', {
+        exportFormat: 'xlsx',
+      });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.mimeType).toBe(
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        );
+        expect(result.value.isExported).toBe(true);
+        expect(result.value.exportFormat).toBe('xlsx');
+      }
+
+      expect(mockDriveApi.files.export).toHaveBeenCalledWith({
+        fileId: 'sheet123',
+        mimeType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+    });
+
+    test('should export Google Slides file to PowerPoint', async () => {
+      const mockFileResponse = {
+        data: {
+          id: 'slides123',
+          mimeType: 'application/vnd.google-apps.presentation',
+        },
+      };
+
+      const mockExportResponse = {
+        data: 'PowerPoint binary content...',
+        headers: {
+          'content-type':
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        },
+      };
+
+      mockDriveApi.files.get.mockResolvedValue(mockFileResponse);
+      mockDriveApi.files.export.mockResolvedValue(mockExportResponse);
+
+      const result = await driveService.getFileContent('slides123', {
+        exportFormat: 'pptx',
+      });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.isExported).toBe(true);
+        expect(result.value.exportFormat).toBe('pptx');
+      }
+    });
+
+    test('should handle large file with size validation', async () => {
+      const mockFileResponse = {
+        data: {
+          id: 'largefile123',
+          mimeType: 'application/pdf',
+          size: '104857601', // > 100MB
+        },
+      };
+
+      mockDriveApi.files.get.mockResolvedValue(mockFileResponse);
+
+      const result = await driveService.getFileContent('largefile123');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('File size too large');
+        expect(result.error.message).toContain('100MB');
+      }
+    });
+
+    test('should handle 404 Not Found error', async () => {
+      const error = new Error('File not found') as Error & { status: number };
+      error.status = 404;
+      mockDriveApi.files.get.mockRejectedValue(error);
+
+      const result = await driveService.getFileContent('non-existent-file');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(404);
+      }
+    });
+
+    test('should handle 403 Access denied error', async () => {
+      const error = new Error('Access denied') as Error & { status: number };
+      error.status = 403;
+      mockDriveApi.files.get.mockRejectedValue(error);
+
+      const result = await driveService.getFileContent('private-file');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(403);
+      }
+    });
+
+    test('should handle unsupported export format', async () => {
+      const mockFileResponse = {
+        data: {
+          id: 'doc123',
+          mimeType: 'application/vnd.google-apps.document',
+        },
+      };
+
+      mockDriveApi.files.get.mockResolvedValue(mockFileResponse);
+
+      const result = await driveService.getFileContent('doc123', {
+        exportFormat: 'unsupported' as any,
+      });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('Unsupported export format');
+      }
+    });
+
+    test('should validate fileId parameter', async () => {
+      const result1 = await driveService.getFileContent('');
+
+      expect(result1.isErr()).toBe(true);
+      if (result1.isErr()) {
+        expect(result1.error.message).toContain('fileId cannot be empty');
+      }
+
+      const result2 = await driveService.getFileContent(
+        null as unknown as string
+      );
+
+      expect(result2.isErr()).toBe(true);
+    });
+
+    test('should require service initialization', async () => {
+      const uninitializedService = new DriveService(mockAuthService);
+
+      const result = await uninitializedService.getFileContent('file123');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('GOOGLE_DRIVE_NOT_INITIALIZED');
+      }
+    });
+
+    test('should handle export API failure', async () => {
+      const mockFileResponse = {
+        data: {
+          id: 'doc123',
+          mimeType: 'application/vnd.google-apps.document',
+        },
+      };
+
+      mockDriveApi.files.get.mockResolvedValue(mockFileResponse);
+
+      const exportError = new Error('Export failed') as Error & {
+        status: number;
+      };
+      exportError.status = 500;
+      mockDriveApi.files.export.mockRejectedValue(exportError);
+
+      const result = await driveService.getFileContent('doc123');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(500);
+        expect(result.error.message).toContain('Export failed');
       }
     });
   });
