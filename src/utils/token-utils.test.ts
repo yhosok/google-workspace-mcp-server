@@ -228,11 +228,21 @@ describe('Token Utils - Unified Schedule-Driven Model', () => {
         const deps = createMockDeps(1000000);
 
         expect(() =>
-          calculateRefreshWindow(null as any, FIVE_MINUTES_MS, 0, deps)
+          calculateRefreshWindow(
+            null as unknown as number,
+            FIVE_MINUTES_MS,
+            0,
+            deps
+          )
         ).toThrow('Token expiry timestamp cannot be null or undefined');
 
         expect(() =>
-          calculateRefreshWindow(undefined as any, FIVE_MINUTES_MS, 0, deps)
+          calculateRefreshWindow(
+            undefined as unknown as number,
+            FIVE_MINUTES_MS,
+            0,
+            deps
+          )
         ).toThrow('Token expiry timestamp cannot be null or undefined');
       });
 

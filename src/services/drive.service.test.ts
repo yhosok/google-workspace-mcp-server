@@ -10,6 +10,7 @@ import {
   GoogleDriveError,
   GoogleWorkspaceResult,
 } from '../errors/index.js';
+import { DriveFileContentOptions } from '../types/index.js';
 import { createServiceLogger } from '../utils/logger.js';
 import { GoogleServiceRetryConfig } from './base/google-service.js';
 
@@ -1076,7 +1077,7 @@ describe('DriveService', () => {
       mockDriveApi.files.get.mockResolvedValue(mockFileResponse);
 
       const result = await driveService.getFileContent('doc123', {
-        exportFormat: 'unsupported' as any,
+        exportFormat: 'unsupported' as DriveFileContentOptions['exportFormat'],
       });
 
       expect(result.isErr()).toBe(true);
