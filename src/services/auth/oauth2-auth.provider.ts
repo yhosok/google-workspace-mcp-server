@@ -31,7 +31,7 @@ import {
 } from './types.js';
 import { TokenStorageService } from './token-storage.service.js';
 import { generateCodeVerifier, generateCodeChallenge } from './pkce-utils.js';
-import { isExpiringSoon, calculateRefreshWindow, DEFAULT_REFRESH_THRESHOLD_MS, DEFAULT_REFRESH_JITTER_MS } from './token-utils.js';
+import { isExpiringSoon, calculateRefreshWindow, DEFAULT_REFRESH_THRESHOLD_MS, DEFAULT_REFRESH_JITTER_MS } from '../../utils/token-utils.js';
 import { GoogleService } from '../base/google-service.js';
 import { Logger } from '../../utils/logger.js';
 import { AuthInfo } from '../../types/index.js';

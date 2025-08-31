@@ -642,11 +642,12 @@ describe('OAuth2AuthProvider', () => {
         });
 
         it('should create variance in refresh timing with jitter', async () => {
-          // This will fail because jitter logic is not implemented
-          // Token expires exactly at 5-minute boundary
-          const boundaryTokens = {
+          // Test tokens that are slightly beyond the 5-minute threshold
+          // With early-only jitter (0-30s), some random values will pull the refresh time
+          // earlier than "now" (causing refresh), others won't
+          const slightlyBeyondThresholdTokens = {
             ...validTokens,
-            expiry_date: MOCK_NOW + (5 * 60 * 1000), // Exactly 5 minutes
+            expiry_date: MOCK_NOW + (5 * 60 * 1000) + 15000, // 5 minutes + 15 seconds (beyond threshold)
             refresh_token: 'valid-refresh-token',
           };
 
@@ -657,10 +658,19 @@ describe('OAuth2AuthProvider', () => {
 
           const refreshResults: boolean[] = [];
           
+          // Mock Math.random to generate controlled jitter values
+          const originalRandom = Math.random;
+          
           // Test multiple times to verify jitter creates variance
           for (let i = 0; i < 50; i++) {
+            // Alternate between high jitter (no refresh) and low jitter (refresh)
+            // Low jitter (5s): won't trigger refresh for token 15s beyond threshold  
+            // High jitter (20s): will trigger refresh by pulling refresh time earlier
+            const jitterMs = (i % 2 === 0) ? 5000 : 20000; // 5s vs 20s jitter
+            Math.random = jest.fn(() => jitterMs / 30000); // Convert to 0-1 range for 30s max jitter
+            
             // Reset credentials for each test
-            mockOAuth2ClientInstance.credentials = { ...boundaryTokens };
+            mockOAuth2ClientInstance.credentials = { ...slightlyBeyondThresholdTokens };
             jest.clearAllMocks();
 
             const result = await provider.validateAuth();
@@ -671,7 +681,10 @@ describe('OAuth2AuthProvider', () => {
             }
           }
 
-          // Should have both refresh and non-refresh results due to jitter
+          // Restore original Math.random
+          Math.random = originalRandom;
+
+          // Should have both refresh and non-refresh results due to jitter variance
           expect(refreshResults).toContain(true);
           expect(refreshResults).toContain(false);
           
@@ -777,12 +790,14 @@ describe('OAuth2AuthProvider', () => {
         });
 
         it('should respect custom jitter configuration', async () => {
-          // This will fail because custom jitter configuration doesn't exist
           process.env.GOOGLE_OAUTH2_REFRESH_JITTER = '60000'; // 1 minute jitter
 
-          const boundaryTokens = {
+          // Test with tokens beyond the threshold + custom jitter range
+          // With 1-minute early-only jitter, we need tokens far enough beyond threshold
+          // to demonstrate that some jitter values will trigger refresh, others won't
+          const beyondCustomJitterTokens = {
             ...validTokens,
-            expiry_date: MOCK_NOW + (5 * 60 * 1000), // Exactly 5 minutes
+            expiry_date: MOCK_NOW + (5 * 60 * 1000) + 30000, // 5 minutes + 30 seconds
             refresh_token: 'valid-refresh-token',
           };
 
@@ -791,16 +806,30 @@ describe('OAuth2AuthProvider', () => {
           });
           mockTokenStorage.saveTokens.mockResolvedValue();
 
-          // Mock maximum positive jitter (should delay refresh)
           const originalRandom = Math.random;
-          Math.random = jest.fn(() => 1);
+          const refreshResults: boolean[] = [];
 
-          mockOAuth2ClientInstance.credentials = { ...boundaryTokens };
-          const result = await provider.validateAuth();
+          // Test with different jitter values to verify custom configuration
+          for (let i = 0; i < 10; i++) {
+            // Alternate between low jitter (no refresh) and high jitter (refresh)
+            // Low jitter (10s): won't trigger refresh for token 30s beyond threshold
+            // High jitter (45s): will trigger refresh by pulling refresh time earlier
+            const jitterMs = (i % 2 === 0) ? 10000 : 45000; // 10s vs 45s jitter
+            Math.random = jest.fn(() => jitterMs / 60000); // Convert to 0-1 range for 60s max jitter
+            
+            mockOAuth2ClientInstance.credentials = { ...beyondCustomJitterTokens };
+            jest.clearAllMocks();
 
-          // Should NOT refresh due to large positive jitter
-          expectOkValue(result, true);
-          expect(mockOAuth2ClientInstance.refreshAccessToken).not.toHaveBeenCalled();
+            const result = await provider.validateAuth();
+            if (result.isOk()) {
+              const refreshWasCalled = (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mock.calls.length > 0;
+              refreshResults.push(refreshWasCalled);
+            }
+          }
+
+          // Should have variance due to custom jitter configuration
+          expect(refreshResults).toContain(true);
+          expect(refreshResults).toContain(false);
 
           Math.random = originalRandom;
           delete process.env.GOOGLE_OAUTH2_REFRESH_JITTER;
@@ -871,38 +900,58 @@ describe('OAuth2AuthProvider', () => {
         });
 
         it('should calculate optimal refresh windows', async () => {
-          // This will fail because refresh window calculation doesn't exist
+          // Test the unified schedule-driven model with early-only jitter
           const testCases = [
-            { minutesLeft: 4, shouldRefresh: true },
-            { minutesLeft: 6, shouldRefresh: false },
-            { minutesLeft: 5, shouldRefresh: 'depends on jitter' }, // Boundary case
+            { minutesLeft: 4, shouldRefresh: true, description: 'within threshold' },
+            { minutesLeft: 6, shouldRefresh: false, description: 'well beyond threshold' },
+            { 
+              minutesLeft: 5, 
+              secondsExtra: 15, 
+              shouldRefresh: 'depends on jitter', 
+              description: 'just beyond threshold - jitter dependent'
+            },
           ];
 
+          (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockResolvedValue({
+            credentials: { ...validTokens, expiry_date: MOCK_NOW + (60 * 60 * 1000) },
+          });
+          mockTokenStorage.saveTokens.mockResolvedValue();
+
           for (const testCase of testCases) {
+            const expiryTime = MOCK_NOW + (testCase.minutesLeft * 60 * 1000) + (testCase.secondsExtra ? testCase.secondsExtra * 1000 : 0);
             const tokens = {
               ...validTokens,
-              expiry_date: MOCK_NOW + (testCase.minutesLeft * 60 * 1000),
+              expiry_date: expiryTime,
               refresh_token: 'valid-refresh-token',
             };
-            mockOAuth2ClientInstance.credentials = { ...tokens };
-            jest.clearAllMocks();
 
             if (testCase.shouldRefresh === 'depends on jitter') {
-              // Test boundary case multiple times
+              // Test boundary case with different jitter values to demonstrate variance
               const refreshResults = [];
+              const originalRandom = Math.random;
+              
               for (let i = 0; i < 20; i++) {
+                // Vary jitter: some values will cause refresh, others won't
+                // Low jitter (5s): won't trigger refresh for token 15s beyond threshold
+                // High jitter (20s): will trigger refresh by pulling refresh time earlier
+                const jitterMs = (i % 2 === 0) ? 5000 : 20000;
+                Math.random = jest.fn(() => jitterMs / 30000); // Convert to 0-1 range
+                
                 mockOAuth2ClientInstance.credentials = { ...tokens };
+                jest.clearAllMocks();
+                
                 await provider.validateAuth();
                 refreshResults.push((mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mock.calls.length > 0);
-                jest.clearAllMocks();
               }
-              // Should have variance due to jitter
+              
+              Math.random = originalRandom;
+              
+              // Should have variance due to jitter in boundary case
               expect(refreshResults).toContain(true);
               expect(refreshResults).toContain(false);
             } else {
-              (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockResolvedValue({
-                credentials: { ...validTokens, expiry_date: MOCK_NOW + (60 * 60 * 1000) },
-              });
+              mockOAuth2ClientInstance.credentials = { ...tokens };
+              jest.clearAllMocks();
 
               await provider.validateAuth();
 
