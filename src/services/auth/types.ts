@@ -7,14 +7,20 @@ import type { OAuth2Client } from 'google-auth-library';
 
 /**
  * OAuth2 configuration parameters required for authentication.
+ *
+ * Google OAuth2 requires both client ID and client secret for all applications.
+ * PKCE (Proof Key for Code Exchange) is used for enhanced security in addition to the client secret.
  */
 export interface OAuth2Config {
   /** Google OAuth2 client ID */
   readonly clientId: string;
-  /** Google OAuth2 client secret */
+  /**
+   * Google OAuth2 client secret (required for all OAuth2 flows).
+   * Google OAuth2 specification requires client secret for authentication.
+   */
   readonly clientSecret: string;
-  /** OAuth2 redirect URI for callback */
-  readonly redirectUri: string;
+  /** OAuth2 redirect URI for callback (default: http://localhost:3000/oauth2callback) */
+  readonly redirectUri?: string;
   /** OAuth2 scopes to request */
   readonly scopes: string[];
   /** Optional port for local callback server (default: 3000) */
@@ -127,6 +133,7 @@ export interface FileSystemDependency {
     unlink(file: string): Promise<void>;
     access(file: string): Promise<void>;
     mkdir(dir: string, options?: { recursive?: boolean }): Promise<void>;
+    rename(oldPath: string, newPath: string): Promise<void>;
   };
 }
 
