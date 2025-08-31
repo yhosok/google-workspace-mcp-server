@@ -87,21 +87,25 @@ describe('AuthMetrics', () => {
       const metrics = AuthMetrics.createInstance();
       metrics.emitRefreshSuccess({
         duration: 1234,
-        type: 'proactive'
+        type: 'proactive',
       });
 
       expect(stderrOutput).toHaveLength(1);
-      expect(stderrOutput[0]).toMatch(/^AUTH_METRIC event=refresh_success duration=1234 type=proactive\n$/);
+      expect(stderrOutput[0]).toMatch(
+        /^AUTH_METRIC event=refresh_success duration=1234 type=proactive\n$/
+      );
     });
 
     it('should emit refresh_success with minimal data', () => {
       const metrics = AuthMetrics.createInstance();
       metrics.emitRefreshSuccess({
-        duration: 567
+        duration: 567,
       });
 
       expect(stderrOutput).toHaveLength(1);
-      expect(stderrOutput[0]).toMatch(/^AUTH_METRIC event=refresh_success duration=567\n$/);
+      expect(stderrOutput[0]).toMatch(
+        /^AUTH_METRIC event=refresh_success duration=567\n$/
+      );
     });
 
     it('should emit refresh_success with all optional fields', () => {
@@ -110,7 +114,7 @@ describe('AuthMetrics', () => {
         duration: 2000,
         type: 'on-demand',
         cached: true,
-        timeUntilExpiry: 300000
+        timeUntilExpiry: 300000,
       });
 
       expect(stderrOutput).toHaveLength(1);
@@ -133,11 +137,13 @@ describe('AuthMetrics', () => {
       const metrics = AuthMetrics.createInstance();
       metrics.emitRefreshFailure({
         error: 'token_expired',
-        duration: 5000
+        duration: 5000,
       });
 
       expect(stderrOutput).toHaveLength(1);
-      expect(stderrOutput[0]).toMatch(/^AUTH_METRIC event=refresh_failure error=token_expired duration=5000\n$/);
+      expect(stderrOutput[0]).toMatch(
+        /^AUTH_METRIC event=refresh_failure error=token_expired duration=5000\n$/
+      );
     });
 
     it('should emit refresh_failure with all fields', () => {
@@ -146,7 +152,7 @@ describe('AuthMetrics', () => {
         error: 'network_error',
         duration: 10000,
         type: 'proactive',
-        retryCount: 3
+        retryCount: 3,
       });
 
       expect(stderrOutput).toHaveLength(1);
@@ -159,11 +165,13 @@ describe('AuthMetrics', () => {
       const metrics = AuthMetrics.createInstance();
       metrics.emitRefreshFailure({
         error: 'network connection failed',
-        duration: 2000
+        duration: 2000,
       });
 
       expect(stderrOutput).toHaveLength(1);
-      expect(stderrOutput[0]).toMatch(/^AUTH_METRIC event=refresh_failure error=network_connection_failed duration=2000\n$/);
+      expect(stderrOutput[0]).toMatch(
+        /^AUTH_METRIC event=refresh_failure error=network_connection_failed duration=2000\n$/
+      );
     });
 
     it('should not emit when disabled', () => {
@@ -179,22 +187,26 @@ describe('AuthMetrics', () => {
     it('should emit refresh_proactive with timeUntilExpiry', () => {
       const metrics = AuthMetrics.createInstance();
       metrics.emitRefreshProactive({
-        timeUntilExpiry: 180000
+        timeUntilExpiry: 180000,
       });
 
       expect(stderrOutput).toHaveLength(1);
-      expect(stderrOutput[0]).toMatch(/^AUTH_METRIC event=refresh_proactive timeUntilExpiry=180000\n$/);
+      expect(stderrOutput[0]).toMatch(
+        /^AUTH_METRIC event=refresh_proactive timeUntilExpiry=180000\n$/
+      );
     });
 
     it('should emit refresh_proactive with threshold', () => {
       const metrics = AuthMetrics.createInstance();
       metrics.emitRefreshProactive({
         timeUntilExpiry: 240000,
-        threshold: 300000
+        threshold: 300000,
       });
 
       expect(stderrOutput).toHaveLength(1);
-      expect(stderrOutput[0]).toMatch(/^AUTH_METRIC event=refresh_proactive timeUntilExpiry=240000 threshold=300000\n$/);
+      expect(stderrOutput[0]).toMatch(
+        /^AUTH_METRIC event=refresh_proactive timeUntilExpiry=240000 threshold=300000\n$/
+      );
     });
 
     it('should not emit when disabled', () => {
@@ -211,11 +223,13 @@ describe('AuthMetrics', () => {
       const metrics = AuthMetrics.createInstance();
       metrics.emitCacheCorrupted({
         source: 'keytar',
-        corruptionType: 'json_corruption'
+        corruptionType: 'json_corruption',
       });
 
       expect(stderrOutput).toHaveLength(1);
-      expect(stderrOutput[0]).toMatch(/^AUTH_METRIC event=cache_corrupted source=keytar corruptionType=json_corruption\n$/);
+      expect(stderrOutput[0]).toMatch(
+        /^AUTH_METRIC event=cache_corrupted source=keytar corruptionType=json_corruption\n$/
+      );
     });
 
     it('should emit cache_corrupted with all fields', () => {
@@ -224,7 +238,7 @@ describe('AuthMetrics', () => {
         source: 'file',
         corruptionType: 'encryption_corruption',
         recoverable: true,
-        errorType: 'decrypt_failed'
+        errorType: 'decrypt_failed',
       });
 
       expect(stderrOutput).toHaveLength(1);
@@ -236,7 +250,10 @@ describe('AuthMetrics', () => {
     it('should not emit when disabled', () => {
       process.env.AUTH_METRICS = 'off';
       const metrics = AuthMetrics.createInstance();
-      metrics.emitCacheCorrupted({ source: 'keytar', corruptionType: 'json_corruption' });
+      metrics.emitCacheCorrupted({
+        source: 'keytar',
+        corruptionType: 'json_corruption',
+      });
 
       expect(stderrOutput).toHaveLength(0);
     });
@@ -249,7 +266,7 @@ describe('AuthMetrics', () => {
         duration: 1500,
         type: 'proactive',
         cached: false,
-        timeUntilExpiry: 600000
+        timeUntilExpiry: 600000,
       });
 
       const output = stderrOutput[0];
@@ -266,7 +283,7 @@ describe('AuthMetrics', () => {
       const metrics = AuthMetrics.createInstance();
       metrics.emitRefreshFailure({
         error: 'connection=failed&retry=false',
-        duration: 2000
+        duration: 2000,
       });
 
       expect(stderrOutput[0]).toMatch(/error=connection_failed_retry_false/);
@@ -276,7 +293,7 @@ describe('AuthMetrics', () => {
       const metrics = AuthMetrics.createInstance();
       metrics.emitRefreshSuccess({
         duration: 0,
-        timeUntilExpiry: 999999
+        timeUntilExpiry: 999999,
       });
 
       expect(stderrOutput[0]).toMatch(/duration=0/);
@@ -287,13 +304,13 @@ describe('AuthMetrics', () => {
       const metrics = AuthMetrics.createInstance();
       metrics.emitRefreshSuccess({
         duration: 1000,
-        cached: true
+        cached: true,
       });
-      
+
       metrics.emitCacheCorrupted({
         source: 'file',
         corruptionType: 'json_corruption',
-        recoverable: false
+        recoverable: false,
       });
 
       expect(stderrOutput[0]).toMatch(/cached=true/);
@@ -304,13 +321,16 @@ describe('AuthMetrics', () => {
   describe('performance and thread safety', () => {
     it('should handle multiple concurrent emissions', () => {
       const metrics = AuthMetrics.createInstance();
-      
+
       // Simulate concurrent metric emissions
       Promise.all([
         metrics.emitRefreshSuccess({ duration: 100 }),
         metrics.emitRefreshFailure({ error: 'test1', duration: 200 }),
         metrics.emitRefreshProactive({ timeUntilExpiry: 300000 }),
-        metrics.emitCacheCorrupted({ source: 'keytar', corruptionType: 'json_corruption' })
+        metrics.emitCacheCorrupted({
+          source: 'keytar',
+          corruptionType: 'json_corruption',
+        }),
       ]);
 
       expect(stderrOutput).toHaveLength(4);
@@ -323,7 +343,7 @@ describe('AuthMetrics', () => {
     it('should have minimal performance overhead when disabled', () => {
       process.env.AUTH_METRICS = 'off';
       const metrics = AuthMetrics.createInstance();
-      
+
       const start = Date.now();
       for (let i = 0; i < 1000; i++) {
         metrics.emitRefreshSuccess({ duration: i });
@@ -341,7 +361,7 @@ describe('AuthMetrics', () => {
       metrics.emitRefreshSuccess({
         duration: 1000,
         type: undefined,
-        cached: undefined
+        cached: undefined,
       } as any);
 
       const output = stderrOutput[0];
@@ -356,7 +376,7 @@ describe('AuthMetrics', () => {
         error: 'test_error',
         duration: 1000,
         type: null,
-        retryCount: null
+        retryCount: null,
       } as any);
 
       const output = stderrOutput[0];
@@ -370,7 +390,7 @@ describe('AuthMetrics', () => {
       const metrics = AuthMetrics.createInstance();
       metrics.emitRefreshFailure({
         error: '',
-        duration: 1000
+        duration: 1000,
       });
 
       expect(stderrOutput[0]).toMatch(/error=/);
@@ -385,7 +405,7 @@ describe('AuthMetrics', () => {
       process.stderr.write = mockStderr as any;
 
       const metrics = AuthMetrics.createInstance();
-      
+
       // Should not throw
       expect(() => {
         metrics.emitRefreshSuccess({ duration: 1000 });

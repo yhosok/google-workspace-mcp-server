@@ -13,7 +13,7 @@ This MCP server implements the [Model Context Protocol](https://modelcontextprot
 - **Google Sheets Integration**: Full CRUD operations on spreadsheets with optional folder placement
 - **Google Calendar Integration**: Complete calendar management with event creation, updates, and deletion
 - **Google Drive Integration**: Smart file creation with folder management for organized workspace
-- **Dual Authentication Support**: Both Service Account and OAuth2 user authentication with PKCE security
+- **Dual Authentication Support**: Both Service Account and OAuth2 user authentication with PKCE enhanced security
 - **Advanced Timeout Control**: Dual-layer timeout protection with AbortController
 - **Configurable Retry/Backoff Strategy**: Intelligent retry handling for transient API failures
 - **Folder-Based Organization**: Optional GOOGLE_DRIVE_FOLDER_ID for organized file management
@@ -116,7 +116,7 @@ For the service account to access your Google Workspace resources:
 
 **Best for:** Personal use, development, accessing user's own resources
 
-This option uses PKCE (Proof Key for Code Exchange) for enhanced security, following RFC 7636 standards to protect against authorization code interception attacks.
+This option requires both client ID and client secret, with PKCE (Proof Key for Code Exchange) providing enhanced security. PKCE follows RFC 7636 standards to protect against authorization code interception attacks, working in addition to the standard client secret authentication.
 
 #### 1. Create OAuth2 Credentials
 
@@ -125,7 +125,7 @@ This option uses PKCE (Proof Key for Code Exchange) for enhanced security, follo
 3. Select "Desktop application" as the application type
 4. Give it a name (e.g., "Google Workspace MCP Server")
 5. Click "Create"
-6. Download the credentials JSON file or note the Client ID and Client Secret
+6. **Important**: Download the credentials JSON file and note both the Client ID and Client Secret - both are required for OAuth2 authentication
 
 #### 2. Configure Redirect URI
 
@@ -135,7 +135,7 @@ This option uses PKCE (Proof Key for Code Exchange) for enhanced security, follo
 
 #### 3. Configure Environment Variables
 
-Set up your `.env` file with OAuth2 credentials:
+Set up your `.env` file with OAuth2 credentials (both client ID and client secret are required):
 ```env
 GOOGLE_AUTH_MODE=oauth2
 GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
@@ -143,6 +143,8 @@ GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
 GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
 GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file
 ```
+
+**Note**: Both `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` are required. PKCE security is automatically enabled to provide additional protection beyond the client secret.
 
 #### 4. First-Time Authentication
 
@@ -155,9 +157,11 @@ When you first run the server with OAuth2:
 
 #### 5. Token Security
 
-- Tokens are stored securely using your OS keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux)
-- Fallback encrypted file storage is used if keychain access is unavailable
-- Refresh tokens are automatically managed and never logged
+- **Enhanced Security**: PKCE (Proof Key for Code Exchange) provides additional protection against authorization code interception attacks
+- **Secure Storage**: Tokens are stored securely using your OS keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux)
+- **Fallback Storage**: Encrypted file storage is used if keychain access is unavailable
+- **Token Management**: Refresh tokens are automatically managed and never logged
+- **Client Secret Protection**: Standard OAuth2 client secret authentication is required, with PKCE providing an additional security layer
 
 ## Configuration
 
@@ -174,7 +178,7 @@ GOOGLE_SERVICE_ACCOUNT_KEY_PATH=/path/to/your/service-account-key.json
 
 ### OAuth2 Configuration
 
-For OAuth2 authentication:
+For OAuth2 authentication (both client ID and client secret are required):
 
 ```env
 GOOGLE_AUTH_MODE=oauth2
@@ -184,6 +188,11 @@ GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
 GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file
 GOOGLE_OAUTH_PORT=3000
 ```
+
+**Security Features**:
+- Standard OAuth2 client secret authentication
+- PKCE (Proof Key for Code Exchange) for enhanced security
+- Secure token storage with OS keychain integration
 
 ### Optional Folder Configuration
 
@@ -592,7 +601,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Verify that you've granted all requested permissions
 
 **"OAuth2 client configuration error"**
-- Ensure `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` are correct
+- Ensure both `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` are provided and correct
+- Both client ID and client secret are required - verify both values from your Google Cloud Console credentials
 - Verify the redirect URI matches: `http://localhost:3000/oauth2callback`
 - Check that the OAuth2 client is configured for "Desktop application"
 

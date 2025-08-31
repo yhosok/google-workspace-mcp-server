@@ -1,9 +1,9 @@
 /**
  * Authentication Metrics System
- * 
+ *
  * Provides minimal performance overhead metrics for OAuth2 authentication operations.
  * Outputs structured metrics to stderr in format: AUTH_METRIC event=name key=value
- * 
+ *
  * Features:
  * - Environment variable AUTH_METRICS=off for opt-out (default: enabled)
  * - Singleton instance for optimal memory usage
@@ -11,7 +11,7 @@
  * - Thread-safe metric emission
  * - Automatic value sanitization for security
  * - Graceful error handling
- * 
+ *
  * Environment variable AUTH_METRICS=off disables all metric collection.
  */
 
@@ -48,7 +48,10 @@ export interface CacheCorruptedMetrics {
   /** Source of corruption: 'keytar' | 'file' */
   source: 'keytar' | 'file';
   /** Type of corruption detected */
-  corruptionType: 'json_corruption' | 'encryption_corruption' | 'structure_corruption';
+  corruptionType:
+    | 'json_corruption'
+    | 'encryption_corruption'
+    | 'structure_corruption';
   /** Whether corruption was recoverable */
   recoverable?: boolean;
   /** Error type that led to corruption detection */
@@ -66,7 +69,11 @@ export class AuthMetrics {
   constructor() {
     // Environment-based configuration with opt-out capability
     const metricsEnv = process.env.AUTH_METRICS?.toLowerCase().trim();
-    this.enabled = !(metricsEnv === 'off' || metricsEnv === 'false' || metricsEnv === '0');
+    this.enabled = !(
+      metricsEnv === 'off' ||
+      metricsEnv === 'false' ||
+      metricsEnv === '0'
+    );
   }
 
   /**
@@ -113,7 +120,7 @@ export class AuthMetrics {
     // Sanitize error message for safe output
     const sanitizedMetrics = {
       ...metrics,
-      error: this.sanitizeValue(metrics.error)
+      error: this.sanitizeValue(metrics.error),
     };
 
     this.emit('refresh_failure', sanitizedMetrics);
@@ -144,13 +151,14 @@ export class AuthMetrics {
     try {
       // Pre-allocate array for better performance
       const pairs: string[] = [`event=${event}`];
-      
+
       // Build key-value pairs with minimal allocations
       for (const [key, value] of Object.entries(data)) {
         if (value !== undefined && value !== null) {
-          const sanitizedValue = typeof value === 'string' 
-            ? this.sanitizeValue(value) 
-            : String(value);
+          const sanitizedValue =
+            typeof value === 'string'
+              ? this.sanitizeValue(value)
+              : String(value);
           pairs.push(`${key}=${sanitizedValue}`);
         }
       }
@@ -170,11 +178,11 @@ export class AuthMetrics {
    */
   private sanitizeValue(value: string): string {
     if (!value) return value;
-    
+
     return value
       .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace unsafe characters
-      .replace(/_+/g, '_')              // Collapse multiple underscores
-      .replace(/^_|_$/g, '');           // Remove leading/trailing underscores
+      .replace(/_+/g, '_') // Collapse multiple underscores
+      .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
   }
 }
 

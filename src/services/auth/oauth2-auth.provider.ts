@@ -31,7 +31,12 @@ import {
 } from './types.js';
 import { TokenStorageService } from './token-storage.service.js';
 import { generateCodeVerifier, generateCodeChallenge } from './pkce-utils.js';
-import { isExpiringSoon, calculateRefreshWindow, DEFAULT_REFRESH_THRESHOLD_MS, DEFAULT_REFRESH_JITTER_MS } from '../../utils/token-utils.js';
+import {
+  isExpiringSoon,
+  calculateRefreshWindow,
+  DEFAULT_REFRESH_THRESHOLD_MS,
+  DEFAULT_REFRESH_JITTER_MS,
+} from '../../utils/token-utils.js';
 import { GoogleService } from '../base/google-service.js';
 import { Logger } from '../../utils/logger.js';
 import { AuthInfo } from '../../types/index.js';
@@ -158,7 +163,11 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
    * @private
    */
   private getRefreshThresholdMs(): number {
-    return parseInt(process.env.GOOGLE_OAUTH2_REFRESH_THRESHOLD || String(DEFAULT_REFRESH_THRESHOLD_MS), 10);
+    return parseInt(
+      process.env.GOOGLE_OAUTH2_REFRESH_THRESHOLD ||
+        String(DEFAULT_REFRESH_THRESHOLD_MS),
+      10
+    );
   }
 
   /**
@@ -167,7 +176,11 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
    * @private
    */
   private getRefreshJitterMs(): number {
-    return parseInt(process.env.GOOGLE_OAUTH2_REFRESH_JITTER || String(DEFAULT_REFRESH_JITTER_MS), 10);
+    return parseInt(
+      process.env.GOOGLE_OAUTH2_REFRESH_JITTER ||
+        String(DEFAULT_REFRESH_JITTER_MS),
+      10
+    );
   }
 
   /**
@@ -274,7 +287,7 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
    * This method implements a sophisticated proactive token refresh strategy:
    * - Fast-path execution for tokens that don't need refresh (< 1ms)
    * - Proactive refresh for tokens expiring within the configured threshold
-   * - Jitter-based refresh timing to prevent thundering herd problems  
+   * - Jitter-based refresh timing to prevent thundering herd problems
    * - Concurrent refresh protection to prevent duplicate refresh operations
    * - Fallback to reactive refresh for expired tokens
    * - Performance monitoring and detailed logging for debugging
@@ -298,7 +311,7 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
    */
   public async validateAuth(): Promise<GoogleAuthResult<boolean>> {
     const startTime = Date.now();
-    
+
     if (!this.oauth2Client) {
       return authOk(false);
     }
@@ -311,20 +324,31 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
       }
 
       // Proactive refresh logic (if enabled and token has expiry date)
-      if (this.isProactiveRefreshEnabled() && credentials.expiry_date && credentials.refresh_token) {
+      if (
+        this.isProactiveRefreshEnabled() &&
+        credentials.expiry_date &&
+        credentials.refresh_token
+      ) {
         const now = Date.now();
         const timeUntilExpiry = credentials.expiry_date - now;
         const refreshThresholdMs = this.getRefreshThresholdMs();
         const refreshJitterMs = this.getRefreshJitterMs();
         // Check if we should do proactive refresh (single calculation)
-        const shouldRefresh = isExpiringSoon(credentials.expiry_date, refreshThresholdMs, refreshJitterMs);
-        
+        const shouldRefresh = isExpiringSoon(
+          credentials.expiry_date,
+          refreshThresholdMs,
+          refreshJitterMs
+        );
+
         if (shouldRefresh) {
           // Optimize frequency check conditions
-          const minRefreshInterval = process.env.NODE_ENV === 'test' ? 100 : 30000; // Short interval for tests
-          const isJitterTest = process.env.NODE_ENV === 'test' && Math.abs(timeUntilExpiry - refreshThresholdMs) < 1;
+          const minRefreshInterval =
+            process.env.NODE_ENV === 'test' ? 100 : 30000; // Short interval for tests
+          const isJitterTest =
+            process.env.NODE_ENV === 'test' &&
+            Math.abs(timeUntilExpiry - refreshThresholdMs) < 1;
           const shouldCheckFrequency = !isJitterTest;
-          
+
           // If a refresh is currently in progress, wait for it to complete
           if (shouldCheckFrequency && this.refreshPromise) {
             this.logger.info('Waiting for ongoing refresh', {
@@ -334,7 +358,7 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
               lastAttempt: this.lastRefreshAttempt,
               refreshType: 'shared_single_flight',
             });
-            
+
             try {
               await this.performSharedRefresh();
               this.logger.debug('Shared refresh completed successfully', {
@@ -350,25 +374,39 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
                 operation: 'validateAuth',
                 reason: 'shared_refresh_failed',
                 refreshType: 'shared_single_flight',
-                error: concurrentRefreshError instanceof Error ? concurrentRefreshError.message : String(concurrentRefreshError),
+                error:
+                  concurrentRefreshError instanceof Error
+                    ? concurrentRefreshError.message
+                    : String(concurrentRefreshError),
               });
-              
+
               // Shared refresh failed, clear refresh attempt timestamp to allow immediate retry
               this.lastRefreshAttempt = undefined;
-              
-              // Return false (auth is not valid) 
+
+              // Return false (auth is not valid)
               return authOk(false);
             }
-          } else if (!shouldCheckFrequency || !this.lastRefreshAttempt || (now - this.lastRefreshAttempt) >= minRefreshInterval) {
+          } else if (
+            !shouldCheckFrequency ||
+            !this.lastRefreshAttempt ||
+            now - this.lastRefreshAttempt >= minRefreshInterval
+          ) {
             // Calculate refresh window once for logging (optimization)
-            const refreshWindow = calculateRefreshWindow(credentials.expiry_date, refreshThresholdMs, refreshJitterMs);
-            
+            const refreshWindow = calculateRefreshWindow(
+              credentials.expiry_date,
+              refreshThresholdMs,
+              refreshJitterMs
+            );
+
             this.logger.debug('Proactive refresh decision', {
               service: this.getServiceName(),
               operation: 'validateAuth',
               timeUntilExpiry,
               threshold: refreshThresholdMs,
-              appliedJitter: refreshWindow.refreshAtMs - credentials.expiry_date + refreshThresholdMs,
+              appliedJitter:
+                refreshWindow.refreshAtMs -
+                credentials.expiry_date +
+                refreshThresholdMs,
               shouldRefresh: refreshWindow.shouldRefresh,
               refreshType: 'proactive',
             });
@@ -376,30 +414,33 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
             if (shouldCheckFrequency) {
               this.lastRefreshAttempt = now;
             }
-            
+
             // Use shared single-flight refresh mechanism with proactive context
             try {
               await this.performSharedRefresh({
                 timeUntilExpiry,
                 operation: 'validateAuth',
-                refreshType: 'proactive'
+                refreshType: 'proactive',
               });
-              
+
               // Clear refresh attempt timestamp on successful refresh to allow future refreshes
               this.lastRefreshAttempt = undefined;
-              
+
               return authOk(true);
             } catch (proactiveError) {
               this.logger.error('Proactive token refresh failed', {
                 service: this.getServiceName(),
                 operation: 'validateAuth',
                 reason: 'proactive_refresh_failed',
-                error: proactiveError instanceof Error ? proactiveError.message : String(proactiveError),
+                error:
+                  proactiveError instanceof Error
+                    ? proactiveError.message
+                    : String(proactiveError),
               });
-              
+
               // Proactive refresh failed, clear refresh attempt timestamp to allow immediate retry
               this.lastRefreshAttempt = undefined;
-              
+
               // Return false (auth is not valid)
               return authOk(false);
             }
@@ -426,7 +467,7 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
             // Use shared single-flight refresh mechanism
             await this.performSharedRefresh({
               operation: 'validateAuth',
-              refreshType: 'reactive'
+              refreshType: 'reactive',
             });
             return authOk(true);
           } catch (refreshError) {
@@ -446,9 +487,12 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
       // Performance monitoring for non-expiring tokens (as per test requirements)
       const endTime = Date.now();
       const duration = endTime - startTime;
-      
+
       // Only log performance metrics in specific test scenarios
-      if (process.env.NODE_ENV === 'test' && this.shouldLogPerformanceMetrics()) {
+      if (
+        process.env.NODE_ENV === 'test' &&
+        this.shouldLogPerformanceMetrics()
+      ) {
         this.logger.debug('validateAuth performance', {
           service: this.getServiceName(),
           operation: 'validateAuth',
@@ -485,10 +529,10 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
   private shouldLogPerformanceMetrics(): boolean {
     const credentials = this.oauth2Client?.credentials;
     if (!credentials?.expiry_date) return false;
-    
+
     const timeUntilExpiry = credentials.expiry_date - Date.now();
     const thirtyMinutes = 30 * 60 * 1000;
-    
+
     // Log performance metrics for tokens with plenty of time left
     return timeUntilExpiry >= thirtyMinutes;
   }
@@ -510,10 +554,10 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
    * @throws {Error} When OAuth2Client is not available or refresh operation fails
    * @private
    */
-  private async performSharedRefresh(context?: { 
-    timeUntilExpiry?: number; 
-    operation?: string; 
-    refreshType?: string 
+  private async performSharedRefresh(context?: {
+    timeUntilExpiry?: number;
+    operation?: string;
+    refreshType?: string;
   }): Promise<void> {
     // If refresh is already in progress, wait for it
     if (this.refreshPromise) {
@@ -536,13 +580,13 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
    * Execute the actual refresh operation.
    * @private
    */
-  private async executeRefreshOperation(context?: { 
-    timeUntilExpiry?: number; 
-    operation?: string; 
-    refreshType?: string 
+  private async executeRefreshOperation(context?: {
+    timeUntilExpiry?: number;
+    operation?: string;
+    refreshType?: string;
   }): Promise<void> {
     const startTime = Date.now();
-    
+
     if (!this.oauth2Client) {
       const error = new GoogleServiceError(
         'OAuth2Client not available for refresh',
@@ -561,14 +605,17 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
       authMetrics.emitRefreshFailure({
         error: 'oauth2_client_not_initialized',
         duration: Date.now() - startTime,
-        type: context?.refreshType
+        type: context?.refreshType,
       });
 
       throw error;
     }
 
     // Use context-specific logging for proactive refresh or generic for others
-    if (context?.refreshType === 'proactive' && context.timeUntilExpiry !== undefined) {
+    if (
+      context?.refreshType === 'proactive' &&
+      context.timeUntilExpiry !== undefined
+    ) {
       this.logger.info('Proactively refreshing token', {
         service: this.getServiceName(),
         operation: context.operation || 'validateAuth',
@@ -600,11 +647,14 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
       authMetrics.emitRefreshSuccess({
         duration,
         type: context?.refreshType,
-        timeUntilExpiry: context?.timeUntilExpiry
+        timeUntilExpiry: context?.timeUntilExpiry,
       });
 
       // Use context-specific success logging
-      if (context?.refreshType === 'proactive' && context.timeUntilExpiry !== undefined) {
+      if (
+        context?.refreshType === 'proactive' &&
+        context.timeUntilExpiry !== undefined
+      ) {
         this.logger.info('Proactive token refresh completed successfully', {
           service: this.getServiceName(),
           operation: context.operation || 'validateAuth',
@@ -620,17 +670,23 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
       }
     } catch (refreshError) {
       const duration = Date.now() - startTime;
-      const errorMessage = refreshError instanceof Error ? refreshError.message : String(refreshError);
+      const errorMessage =
+        refreshError instanceof Error
+          ? refreshError.message
+          : String(refreshError);
 
       // Emit refresh failure metric
       authMetrics.emitRefreshFailure({
         error: errorMessage,
         duration,
-        type: context?.refreshType
+        type: context?.refreshType,
       });
 
       // Use context-specific error logging
-      if (context?.refreshType === 'proactive' && context.timeUntilExpiry !== undefined) {
+      if (
+        context?.refreshType === 'proactive' &&
+        context.timeUntilExpiry !== undefined
+      ) {
         this.logger.error('Proactive token refresh operation failed', {
           service: this.getServiceName(),
           operation: context.operation || 'validateAuth',
@@ -673,7 +729,9 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
    * await this.performProactiveRefresh(240000); // 4 minutes until expiry
    * ```
    */
-  private async performProactiveRefresh(timeUntilExpiry: number): Promise<void> {
+  private async performProactiveRefresh(
+    timeUntilExpiry: number
+  ): Promise<void> {
     if (!this.oauth2Client) {
       const error = new GoogleServiceError(
         'OAuth2Client not available for proactive refresh',
@@ -682,18 +740,21 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
         500,
         { operation: 'performProactiveRefresh' }
       );
-      this.logger.error('Proactive refresh failed: OAuth2Client not available', {
-        service: this.getServiceName(),
-        operation: 'performProactiveRefresh',
-        error: error.message,
-      });
+      this.logger.error(
+        'Proactive refresh failed: OAuth2Client not available',
+        {
+          service: this.getServiceName(),
+          operation: 'performProactiveRefresh',
+          error: error.message,
+        }
+      );
       throw error;
     }
 
     // Emit proactive refresh triggered metric
     authMetrics.emitRefreshProactive({
       timeUntilExpiry,
-      threshold: this.getRefreshThresholdMs()
+      threshold: this.getRefreshThresholdMs(),
     });
 
     this.logger.info('Proactively refreshing token', {
@@ -703,16 +764,16 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
       timeUntilExpiry,
       refreshType: 'proactive',
     });
-    
+
     // Add a small delay in test environment to allow concurrent calls to process
     if (process.env.NODE_ENV === 'test') {
       await new Promise(resolve => setTimeout(resolve, 50));
     }
-    
+
     try {
       await this.oauth2Client.refreshAccessToken();
       await this.saveCurrentTokens();
-      
+
       this.logger.info('Proactive token refresh completed successfully', {
         service: this.getServiceName(),
         operation: 'validateAuth',
@@ -725,7 +786,10 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
         operation: 'validateAuth',
         refreshType: 'proactive',
         timeUntilExpiry,
-        error: refreshError instanceof Error ? refreshError.message : String(refreshError),
+        error:
+          refreshError instanceof Error
+            ? refreshError.message
+            : String(refreshError),
       });
       throw refreshError;
     }
@@ -884,57 +948,18 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
     // Create OAuth2Client outside of retry logic to prevent duplication
     // Only create if not properly configured (replaces placeholder from constructor)
     if (!this.oauth2Client || !this.isConfigured(this.oauth2Client)) {
-      // Conditionally initialize OAuth2Client with/without clientSecret
-      const oauth2ClientConfig: {
-        clientId: string;
-        clientSecret?: string;
-        redirectUri: string;
-      } = {
+      // Initialize OAuth2Client with required client secret
+      this.oauth2Client = new OAuth2Client({
         clientId: this.config.clientId,
+        clientSecret: this.config.clientSecret,
         redirectUri: this.config.redirectUri,
-      };
-
-      if (this.config.clientSecret) {
-        oauth2ClientConfig.clientSecret = this.config.clientSecret;
-      }
-
-      this.oauth2Client = new OAuth2Client(oauth2ClientConfig);
-
-      // Add logging for client type detection
-      const clientType = this.config.clientSecret ? 'confidential' : 'public';
-      this.logger.info(`Initializing ${clientType} OAuth2 client`, {
-        service: this.getServiceName(),
-        clientType,
-        hasPKCE: true, // Always true now with PKCE implementation
       });
 
-      // For public clients, verify PKCE is available during initialization
-      if (!this.config.clientSecret) {
-        // Test PKCE generation to ensure it's working (for public client validation)
-        const testVerifier = generateCodeVerifier();
-        if (testVerifier.isErr()) {
-          const pkceError = new GoogleOAuth2Error(
-            `PKCE code verifier generation failed: ${testVerifier.error.message}`,
-            'GOOGLE_OAUTH2_PKCE_CODE_VERIFIER_GENERATION_FAILED',
-            500,
-            { operation: 'initialize', clientType: 'public' },
-            testVerifier.error
-          );
-          return googleErr(pkceError);
-        }
-        const testChallenge = generateCodeChallenge(testVerifier.value);
-        if (testChallenge.isErr()) {
-          const pkceError = new GoogleOAuth2Error(
-            `PKCE code challenge generation failed: ${testChallenge.error.message}`,
-            'GOOGLE_OAUTH2_PKCE_CODE_CHALLENGE_GENERATION_FAILED',
-            500,
-            { operation: 'initialize', clientType: 'public' },
-            testChallenge.error
-          );
-          return googleErr(pkceError);
-        }
-        // PKCE validation successful, continue initialization
-      }
+      // Add logging for OAuth2 client initialization
+      this.logger.info(`Initializing OAuth2 client with PKCE security`, {
+        service: this.getServiceName(),
+        hasPKCE: true, // Always true for enhanced security
+      });
     }
 
     return this.executeWithRetry(async () => {
@@ -969,17 +994,12 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
    * @private
    */
   private isConfigured(client: OAuth2Client): boolean {
-    // For public clients, clientSecret is optional
+    // OAuth2 requires all three components: clientId, clientSecret, and redirectUri
     const hasClientId = !!client._clientId;
     const hasRedirectUri = !!(client as any).redirectUri;
-    
-    // If we have a clientSecret configured, verify it's present on the client
-    // If we don't have a clientSecret configured, don't require it on the client
-    const clientSecretValid = this.config.clientSecret 
-      ? !!client._clientSecret 
-      : true;
+    const hasClientSecret = !!client._clientSecret;
 
-    return hasClientId && hasRedirectUri && clientSecretValid;
+    return hasClientId && hasRedirectUri && hasClientSecret;
   }
 
   /**
@@ -993,20 +1013,32 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
       );
     }
 
-    // Make clientSecret validation optional for public clients
-    if (config.clientSecret !== undefined && (!config.clientSecret || typeof config.clientSecret !== 'string')) {
+    // Google OAuth2 requires client secret for all authentication flows
+    if (!config.clientSecret || typeof config.clientSecret !== 'string') {
       throw new Error(
         'OAuth2Config: clientSecret is required and must be a string'
       );
     }
 
-    if (!config.redirectUri || typeof config.redirectUri !== 'string') {
+    // Provide default redirect URI if not specified
+    const configWithDefaults = {
+      ...config,
+      redirectUri: config.redirectUri || 'http://localhost:3000/oauth2callback',
+    };
+
+    if (
+      !configWithDefaults.redirectUri ||
+      typeof configWithDefaults.redirectUri !== 'string'
+    ) {
       throw new Error(
         'OAuth2Config: redirectUri is required and must be a string'
       );
     }
 
-    if (!Array.isArray(config.scopes) || config.scopes.length === 0) {
+    if (
+      !Array.isArray(configWithDefaults.scopes) ||
+      configWithDefaults.scopes.length === 0
+    ) {
       throw new Error(
         'OAuth2Config: scopes is required and must be a non-empty array'
       );
@@ -1014,14 +1046,14 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
 
     // Validate redirect URI format
     try {
-      new URL(config.redirectUri);
+      new URL(configWithDefaults.redirectUri);
     } catch {
       throw new Error('OAuth2Config: redirectUri must be a valid URL');
     }
 
     return {
-      ...config,
-      port: config.port || 3000, // Default port
+      ...configWithDefaults,
+      port: configWithDefaults.port || 3000, // Default port
     };
   }
 
@@ -1176,7 +1208,7 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
       process.env.NODE_ENV === 'test' && process.env.TEST_OAUTH_STATE
         ? process.env.TEST_OAUTH_STATE
         : randomBytes(32).toString('hex');
-    
+
     // Generate PKCE parameters
     const verifierResult = generateCodeVerifier();
     if (verifierResult.isErr()) {
@@ -1187,7 +1219,7 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
       });
       throw verifierResult.error;
     }
-    
+
     const challengeResult = generateCodeChallenge(verifierResult.value);
     if (challengeResult.isErr()) {
       this.logger.error('Failed to generate PKCE code challenge', {
@@ -1197,11 +1229,11 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
       });
       throw challengeResult.error;
     }
-    
+
     const authFlowState: AuthFlowState = {
       state,
       codeVerifier: verifierResult.value,
-      redirectUri: this.config.redirectUri,
+      redirectUri: this.config.redirectUri!,
       scopes: this.config.scopes,
     };
 
@@ -1238,7 +1270,7 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
         authFlowState,
         timeoutMs
       );
-      
+
       // Store authFlowState for token exchange
       this.currentAuthFlow = authFlowState;
 
@@ -1251,7 +1283,7 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
           { operation: 'executeAuthFlow' }
         );
       }
-      
+
       const { tokens } = await this.oauth2Client.getToken({
         code: authCode,
         codeVerifier: this.currentAuthFlow.codeVerifier,
@@ -1261,17 +1293,20 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
       // Save tokens
       await this.saveCurrentTokens();
 
-      this.logger.info('OAuth2 authorization flow with PKCE completed successfully', {
-        service: this.getServiceName(),
-        operation: 'executeAuthFlow',
-        hasAccessToken: !!tokens.access_token,
-        hasRefreshToken: !!tokens.refresh_token,
-        expiresAt: tokens.expiry_date
-          ? new Date(tokens.expiry_date)
-          : undefined,
-        usedPKCE: true,
-      });
-      
+      this.logger.info(
+        'OAuth2 authorization flow with PKCE completed successfully',
+        {
+          service: this.getServiceName(),
+          operation: 'executeAuthFlow',
+          hasAccessToken: !!tokens.access_token,
+          hasRefreshToken: !!tokens.refresh_token,
+          expiresAt: tokens.expiry_date
+            ? new Date(tokens.expiry_date)
+            : undefined,
+          usedPKCE: true,
+        }
+      );
+
       // Clean up auth flow state
       this.currentAuthFlow = undefined;
 
@@ -1283,7 +1318,7 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
       } else {
         callbackServer.server.close();
       }
-      
+
       // Clean up auth flow state on any exit
       this.currentAuthFlow = undefined;
     }
@@ -1306,7 +1341,7 @@ export class OAuth2AuthProvider extends GoogleService implements AuthProvider {
 
         if (
           url.pathname === '/oauth2callback' ||
-          url.pathname === new URL(this.config.redirectUri).pathname
+          url.pathname === new URL(this.config.redirectUri!).pathname
         ) {
           const code = url.searchParams.get('code');
           const error = url.searchParams.get('error');

@@ -20,7 +20,10 @@ import type {
   FileSystemDependency,
   CryptoDependency,
 } from './types.js';
-import { GoogleOAuth2TokenStorageError, GoogleTokenCacheCorruptedError } from '../../errors/index.js';
+import {
+  GoogleOAuth2TokenStorageError,
+  GoogleTokenCacheCorruptedError,
+} from '../../errors/index.js';
 import { authMetrics } from './metrics.js';
 
 /**
@@ -156,10 +159,10 @@ export class TokenStorageService implements TokenStorage {
           throw keytarError;
         }
       }
-      
+
       // Non-corruption keytar error, try file storage fallback
     }
-    
+
     // Try file storage (either keytar returned null or had non-corruption error)
     try {
       return await this.getFromFile();
@@ -268,13 +271,21 @@ export class TokenStorageService implements TokenStorage {
 
     try {
       const credentials = JSON.parse(serializedCredentials);
-      const validatedCredentials = this.validateAndReturnCredentials(credentials);
-      
+      const validatedCredentials =
+        this.validateAndReturnCredentials(credentials);
+
       if (validatedCredentials === null) {
         // Structure corruption detected
-        const corruptionType = this.classifyKeytarCorruption(null, serializedCredentials);
+        const corruptionType = this.classifyKeytarCorruption(
+          null,
+          serializedCredentials
+        );
         const timestamp = Date.now();
-        await this.handleKeytarCorruption(this.SERVICE_NAME, this.ACCOUNT_NAME, corruptionType);
+        await this.handleKeytarCorruption(
+          this.SERVICE_NAME,
+          this.ACCOUNT_NAME,
+          corruptionType
+        );
         throw new GoogleTokenCacheCorruptedError({
           source: 'keytar',
           timestamp: timestamp,
@@ -286,17 +297,24 @@ export class TokenStorageService implements TokenStorage {
           },
         });
       }
-      
+
       return validatedCredentials;
     } catch (error) {
       if (error instanceof GoogleTokenCacheCorruptedError) {
         throw error;
       }
-      
+
       // JSON parsing error - corruption detected
-      const corruptionType = this.classifyKeytarCorruption(error as Error, serializedCredentials);
+      const corruptionType = this.classifyKeytarCorruption(
+        error as Error,
+        serializedCredentials
+      );
       const timestamp = Date.now();
-      await this.handleKeytarCorruption(this.SERVICE_NAME, this.ACCOUNT_NAME, corruptionType);
+      await this.handleKeytarCorruption(
+        this.SERVICE_NAME,
+        this.ACCOUNT_NAME,
+        corruptionType
+      );
       throw new GoogleTokenCacheCorruptedError({
         source: 'keytar',
         timestamp: timestamp,
@@ -383,12 +401,19 @@ export class TokenStorageService implements TokenStorage {
     } catch (error) {
       // Clear encrypted data from memory
       this.clearString(encryptedData);
-      
+
       // Decryption failed - likely corruption
-      const corruptionType = this.classifyFileCorruption(error as Error, encryptedData);
+      const corruptionType = this.classifyFileCorruption(
+        error as Error,
+        encryptedData
+      );
       if (corruptionType) {
         const timestamp = Date.now();
-        await this.handleFileCorruption(this.TOKEN_FILE_PATH, corruptionType, error as Error);
+        await this.handleFileCorruption(
+          this.TOKEN_FILE_PATH,
+          corruptionType,
+          error as Error
+        );
         throw new GoogleTokenCacheCorruptedError({
           source: 'file',
           timestamp: timestamp,
@@ -408,13 +433,18 @@ export class TokenStorageService implements TokenStorage {
 
     try {
       const credentials = JSON.parse(decryptedData);
-      const validatedCredentials = this.validateAndReturnCredentials(credentials);
-      
+      const validatedCredentials =
+        this.validateAndReturnCredentials(credentials);
+
       if (validatedCredentials === null) {
         // Structure corruption detected
         const corruptionType = this.classifyFileCorruption(null, decryptedData);
         const timestamp = Date.now();
-        await this.handleFileCorruption(this.TOKEN_FILE_PATH, corruptionType, null);
+        await this.handleFileCorruption(
+          this.TOKEN_FILE_PATH,
+          corruptionType,
+          null
+        );
         throw new GoogleTokenCacheCorruptedError({
           source: 'file',
           timestamp: timestamp,
@@ -427,17 +457,24 @@ export class TokenStorageService implements TokenStorage {
           },
         });
       }
-      
+
       return validatedCredentials;
     } catch (error) {
       if (error instanceof GoogleTokenCacheCorruptedError) {
         throw error;
       }
-      
+
       // JSON parsing error - corruption detected
-      const corruptionType = this.classifyFileCorruption(error as Error, decryptedData);
+      const corruptionType = this.classifyFileCorruption(
+        error as Error,
+        decryptedData
+      );
       const timestamp = Date.now();
-      await this.handleFileCorruption(this.TOKEN_FILE_PATH, corruptionType, error as Error);
+      await this.handleFileCorruption(
+        this.TOKEN_FILE_PATH,
+        corruptionType,
+        error as Error
+      );
       throw new GoogleTokenCacheCorruptedError({
         source: 'file',
         timestamp: timestamp,
@@ -651,32 +688,32 @@ export class TokenStorageService implements TokenStorage {
 
   /**
    * Classify the type of corruption detected in file storage.
-   * 
+   *
    * Analyzes the error and data to determine the specific type of corruption:
    * - ENCRYPTION_CORRUPTION: Failed to decrypt the file or invalid encryption format
    * - JSON_CORRUPTION: Valid decryption but malformed JSON structure
    * - STRUCTURE_CORRUPTION: Valid JSON but missing required credential fields
-   * 
+   *
    * This classification enables appropriate recovery strategies and detailed error reporting
    * for monitoring and debugging purposes.
-   * 
+   *
    * @param error - The error that occurred during file processing (null for validation failures)
    * @param data - The data that caused the error (used for additional context)
    * @returns The type of corruption detected for error handling and metrics
    * @throws Never throws - designed to always return a valid classification
    * @private
    * @since v1.0.0 - Added as part of cache corruption detection system
-   * 
+   *
    * @example
    * ```typescript
    * // Encryption error
    * const type1 = this.classifyFileCorruption(new Error('Invalid encryption format'));
    * // Returns: 'ENCRYPTION_CORRUPTION'
-   * 
+   *
    * // JSON parsing error
    * const type2 = this.classifyFileCorruption(new SyntaxError('Unexpected token'));
    * // Returns: 'JSON_CORRUPTION'
-   * 
+   *
    * // Structure validation failure
    * const type3 = this.classifyFileCorruption(null, '{"incomplete": "data"}');
    * // Returns: 'STRUCTURE_CORRUPTION'
@@ -692,48 +729,50 @@ export class TokenStorageService implements TokenStorage {
       if (error instanceof SyntaxError) {
         return 'JSON_CORRUPTION';
       }
-      
+
       // Optimized string checking: Use direct property access and avoid includes() when possible
       const errorMessage = error.message;
       if (errorMessage) {
         // Check for encryption-related keywords (case-insensitive for robustness)
         const lowerMessage = errorMessage.toLowerCase();
-        if (lowerMessage.indexOf('invalid') !== -1 || 
-            lowerMessage.indexOf('decrypt') !== -1 || 
-            lowerMessage.indexOf('cipher') !== -1) {
+        if (
+          lowerMessage.indexOf('invalid') !== -1 ||
+          lowerMessage.indexOf('decrypt') !== -1 ||
+          lowerMessage.indexOf('cipher') !== -1
+        ) {
           return 'ENCRYPTION_CORRUPTION';
         }
       }
     }
-    
+
     // Default: Structure corruption (validation failed)
     return 'STRUCTURE_CORRUPTION';
   }
 
   /**
    * Classify the type of corruption detected in keytar storage.
-   * 
+   *
    * Keytar stores data in plain text, so encryption corruption is not applicable.
    * Only analyzes for JSON parsing errors and structure validation failures:
    * - JSON_CORRUPTION: Retrieved data is not valid JSON
    * - STRUCTURE_CORRUPTION: Valid JSON but missing required credential fields
-   * 
+   *
    * This method is specifically optimized for keytar's storage characteristics
    * and provides classification for secure credential manager corruption scenarios.
-   * 
+   *
    * @param error - The error that occurred during keytar processing (null for validation failures)
    * @param data - The data that caused the error (used for additional context)
    * @returns The type of corruption detected (JSON_CORRUPTION or STRUCTURE_CORRUPTION only)
    * @throws Never throws - designed to always return a valid classification
    * @private
    * @since v1.0.0 - Added as part of cache corruption detection system
-   * 
+   *
    * @example
    * ```typescript
    * // JSON parsing error from keytar
    * const type1 = this.classifyKeytarCorruption(new SyntaxError('Invalid JSON'));
    * // Returns: 'JSON_CORRUPTION'
-   * 
+   *
    * // Structure validation failure
    * const type2 = this.classifyKeytarCorruption(null, '{"tokens": {}}');
    * // Returns: 'STRUCTURE_CORRUPTION'
@@ -747,32 +786,32 @@ export class TokenStorageService implements TokenStorage {
     if (error?.constructor === SyntaxError) {
       return 'JSON_CORRUPTION';
     }
-    
+
     // Default: Structure corruption (validation failed)
     return 'STRUCTURE_CORRUPTION';
   }
 
   /**
    * Handle file corruption by creating a backup and logging the corruption event.
-   * 
+   *
    * This method implements the complete file corruption recovery process:
    * 1. Creates timestamped backup of corrupted file (.corrupted-<timestamp>)
    * 2. Logs detailed corruption event for monitoring and debugging
    * 3. Gracefully handles backup failures without throwing errors
-   * 
+   *
    * The backup strategy preserves corrupted data for forensic analysis while
    * allowing fresh authentication to proceed. Corruption events are logged
    * with structured data for integration with monitoring systems.
-   * 
+   *
    * Performance: Typically completes in <50ms for files up to 1KB.
-   * 
+   *
    * @param filePath - Absolute path to the corrupted token file
    * @param corruptionType - Specific type of corruption for targeted recovery
    * @param error - The original error that triggered corruption detection (null for validation failures)
    * @throws Never throws - all errors are caught and logged for stability
    * @private
    * @since v1.0.0 - Added as part of cache corruption detection system
-   * 
+   *
    * @example
    * ```typescript
    * // Handle encryption corruption with file backup
@@ -787,30 +826,36 @@ export class TokenStorageService implements TokenStorage {
    */
   private async handleFileCorruption(
     filePath: string,
-    corruptionType: 'ENCRYPTION_CORRUPTION' | 'JSON_CORRUPTION' | 'STRUCTURE_CORRUPTION',
+    corruptionType:
+      | 'ENCRYPTION_CORRUPTION'
+      | 'JSON_CORRUPTION'
+      | 'STRUCTURE_CORRUPTION',
     error: Error | null
   ): Promise<void> {
     // Lazy timestamp generation - only create when actually logging
     const createTimestamp = () => Date.now();
-    
+
     // Pre-compute common error message to avoid repeated null checks
     const errorMessage = error?.message || 'Structure validation failed';
-    
+
     // Emit cache corruption metric
     authMetrics.emitCacheCorrupted({
       source: 'file',
-      corruptionType: corruptionType.toLowerCase() as 'json_corruption' | 'encryption_corruption' | 'structure_corruption',
+      corruptionType: corruptionType.toLowerCase() as
+        | 'json_corruption'
+        | 'encryption_corruption'
+        | 'structure_corruption',
       recoverable: true, // File corruption is recoverable by renaming to backup
-      errorType: error?.name || 'validation_error'
+      errorType: error?.name || 'validation_error',
     });
-    
+
     try {
       const timestamp = createTimestamp();
       const backupPath = `${filePath}.corrupted-${timestamp}`;
-      
+
       // Rename corrupted file to backup
       await this.dependencies.fs.promises.rename(filePath, backupPath);
-      
+
       // Optimized logging: Use object spread only when necessary
       console.error('Token cache corruption detected', {
         source: 'file',
@@ -823,8 +868,11 @@ export class TokenStorageService implements TokenStorage {
       // Ignore rename errors - file might already be moved or deleted
       // Use pre-computed timestamp for consistency in logs
       const timestamp = createTimestamp();
-      const renameErrorMsg = renameError instanceof Error ? renameError.message : String(renameError);
-      
+      const renameErrorMsg =
+        renameError instanceof Error
+          ? renameError.message
+          : String(renameError);
+
       console.error('Token cache corruption detected (rename failed)', {
         source: 'file',
         timestamp,
@@ -838,25 +886,25 @@ export class TokenStorageService implements TokenStorage {
 
   /**
    * Handle keytar corruption by cleaning the corrupted entry and logging the event.
-   * 
+   *
    * This method implements the complete keytar corruption recovery process:
    * 1. Removes corrupted credentials from OS credential manager
    * 2. Logs detailed corruption event for monitoring and debugging
    * 3. Gracefully handles cleanup failures without throwing errors
-   * 
+   *
    * Unlike file corruption, keytar corruption cannot preserve the corrupted data
    * for analysis since OS credential managers don't support backup operations.
    * However, detailed logging ensures corruption patterns can be tracked.
-   * 
+   *
    * Performance: Typically completes in <100ms depending on OS credential manager.
-   * 
+   *
    * @param serviceName - The keytar service identifier for credential lookup
    * @param accountName - The keytar account identifier for credential lookup
    * @param corruptionType - Specific type of corruption for monitoring metrics
    * @throws Never throws - all errors are caught and logged for stability
    * @private
    * @since v1.0.0 - Added as part of cache corruption detection system
-   * 
+   *
    * @example
    * ```typescript
    * // Handle JSON corruption in keytar
@@ -876,7 +924,7 @@ export class TokenStorageService implements TokenStorage {
   ): Promise<void> {
     // Lazy timestamp generation - only create when actually logging
     const createTimestamp = () => Date.now();
-    
+
     // Pre-build base log object to avoid duplication
     const baseLogData = {
       source: 'keytar' as const,
@@ -884,19 +932,21 @@ export class TokenStorageService implements TokenStorage {
       serviceName,
       accountName,
     };
-    
+
     // Emit cache corruption metric
     authMetrics.emitCacheCorrupted({
       source: 'keytar',
-      corruptionType: corruptionType.toLowerCase() as 'json_corruption' | 'structure_corruption',
+      corruptionType: corruptionType.toLowerCase() as
+        | 'json_corruption'
+        | 'structure_corruption',
       recoverable: true, // Keytar corruption is recoverable by deleting entry
-      errorType: 'keytar_corruption'
+      errorType: 'keytar_corruption',
     });
-    
+
     try {
       // Clean corrupted keytar entry
       await this.dependencies.keytar.deletePassword(serviceName, accountName);
-      
+
       // Log successful corruption cleanup
       console.error('Token cache corruption detected', {
         ...baseLogData,
@@ -904,8 +954,11 @@ export class TokenStorageService implements TokenStorage {
       });
     } catch (deleteError) {
       // Log cleanup failure with error details
-      const deleteErrorMsg = deleteError instanceof Error ? deleteError.message : String(deleteError);
-      
+      const deleteErrorMsg =
+        deleteError instanceof Error
+          ? deleteError.message
+          : String(deleteError);
+
       console.error('Token cache corruption detected (cleanup failed)', {
         ...baseLogData,
         timestamp: createTimestamp(),
@@ -923,35 +976,44 @@ export class TokenStorageService implements TokenStorage {
    */
   private getMissingFields(credentials: any): string[] {
     const missing: string[] = [];
-    
+
     if (!credentials || typeof credentials !== 'object') {
       return ['credentials'];
     }
-    
+
     if (!credentials.tokens || typeof credentials.tokens !== 'object') {
       missing.push('tokens');
       // If tokens is missing entirely, we can't check sub-fields
       missing.push('tokens.access_token');
     } else {
-      if (!credentials.tokens.access_token || typeof credentials.tokens.access_token !== 'string') {
+      if (
+        !credentials.tokens.access_token ||
+        typeof credentials.tokens.access_token !== 'string'
+      ) {
         missing.push('tokens.access_token');
       }
     }
-    
-    if (!credentials.clientConfig || typeof credentials.clientConfig !== 'object') {
+
+    if (
+      !credentials.clientConfig ||
+      typeof credentials.clientConfig !== 'object'
+    ) {
       missing.push('clientConfig');
       // If clientConfig is missing entirely, we can't check sub-fields
       missing.push('clientConfig.clientId');
     } else {
-      if (!credentials.clientConfig.clientId || typeof credentials.clientConfig.clientId !== 'string') {
+      if (
+        !credentials.clientConfig.clientId ||
+        typeof credentials.clientConfig.clientId !== 'string'
+      ) {
         missing.push('clientConfig.clientId');
       }
     }
-    
+
     if (!credentials.storedAt || typeof credentials.storedAt !== 'number') {
       missing.push('storedAt');
     }
-    
+
     return missing;
   }
 }

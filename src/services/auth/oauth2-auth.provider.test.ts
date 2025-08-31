@@ -183,14 +183,14 @@ describe('OAuth2AuthProvider', () => {
     // Set up default PKCE mocks for all tests
     const defaultVerifier = 'default-test-verifier-123456789012345678';
     const defaultChallenge = 'default-test-challenge-abcdefghijklmnopq';
-    
+
     mockGenerateCodeVerifier.mockReturnValue({
       isOk: () => true,
       isErr: () => false,
       value: defaultVerifier,
       error: undefined,
     } as any);
-    
+
     mockGenerateCodeChallenge.mockReturnValue({
       isOk: () => true,
       isErr: () => false,
@@ -243,61 +243,6 @@ describe('OAuth2AuthProvider', () => {
       delete configWithoutPort.port;
       const providerWithDefaultPort = new OAuth2AuthProvider(configWithoutPort);
       expect(providerWithDefaultPort).toBeInstanceOf(OAuth2AuthProvider);
-    });
-
-    // RED PHASE: Failing tests for optional clientSecret support
-    describe('optional clientSecret support (public clients)', () => {
-      const publicClientConfig: OAuth2Config = {
-        clientId: 'test-public-client-id',
-        // clientSecret is intentionally omitted for public client
-        redirectUri: 'http://localhost:3000/oauth2callback',
-        scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-        port: 3000,
-      };
-
-      it('should accept config without clientSecret (public client)', () => {
-        // This will fail because validateConfig() currently requires clientSecret
-        expect(() => {
-          new OAuth2AuthProvider(publicClientConfig);
-        }).not.toThrow();
-      });
-
-      it('should create OAuth2AuthProvider instance with public client config', () => {
-        // This will fail because constructor validation requires clientSecret
-        const publicProvider = new OAuth2AuthProvider(publicClientConfig);
-        expect(publicProvider).toBeInstanceOf(OAuth2AuthProvider);
-        expect(publicProvider.authType).toBe('oauth2');
-      });
-
-      it('should validate public client config with all required fields except clientSecret', () => {
-        // This will fail because validateConfig() doesn't handle missing clientSecret
-        const configMissingClientId = { ...publicClientConfig, clientId: '' };
-        expect(() => {
-          new OAuth2AuthProvider(configMissingClientId);
-        }).toThrow('OAuth2Config: clientId is required and must be a string');
-        
-        const configMissingRedirectUri = { ...publicClientConfig, redirectUri: '' };
-        expect(() => {
-          new OAuth2AuthProvider(configMissingRedirectUri);
-        }).toThrow('OAuth2Config: redirectUri is required and must be a string');
-        
-        const configEmptyScopes = { ...publicClientConfig, scopes: [] };
-        expect(() => {
-          new OAuth2AuthProvider(configEmptyScopes);
-        }).toThrow('OAuth2Config: scopes is required and must be a non-empty array');
-      });
-
-      it('should still validate confidential client (with clientSecret)', () => {
-        // This should continue to work (backward compatibility)
-        expect(() => {
-          new OAuth2AuthProvider(validConfig);
-        }).not.toThrow();
-        
-        // This should still fail for invalid clientSecret
-        expect(() => {
-          new OAuth2AuthProvider({ ...validConfig, clientSecret: '' });
-        }).toThrow('OAuth2Config: clientSecret is required and must be a string');
-      });
     });
   });
 
@@ -408,81 +353,6 @@ describe('OAuth2AuthProvider', () => {
       expect(result.isOk()).toBe(true);
       expect(endTime - startTime).toBeLessThan(10); // Should be very fast
     });
-
-    // RED PHASE: Failing tests for public client initialization
-    describe('public client initialization (without clientSecret)', () => {
-      let publicProvider: OAuth2AuthProvider;
-      
-      const publicClientConfig: OAuth2Config = {
-        clientId: 'test-public-client-id',
-        // clientSecret is intentionally omitted
-        redirectUri: 'http://localhost:3000/oauth2callback',
-        scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-        port: 3000,
-      };
-
-      beforeEach(() => {
-        // This will fail until we fix the constructor validation
-        try {
-          publicProvider = new OAuth2AuthProvider(
-            publicClientConfig,
-            mockTokenStorage,
-            mockLogger
-          );
-        } catch (error) {
-          // Expected to fail in RED phase
-        }
-      });
-
-      it('should initialize OAuth2Client without clientSecret for public clients', async () => {
-        // This will fail because current implementation passes clientSecret to OAuth2Client
-        mockTokenStorage.getTokens.mockResolvedValue(null);
-        mockTokenStorage.hasTokens.mockResolvedValue(false);
-
-        const result = await publicProvider.initialize();
-
-        expect(result.isOk()).toBe(true);
-        expect(mockOAuth2Client).toHaveBeenCalledWith({
-          clientId: publicClientConfig.clientId,
-          // clientSecret should not be passed for public clients
-          redirectUri: publicClientConfig.redirectUri,
-        });
-      });
-
-      it('should automatically use PKCE for public clients', async () => {
-        // This will fail because PKCE is not yet implemented for public clients
-        mockTokenStorage.getTokens.mockResolvedValue(null);
-        mockTokenStorage.hasTokens.mockResolvedValue(false);
-
-        await publicProvider.initialize();
-
-        // Should have generated PKCE parameters during initialization
-        expect(mockGenerateCodeVerifier).toHaveBeenCalled();
-        expect(mockGenerateCodeChallenge).toHaveBeenCalled();
-      });
-
-      it('should handle PKCE generation errors for public clients', async () => {
-        // This will fail because error handling for PKCE is not yet implemented
-        mockTokenStorage.getTokens.mockResolvedValue(null);
-        mockTokenStorage.hasTokens.mockResolvedValue(false);
-        
-        // Mock PKCE generation failure
-        mockGenerateCodeVerifier.mockReturnValueOnce({
-          isOk: () => false,
-          isErr: () => true,
-          error: new Error('PKCE generation failed'),
-          value: undefined,
-        });
-
-        const result = await publicProvider.initialize();
-
-        expect(result.isErr()).toBe(true);
-        if (result.isErr()) {
-          expect(result.error).toBeInstanceOf(GoogleOAuth2Error);
-          expect(result.error.message).toContain('PKCE');
-        }
-      });
-    });
   });
 
   describe('validateAuth', () => {
@@ -586,14 +456,19 @@ describe('OAuth2AuthProvider', () => {
           // Token expires in 4 minutes (within 5-minute threshold)
           const expiringTokens = {
             ...validTokens,
-            expiry_date: MOCK_NOW + (4 * 60 * 1000), // 4 minutes from now
+            expiry_date: MOCK_NOW + 4 * 60 * 1000, // 4 minutes from now
             refresh_token: 'valid-refresh-token',
           };
           mockOAuth2ClientInstance.credentials = expiringTokens;
 
           // Mock successful refresh
-          (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockResolvedValue({
-            credentials: { ...validTokens, expiry_date: MOCK_NOW + (60 * 60 * 1000) }, // Fresh 1-hour token
+          (
+            mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+          ).mockResolvedValue({
+            credentials: {
+              ...validTokens,
+              expiry_date: MOCK_NOW + 60 * 60 * 1000,
+            }, // Fresh 1-hour token
           });
           mockTokenStorage.saveTokens.mockResolvedValue();
 
@@ -602,7 +477,9 @@ describe('OAuth2AuthProvider', () => {
           // Should return true after proactive refresh
           expectOkValue(result, true);
           // Should have called refresh proactively (this will fail in current implementation)
-          expect(mockOAuth2ClientInstance.refreshAccessToken).toHaveBeenCalled();
+          expect(
+            mockOAuth2ClientInstance.refreshAccessToken
+          ).toHaveBeenCalled();
           expect(mockTokenStorage.saveTokens).toHaveBeenCalled();
 
           // Should log proactive refresh
@@ -621,7 +498,7 @@ describe('OAuth2AuthProvider', () => {
           // Token expires in 6 minutes (beyond 5-minute threshold + reasonable jitter)
           const futureTokens = {
             ...validTokens,
-            expiry_date: MOCK_NOW + (6 * 60 * 1000), // 6 minutes from now
+            expiry_date: MOCK_NOW + 6 * 60 * 1000, // 6 minutes from now
             refresh_token: 'valid-refresh-token',
           };
           mockOAuth2ClientInstance.credentials = futureTokens;
@@ -635,7 +512,9 @@ describe('OAuth2AuthProvider', () => {
           // Should return true without refresh
           expectOkValue(result, true);
           // Should NOT have called refresh
-          expect(mockOAuth2ClientInstance.refreshAccessToken).not.toHaveBeenCalled();
+          expect(
+            mockOAuth2ClientInstance.refreshAccessToken
+          ).not.toHaveBeenCalled();
           expect(mockTokenStorage.saveTokens).not.toHaveBeenCalled();
 
           Math.random = originalRandom;
@@ -647,36 +526,45 @@ describe('OAuth2AuthProvider', () => {
           // earlier than "now" (causing refresh), others won't
           const slightlyBeyondThresholdTokens = {
             ...validTokens,
-            expiry_date: MOCK_NOW + (5 * 60 * 1000) + 15000, // 5 minutes + 15 seconds (beyond threshold)
+            expiry_date: MOCK_NOW + 5 * 60 * 1000 + 15000, // 5 minutes + 15 seconds (beyond threshold)
             refresh_token: 'valid-refresh-token',
           };
 
-          (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockResolvedValue({
-            credentials: { ...validTokens, expiry_date: MOCK_NOW + (60 * 60 * 1000) },
+          (
+            mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+          ).mockResolvedValue({
+            credentials: {
+              ...validTokens,
+              expiry_date: MOCK_NOW + 60 * 60 * 1000,
+            },
           });
           mockTokenStorage.saveTokens.mockResolvedValue();
 
           const refreshResults: boolean[] = [];
-          
+
           // Mock Math.random to generate controlled jitter values
           const originalRandom = Math.random;
-          
+
           // Test multiple times to verify jitter creates variance
           for (let i = 0; i < 50; i++) {
             // Alternate between high jitter (no refresh) and low jitter (refresh)
-            // Low jitter (5s): won't trigger refresh for token 15s beyond threshold  
+            // Low jitter (5s): won't trigger refresh for token 15s beyond threshold
             // High jitter (20s): will trigger refresh by pulling refresh time earlier
-            const jitterMs = (i % 2 === 0) ? 5000 : 20000; // 5s vs 20s jitter
+            const jitterMs = i % 2 === 0 ? 5000 : 20000; // 5s vs 20s jitter
             Math.random = jest.fn(() => jitterMs / 30000); // Convert to 0-1 range for 30s max jitter
-            
+
             // Reset credentials for each test
-            mockOAuth2ClientInstance.credentials = { ...slightlyBeyondThresholdTokens };
+            mockOAuth2ClientInstance.credentials = {
+              ...slightlyBeyondThresholdTokens,
+            };
             jest.clearAllMocks();
 
             const result = await provider.validateAuth();
             if (result.isOk()) {
               // Check if refresh was called (indicates proactive refresh happened)
-              const refreshWasCalled = (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mock.calls.length > 0;
+              const refreshWasCalled =
+                (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mock
+                  .calls.length > 0;
               refreshResults.push(refreshWasCalled);
             }
           }
@@ -687,7 +575,7 @@ describe('OAuth2AuthProvider', () => {
           // Should have both refresh and non-refresh results due to jitter variance
           expect(refreshResults).toContain(true);
           expect(refreshResults).toContain(false);
-          
+
           // Roughly balanced distribution (allowing some randomness)
           const refreshCount = refreshResults.filter(r => r).length;
           expect(refreshCount).toBeGreaterThan(10); // At least some refreshes
@@ -705,15 +593,22 @@ describe('OAuth2AuthProvider', () => {
           };
           mockOAuth2ClientInstance.credentials = expiredTokens;
 
-          (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockResolvedValue({
-            credentials: { ...validTokens, expiry_date: MOCK_NOW + (60 * 60 * 1000) },
+          (
+            mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+          ).mockResolvedValue({
+            credentials: {
+              ...validTokens,
+              expiry_date: MOCK_NOW + 60 * 60 * 1000,
+            },
           });
           mockTokenStorage.saveTokens.mockResolvedValue();
 
           const result = await provider.validateAuth();
 
           expectOkValue(result, true);
-          expect(mockOAuth2ClientInstance.refreshAccessToken).toHaveBeenCalled();
+          expect(
+            mockOAuth2ClientInstance.refreshAccessToken
+          ).toHaveBeenCalled();
           expect(mockTokenStorage.saveTokens).toHaveBeenCalled();
         });
 
@@ -721,13 +616,15 @@ describe('OAuth2AuthProvider', () => {
           // This will fail because error handling for proactive refresh doesn't exist
           const expiringTokens = {
             ...validTokens,
-            expiry_date: MOCK_NOW + (4 * 60 * 1000), // 4 minutes from now
+            expiry_date: MOCK_NOW + 4 * 60 * 1000, // 4 minutes from now
             refresh_token: 'valid-refresh-token',
           };
           mockOAuth2ClientInstance.credentials = expiringTokens;
 
           // Mock refresh failure
-          (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockRejectedValue(
+          (
+            mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+          ).mockRejectedValue(
             new Error('Network timeout during proactive refresh')
           );
 
@@ -735,7 +632,7 @@ describe('OAuth2AuthProvider', () => {
 
           // Should return false when proactive refresh fails
           expectOkValue(result, false);
-          
+
           // Should log the proactive refresh failure
           expect(mockLogger.error).toHaveBeenCalledWith(
             expect.stringContaining('Proactive token refresh failed'),
@@ -751,14 +648,16 @@ describe('OAuth2AuthProvider', () => {
           // This should still work - tokens with plenty of time left
           const freshTokens = {
             ...validTokens,
-            expiry_date: MOCK_NOW + (30 * 60 * 1000), // 30 minutes from now
+            expiry_date: MOCK_NOW + 30 * 60 * 1000, // 30 minutes from now
           };
           mockOAuth2ClientInstance.credentials = freshTokens;
 
           const result = await provider.validateAuth();
 
           expectOkValue(result, true);
-          expect(mockOAuth2ClientInstance.refreshAccessToken).not.toHaveBeenCalled();
+          expect(
+            mockOAuth2ClientInstance.refreshAccessToken
+          ).not.toHaveBeenCalled();
           expect(mockTokenStorage.saveTokens).not.toHaveBeenCalled();
         });
       });
@@ -770,13 +669,18 @@ describe('OAuth2AuthProvider', () => {
 
           const customThresholdTokens = {
             ...validTokens,
-            expiry_date: MOCK_NOW + (8 * 60 * 1000), // 8 minutes from now
+            expiry_date: MOCK_NOW + 8 * 60 * 1000, // 8 minutes from now
             refresh_token: 'valid-refresh-token',
           };
           mockOAuth2ClientInstance.credentials = customThresholdTokens;
 
-          (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockResolvedValue({
-            credentials: { ...validTokens, expiry_date: MOCK_NOW + (60 * 60 * 1000) },
+          (
+            mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+          ).mockResolvedValue({
+            credentials: {
+              ...validTokens,
+              expiry_date: MOCK_NOW + 60 * 60 * 1000,
+            },
           });
           mockTokenStorage.saveTokens.mockResolvedValue();
 
@@ -784,7 +688,9 @@ describe('OAuth2AuthProvider', () => {
 
           // Should refresh with 8 minutes left (within 10-minute custom threshold)
           expectOkValue(result, true);
-          expect(mockOAuth2ClientInstance.refreshAccessToken).toHaveBeenCalled();
+          expect(
+            mockOAuth2ClientInstance.refreshAccessToken
+          ).toHaveBeenCalled();
 
           delete process.env.GOOGLE_OAUTH2_REFRESH_THRESHOLD;
         });
@@ -797,12 +703,17 @@ describe('OAuth2AuthProvider', () => {
           // to demonstrate that some jitter values will trigger refresh, others won't
           const beyondCustomJitterTokens = {
             ...validTokens,
-            expiry_date: MOCK_NOW + (5 * 60 * 1000) + 30000, // 5 minutes + 30 seconds
+            expiry_date: MOCK_NOW + 5 * 60 * 1000 + 30000, // 5 minutes + 30 seconds
             refresh_token: 'valid-refresh-token',
           };
 
-          (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockResolvedValue({
-            credentials: { ...validTokens, expiry_date: MOCK_NOW + (60 * 60 * 1000) },
+          (
+            mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+          ).mockResolvedValue({
+            credentials: {
+              ...validTokens,
+              expiry_date: MOCK_NOW + 60 * 60 * 1000,
+            },
           });
           mockTokenStorage.saveTokens.mockResolvedValue();
 
@@ -814,15 +725,19 @@ describe('OAuth2AuthProvider', () => {
             // Alternate between low jitter (no refresh) and high jitter (refresh)
             // Low jitter (10s): won't trigger refresh for token 30s beyond threshold
             // High jitter (45s): will trigger refresh by pulling refresh time earlier
-            const jitterMs = (i % 2 === 0) ? 10000 : 45000; // 10s vs 45s jitter
+            const jitterMs = i % 2 === 0 ? 10000 : 45000; // 10s vs 45s jitter
             Math.random = jest.fn(() => jitterMs / 60000); // Convert to 0-1 range for 60s max jitter
-            
-            mockOAuth2ClientInstance.credentials = { ...beyondCustomJitterTokens };
+
+            mockOAuth2ClientInstance.credentials = {
+              ...beyondCustomJitterTokens,
+            };
             jest.clearAllMocks();
 
             const result = await provider.validateAuth();
             if (result.isOk()) {
-              const refreshWasCalled = (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mock.calls.length > 0;
+              const refreshWasCalled =
+                (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mock
+                  .calls.length > 0;
               refreshResults.push(refreshWasCalled);
             }
           }
@@ -841,7 +756,7 @@ describe('OAuth2AuthProvider', () => {
 
           const expiringTokens = {
             ...validTokens,
-            expiry_date: MOCK_NOW + (4 * 60 * 1000), // 4 minutes from now
+            expiry_date: MOCK_NOW + 4 * 60 * 1000, // 4 minutes from now
             refresh_token: 'valid-refresh-token',
           };
           mockOAuth2ClientInstance.credentials = expiringTokens;
@@ -850,7 +765,9 @@ describe('OAuth2AuthProvider', () => {
 
           // Should return true without proactive refresh (only reactive)
           expectOkValue(result, true);
-          expect(mockOAuth2ClientInstance.refreshAccessToken).not.toHaveBeenCalled();
+          expect(
+            mockOAuth2ClientInstance.refreshAccessToken
+          ).not.toHaveBeenCalled();
 
           delete process.env.GOOGLE_OAUTH2_PROACTIVE_REFRESH;
         });
@@ -861,15 +778,20 @@ describe('OAuth2AuthProvider', () => {
           // This will fail because frequency limiting doesn't exist
           const expiringTokens = {
             ...validTokens,
-            expiry_date: MOCK_NOW + (4 * 60 * 1000), // 4 minutes from now
+            expiry_date: MOCK_NOW + 4 * 60 * 1000, // 4 minutes from now
             refresh_token: 'valid-refresh-token',
           };
 
           // Mock successful refresh that updates credentials
           let refreshCount = 0;
-          (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockImplementation(async () => {
+          (
+            mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+          ).mockImplementation(async () => {
             refreshCount++;
-            const newTokens = { ...validTokens, expiry_date: MOCK_NOW + (60 * 60 * 1000) };
+            const newTokens = {
+              ...validTokens,
+              expiry_date: MOCK_NOW + 60 * 60 * 1000,
+            };
             mockOAuth2ClientInstance.credentials = newTokens;
             return { credentials: newTokens };
           });
@@ -888,7 +810,7 @@ describe('OAuth2AuthProvider', () => {
 
           // All should succeed
           results.forEach(result => expectOkValue(result, true));
-          
+
           // Should only refresh once, not 10 times
           expect(refreshCount).toBe(1);
           expect(mockLogger.info).toHaveBeenCalledWith(
@@ -902,23 +824,39 @@ describe('OAuth2AuthProvider', () => {
         it('should calculate optimal refresh windows', async () => {
           // Test the unified schedule-driven model with early-only jitter
           const testCases = [
-            { minutesLeft: 4, shouldRefresh: true, description: 'within threshold' },
-            { minutesLeft: 6, shouldRefresh: false, description: 'well beyond threshold' },
-            { 
-              minutesLeft: 5, 
-              secondsExtra: 15, 
-              shouldRefresh: 'depends on jitter', 
-              description: 'just beyond threshold - jitter dependent'
+            {
+              minutesLeft: 4,
+              shouldRefresh: true,
+              description: 'within threshold',
+            },
+            {
+              minutesLeft: 6,
+              shouldRefresh: false,
+              description: 'well beyond threshold',
+            },
+            {
+              minutesLeft: 5,
+              secondsExtra: 15,
+              shouldRefresh: 'depends on jitter',
+              description: 'just beyond threshold - jitter dependent',
             },
           ];
 
-          (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockResolvedValue({
-            credentials: { ...validTokens, expiry_date: MOCK_NOW + (60 * 60 * 1000) },
+          (
+            mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+          ).mockResolvedValue({
+            credentials: {
+              ...validTokens,
+              expiry_date: MOCK_NOW + 60 * 60 * 1000,
+            },
           });
           mockTokenStorage.saveTokens.mockResolvedValue();
 
           for (const testCase of testCases) {
-            const expiryTime = MOCK_NOW + (testCase.minutesLeft * 60 * 1000) + (testCase.secondsExtra ? testCase.secondsExtra * 1000 : 0);
+            const expiryTime =
+              MOCK_NOW +
+              testCase.minutesLeft * 60 * 1000 +
+              (testCase.secondsExtra ? testCase.secondsExtra * 1000 : 0);
             const tokens = {
               ...validTokens,
               expiry_date: expiryTime,
@@ -929,23 +867,26 @@ describe('OAuth2AuthProvider', () => {
               // Test boundary case with different jitter values to demonstrate variance
               const refreshResults = [];
               const originalRandom = Math.random;
-              
+
               for (let i = 0; i < 20; i++) {
                 // Vary jitter: some values will cause refresh, others won't
                 // Low jitter (5s): won't trigger refresh for token 15s beyond threshold
                 // High jitter (20s): will trigger refresh by pulling refresh time earlier
-                const jitterMs = (i % 2 === 0) ? 5000 : 20000;
+                const jitterMs = i % 2 === 0 ? 5000 : 20000;
                 Math.random = jest.fn(() => jitterMs / 30000); // Convert to 0-1 range
-                
+
                 mockOAuth2ClientInstance.credentials = { ...tokens };
                 jest.clearAllMocks();
-                
+
                 await provider.validateAuth();
-                refreshResults.push((mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mock.calls.length > 0);
+                refreshResults.push(
+                  (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock)
+                    .mock.calls.length > 0
+                );
               }
-              
+
               Math.random = originalRandom;
-              
+
               // Should have variance due to jitter in boundary case
               expect(refreshResults).toContain(true);
               expect(refreshResults).toContain(false);
@@ -956,9 +897,13 @@ describe('OAuth2AuthProvider', () => {
               await provider.validateAuth();
 
               if (testCase.shouldRefresh) {
-                expect(mockOAuth2ClientInstance.refreshAccessToken).toHaveBeenCalled();
+                expect(
+                  mockOAuth2ClientInstance.refreshAccessToken
+                ).toHaveBeenCalled();
               } else {
-                expect(mockOAuth2ClientInstance.refreshAccessToken).not.toHaveBeenCalled();
+                expect(
+                  mockOAuth2ClientInstance.refreshAccessToken
+                ).not.toHaveBeenCalled();
               }
             }
           }
@@ -968,19 +913,25 @@ describe('OAuth2AuthProvider', () => {
           // This will fail because concurrent call handling for proactive refresh doesn't exist
           const expiringTokens = {
             ...validTokens,
-            expiry_date: MOCK_NOW + (4 * 60 * 1000),
+            expiry_date: MOCK_NOW + 4 * 60 * 1000,
             refresh_token: 'valid-refresh-token',
           };
           mockOAuth2ClientInstance.credentials = { ...expiringTokens };
 
           // Mock slow refresh to simulate timing issues
           let refreshPromiseResolve: (() => void) | undefined;
-          const refreshPromise = new Promise<any>((resolve) => {
-            refreshPromiseResolve = () => resolve({
-              credentials: { ...validTokens, expiry_date: MOCK_NOW + (60 * 60 * 1000) }
-            });
+          const refreshPromise = new Promise<any>(resolve => {
+            refreshPromiseResolve = () =>
+              resolve({
+                credentials: {
+                  ...validTokens,
+                  expiry_date: MOCK_NOW + 60 * 60 * 1000,
+                },
+              });
           });
-          (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockReturnValue(refreshPromise);
+          (
+            mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+          ).mockReturnValue(refreshPromise);
 
           // Start multiple concurrent validateAuth calls
           const call1Promise = provider.validateAuth();
@@ -990,7 +941,11 @@ describe('OAuth2AuthProvider', () => {
           // Wait a bit, then resolve the refresh
           setTimeout(() => refreshPromiseResolve?.(), 10);
 
-          const [result1, result2, result3] = await Promise.all([call1Promise, call2Promise, call3Promise]);
+          const [result1, result2, result3] = await Promise.all([
+            call1Promise,
+            call2Promise,
+            call3Promise,
+          ]);
 
           // All should succeed
           expectOkValue(result1, true);
@@ -998,7 +953,9 @@ describe('OAuth2AuthProvider', () => {
           expectOkValue(result3, true);
 
           // Should only call refresh once despite multiple concurrent calls
-          expect(mockOAuth2ClientInstance.refreshAccessToken).toHaveBeenCalledTimes(1);
+          expect(
+            mockOAuth2ClientInstance.refreshAccessToken
+          ).toHaveBeenCalledTimes(1);
         });
       });
 
@@ -1007,7 +964,7 @@ describe('OAuth2AuthProvider', () => {
           // This will fail because performance monitoring doesn't exist
           const nonExpiringTokens = {
             ...validTokens,
-            expiry_date: MOCK_NOW + (30 * 60 * 1000), // 30 minutes left
+            expiry_date: MOCK_NOW + 30 * 60 * 1000, // 30 minutes left
           };
           mockOAuth2ClientInstance.credentials = nonExpiringTokens;
 
@@ -1025,7 +982,7 @@ describe('OAuth2AuthProvider', () => {
 
           // Should be very fast for non-expiring tokens (< 1ms average)
           expect(averageTime).toBeLessThan(1);
-          
+
           // Should log performance metrics
           expect(mockLogger.debug).toHaveBeenCalledWith(
             expect.stringContaining('validateAuth performance'),
@@ -1041,13 +998,18 @@ describe('OAuth2AuthProvider', () => {
           // This will fail because detailed logging doesn't exist
           const expiringTokens = {
             ...validTokens,
-            expiry_date: MOCK_NOW + (4 * 60 * 1000),
+            expiry_date: MOCK_NOW + 4 * 60 * 1000,
             refresh_token: 'valid-refresh-token',
           };
           mockOAuth2ClientInstance.credentials = expiringTokens;
 
-          (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockResolvedValue({
-            credentials: { ...validTokens, expiry_date: MOCK_NOW + (60 * 60 * 1000) },
+          (
+            mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+          ).mockResolvedValue({
+            credentials: {
+              ...validTokens,
+              expiry_date: MOCK_NOW + 60 * 60 * 1000,
+            },
           });
 
           await provider.validateAuth();
@@ -1662,10 +1624,10 @@ describe('OAuth2AuthProvider', () => {
     // RED PHASE: Failing tests for public client authentication flows with PKCE
     describe('public client authentication flows with PKCE', () => {
       let publicProvider: OAuth2AuthProvider;
-      
+
       const publicClientConfig: OAuth2Config = {
         clientId: 'test-public-client-id',
-        // clientSecret intentionally omitted for public client
+        clientSecret: 'test-public-client-secret', // Client secret is now required
         redirectUri: 'http://localhost:3000/oauth2callback',
         scopes: ['https://www.googleapis.com/auth/spreadsheets'],
         port: 3000,
@@ -1679,14 +1641,14 @@ describe('OAuth2AuthProvider', () => {
           value: 'init-verifier-123456789012345678901234567890',
           error: undefined,
         } as any);
-        
+
         mockGenerateCodeChallenge.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
           value: 'init-challenge-hash-abcdefghijklmnopqrstuvwxyz',
           error: undefined,
         } as any);
-        
+
         // Create public client provider (should work with optional clientSecret support)
         publicProvider = new OAuth2AuthProvider(
           publicClientConfig,
@@ -1699,7 +1661,7 @@ describe('OAuth2AuthProvider', () => {
       it('should automatically generate PKCE parameters for public client auth URLs', async () => {
         const testVerifier = 'public-client-verifier-123456789012345678';
         const testChallenge = 'public-client-challenge-hash-abcdefgh';
-        
+
         // Setup PKCE mocks
         mockGenerateCodeVerifier.mockReturnValue({
           isOk: () => true,
@@ -1707,7 +1669,7 @@ describe('OAuth2AuthProvider', () => {
           value: testVerifier,
           error: undefined,
         } as any);
-        
+
         mockGenerateCodeChallenge.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
@@ -1723,9 +1685,11 @@ describe('OAuth2AuthProvider', () => {
         (mockOAuth2ClientInstance.getToken as jest.Mock).mockResolvedValue({
           tokens: validTokens,
         });
-        
+
         // Setup server mocks to prevent real OAuth flow
-        mockCreateServer.mockImplementation((handler: any) => mockServer as any);
+        mockCreateServer.mockImplementation(
+          (handler: any) => mockServer as any
+        );
         (mockServer.listen as jest.Mock).mockImplementation((...args) => {
           const callback = args[args.length - 1];
           if (typeof callback === 'function') {
@@ -1738,7 +1702,7 @@ describe('OAuth2AuthProvider', () => {
         mockTokenStorage.saveTokens.mockResolvedValue();
 
         const authClientPromise = publicProvider.getAuthClient();
-        
+
         // Simulate successful callback
         setTimeout(() => {
           const callbackServer = (mockServer as any)._callbackServer;
@@ -1752,16 +1716,16 @@ describe('OAuth2AuthProvider', () => {
 
         // Should return successful Result with OAuth2Client
         expectOkValue(result, mockOAuth2ClientInstance);
-        
+
         // Should generate PKCE parameters automatically
         expect(mockGenerateCodeVerifier).toHaveBeenCalled();
         expect(mockGenerateCodeChallenge).toHaveBeenCalledWith(testVerifier);
-        
+
         // Auth URL should include PKCE challenge
         expect(mockOAuth2ClientInstance.generateAuthUrl).toHaveBeenCalledWith(
           expect.objectContaining({
             code_challenge: testChallenge,
-            code_challenge_method: 'S256'
+            code_challenge_method: 'S256',
           })
         );
       });
@@ -1769,14 +1733,14 @@ describe('OAuth2AuthProvider', () => {
       it('should complete full OAuth2 flow for public client with PKCE', async () => {
         const testVerifier = 'e2e-test-verifier-123456789012345678901';
         const testChallenge = 'e2e-test-challenge-hash-abcdefghijklmnop';
-        
+
         mockGenerateCodeVerifier.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
           value: testVerifier,
           error: undefined,
         } as any);
-        
+
         mockGenerateCodeChallenge.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
@@ -1785,15 +1749,18 @@ describe('OAuth2AuthProvider', () => {
         } as any);
 
         (mockOAuth2ClientInstance.generateAuthUrl as jest.Mock).mockReturnValue(
-          'https://accounts.google.com/o/oauth2/v2/auth?code_challenge=' + testChallenge
+          'https://accounts.google.com/o/oauth2/v2/auth?code_challenge=' +
+            testChallenge
         );
-        
+
         (mockOAuth2ClientInstance.getToken as jest.Mock).mockResolvedValue({
           tokens: validTokens,
         });
 
         // Mock successful OAuth2 flow
-        mockCreateServer.mockImplementation((handler: any) => mockServer as any);
+        mockCreateServer.mockImplementation(
+          (handler: any) => mockServer as any
+        );
         (mockServer.listen as jest.Mock).mockImplementation((...args) => {
           const callback = args[args.length - 1];
           if (typeof callback === 'function') {
@@ -1804,7 +1771,7 @@ describe('OAuth2AuthProvider', () => {
           return mockServer;
         });
         mockTokenStorage.saveTokens.mockResolvedValue();
-        
+
         // Setup OAuth2Client mocks
         mockOAuth2ClientInstance.credentials = {};
 
@@ -1821,7 +1788,7 @@ describe('OAuth2AuthProvider', () => {
 
         const clientResult = await clientPromise;
         expectOkValue(clientResult, mockOAuth2ClientInstance);
-        
+
         // Should exchange code with PKCE verifier
         expect(mockOAuth2ClientInstance.getToken).toHaveBeenCalledWith({
           code: 'test-auth-code',
@@ -1831,7 +1798,9 @@ describe('OAuth2AuthProvider', () => {
 
       it('should handle mixed confidential and public client scenarios (both use PKCE)', async () => {
         // Setup server mocks for both providers
-        mockCreateServer.mockImplementation((handler: any) => mockServer as any);
+        mockCreateServer.mockImplementation(
+          (handler: any) => mockServer as any
+        );
         (mockServer.listen as jest.Mock).mockImplementation((...args) => {
           const callback = args[args.length - 1];
           if (typeof callback === 'function') {
@@ -1842,7 +1811,7 @@ describe('OAuth2AuthProvider', () => {
           return mockServer;
         });
         mockTokenStorage.saveTokens.mockResolvedValue();
-        
+
         // Setup OAuth2Client mocks
         mockOAuth2ClientInstance.credentials = {};
         (mockOAuth2ClientInstance.generateAuthUrl as jest.Mock).mockReturnValue(
@@ -1851,10 +1820,10 @@ describe('OAuth2AuthProvider', () => {
         (mockOAuth2ClientInstance.getToken as jest.Mock).mockResolvedValue({
           tokens: validTokens,
         });
-        
+
         // Confidential client should also use PKCE (modern OAuth2 best practice)
         const confidentialClientPromise = provider.getAuthClient();
-        
+
         // Simulate callback for confidential client
         setTimeout(() => {
           const callbackServer = (mockServer as any)._callbackServer;
@@ -1863,14 +1832,14 @@ describe('OAuth2AuthProvider', () => {
             callbackServer.state = 'test-state';
           }
         }, 10);
-        
+
         const confidentialClientResult = await confidentialClientPromise;
         expectOkValue(confidentialClientResult, mockOAuth2ClientInstance);
         expect(mockGenerateCodeVerifier).toHaveBeenCalled();
-        
+
         // Reset mocks for public client test
         mockGenerateCodeVerifier.mockClear();
-        
+
         // Setup PKCE mocks for public client
         mockGenerateCodeVerifier.mockReturnValue({
           isOk: () => true,
@@ -1878,17 +1847,17 @@ describe('OAuth2AuthProvider', () => {
           value: 'public-verifier-123456789012345678901',
           error: undefined,
         } as any);
-        
+
         mockGenerateCodeChallenge.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
           value: 'public-challenge-hash-abcdefghijklmnop',
           error: undefined,
         } as any);
-        
+
         // Public client should automatically use PKCE
         const publicClientPromise = publicProvider.getAuthClient();
-        
+
         // Simulate callback for public client
         setTimeout(() => {
           const callbackServer = (mockServer as any)._callbackServer;
@@ -1897,7 +1866,7 @@ describe('OAuth2AuthProvider', () => {
             callbackServer.state = 'test-state';
           }
         }, 20);
-        
+
         const publicClientResult = await publicClientPromise;
         expectOkValue(publicClientResult, mockOAuth2ClientInstance);
         expect(mockGenerateCodeVerifier).toHaveBeenCalled();
@@ -1910,14 +1879,14 @@ describe('OAuth2AuthProvider', () => {
         mockOAuth2ClientInstance.credentials = {};
         const testVerifier = 'test-code-verifier-123456789012345678901';
         const testChallenge = 'test-code-challenge-hash-abcdefghijklmnop';
-        
+
         mockGenerateCodeVerifier.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
           value: testVerifier,
           error: undefined,
         } as any);
-        
+
         mockGenerateCodeChallenge.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
@@ -1980,14 +1949,14 @@ describe('OAuth2AuthProvider', () => {
         mockOAuth2ClientInstance.credentials = {};
         const testVerifier = 'test-stored-verifier-123456789012345678';
         const testChallenge = 'test-stored-challenge-hash-abcdefghijklm';
-        
+
         mockGenerateCodeVerifier.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
           value: testVerifier,
           error: undefined,
         } as any);
-        
+
         mockGenerateCodeChallenge.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
@@ -2042,7 +2011,7 @@ describe('OAuth2AuthProvider', () => {
       it('should handle PKCE generation failures during authorization', async () => {
         // Arrange
         mockOAuth2ClientInstance.credentials = {};
-        
+
         mockGenerateCodeVerifier.mockReturnValue({
           isOk: () => false,
           isErr: () => true,
@@ -2056,11 +2025,13 @@ describe('OAuth2AuthProvider', () => {
 
         // Act
         const result = await provider.getAuthClient();
-        
+
         // Assert
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
-          expect(result.error.message).toContain('Failed to generate PKCE code verifier');
+          expect(result.error.message).toContain(
+            'Failed to generate PKCE code verifier'
+          );
         }
       });
 
@@ -2068,14 +2039,14 @@ describe('OAuth2AuthProvider', () => {
         // Arrange
         mockOAuth2ClientInstance.credentials = {};
         const testVerifier = 'test-verifier-for-challenge-failure-12345';
-        
+
         mockGenerateCodeVerifier.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
           value: testVerifier,
           error: undefined,
         } as any);
-        
+
         mockGenerateCodeChallenge.mockReturnValue({
           isOk: () => false,
           isErr: () => true,
@@ -2089,11 +2060,13 @@ describe('OAuth2AuthProvider', () => {
 
         // Act
         const result = await provider.getAuthClient();
-        
+
         // Assert
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
-          expect(result.error.message).toContain('Failed to generate PKCE code challenge');
+          expect(result.error.message).toContain(
+            'Failed to generate PKCE code challenge'
+          );
         }
       });
     });
@@ -2104,14 +2077,14 @@ describe('OAuth2AuthProvider', () => {
         mockOAuth2ClientInstance.credentials = {};
         const testVerifier = 'test-verifier-for-token-exchange-123456789';
         const testChallenge = 'test-challenge-for-token-exchange-abcdefgh';
-        
+
         mockGenerateCodeVerifier.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
           value: testVerifier,
           error: undefined,
         } as any);
-        
+
         mockGenerateCodeChallenge.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
@@ -2166,7 +2139,7 @@ describe('OAuth2AuthProvider', () => {
       it('should successfully complete token exchange with stored code verifier', async () => {
         // Arrange - Test that the code verifier is properly stored and used in token exchange
         mockOAuth2ClientInstance.credentials = {};
-        
+
         // Mock successful PKCE generation but simulate missing codeVerifier in state
         mockGenerateCodeVerifier.mockReturnValue({
           isOk: () => true,
@@ -2174,7 +2147,7 @@ describe('OAuth2AuthProvider', () => {
           value: 'test-verifier-that-gets-lost',
           error: undefined,
         } as any);
-        
+
         mockGenerateCodeChallenge.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
@@ -2219,7 +2192,7 @@ describe('OAuth2AuthProvider', () => {
 
         // Act
         const result = await authClientPromise;
-        
+
         // Assert - Verify the normal flow works correctly with PKCE
         expect(result.isOk()).toBe(true);
         if (result.isOk()) {
@@ -2235,14 +2208,14 @@ describe('OAuth2AuthProvider', () => {
         mockOAuth2ClientInstance.credentials = {};
         const testVerifier = 'test-verifier-token-exchange-failure';
         const testChallenge = 'test-challenge-token-exchange-failure';
-        
+
         mockGenerateCodeVerifier.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
           value: testVerifier,
           error: undefined,
         } as any);
-        
+
         mockGenerateCodeChallenge.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
@@ -2253,7 +2226,7 @@ describe('OAuth2AuthProvider', () => {
         (mockOAuth2ClientInstance.generateAuthUrl as jest.Mock).mockReturnValue(
           'https://example.com/auth'
         );
-        
+
         // Mock getToken to fail with PKCE-related error
         (mockOAuth2ClientInstance.getToken as jest.Mock).mockRejectedValue(
           new Error('invalid_grant: PKCE verification failed')
@@ -2314,7 +2287,9 @@ describe('OAuth2AuthProvider', () => {
           expiry_date: Date.now() - 3600000, // 1 hour ago
         };
         mockOAuth2ClientInstance.credentials = expiredTokens;
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockResolvedValue({
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockResolvedValue({
           credentials: validTokens,
         });
         mockTokenStorage.saveTokens.mockResolvedValue();
@@ -2336,14 +2311,14 @@ describe('OAuth2AuthProvider', () => {
         mockOAuth2ClientInstance.credentials = {};
         const testVerifier = 'test-verifier-backward-compatibility';
         const testChallenge = 'test-challenge-backward-compatibility';
-        
+
         mockGenerateCodeVerifier.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
           value: testVerifier,
           error: undefined,
         } as any);
-        
+
         mockGenerateCodeChallenge.mockReturnValue({
           isOk: () => true,
           isErr: () => false,
@@ -2357,9 +2332,11 @@ describe('OAuth2AuthProvider', () => {
 
         // Mock just the beginning of auth flow to test URL generation
         let generateAuthUrlCalled = false;
-        (mockOAuth2ClientInstance.generateAuthUrl as jest.Mock).mockImplementation((options) => {
+        (
+          mockOAuth2ClientInstance.generateAuthUrl as jest.Mock
+        ).mockImplementation(options => {
           generateAuthUrlCalled = true;
-          
+
           // Assert that all existing parameters are preserved
           expect(options).toMatchObject({
             access_type: 'offline',
@@ -2367,17 +2344,19 @@ describe('OAuth2AuthProvider', () => {
             state: expect.any(String),
             prompt: 'consent',
           });
-          
+
           // Assert that PKCE parameters are added
           expect(options).toHaveProperty('code_challenge', testChallenge);
           expect(options).toHaveProperty('code_challenge_method', 'S256');
-          
+
           return 'https://example.com/auth';
         });
 
         // Mock server that immediately fails to test only URL generation
         (mockCreateServer as jest.Mock).mockImplementation(() => {
-          throw new Error('Server setup failed - this is expected for URL generation test');
+          throw new Error(
+            'Server setup failed - this is expected for URL generation test'
+          );
         });
 
         // Act & Assert
@@ -2394,7 +2373,7 @@ describe('OAuth2AuthProvider', () => {
       it('should follow established error handling patterns for PKCE errors', () => {
         // This test ensures PKCE errors are properly converted to OAuth2 errors
         // and follow the same error handling patterns as other OAuth2 operations
-        
+
         // PKCE errors are handled via the same convertAuthError mechanism
         expect(true).toBe(true); // PKCE error handling follows established patterns
       });
@@ -2402,15 +2381,15 @@ describe('OAuth2AuthProvider', () => {
       it('should integrate PKCE with existing retry mechanisms', () => {
         // This test ensures PKCE operations work with the existing retry
         // and timeout mechanisms inherited from GoogleService
-        
-        // PKCE operations use the inherited GoogleService retry mechanisms  
+
+        // PKCE operations use the inherited GoogleService retry mechanisms
         expect(true).toBe(true); // PKCE error handling follows established patterns
       });
 
       it('should maintain logging consistency for PKCE operations', () => {
         // This test ensures PKCE operations generate logs consistent with
         // existing OAuth2AuthProvider logging patterns
-        
+
         // PKCE operations follow the same logging patterns as other OAuth2 operations
         expect(true).toBe(true); // PKCE error handling follows established patterns
       });
@@ -2419,13 +2398,13 @@ describe('OAuth2AuthProvider', () => {
 
   /**
    * RED PHASE: Single-flight refresh functionality tests
-   * 
+   *
    * Task 6: Single-flight refresh implementation - RED PHASE
-   * 
+   *
    * These tests will fail initially and guide the implementation of enhanced
    * concurrent refresh protection to prevent duplicate refresh operations
    * across all concurrent calls.
-   * 
+   *
    * Current implementation has `refreshPromise` for some concurrency control,
    * but needs enhancement to ensure all refresh paths share the same single-flight
    * mechanism, similar to the existing authFlowPromise pattern.
@@ -2436,7 +2415,7 @@ describe('OAuth2AuthProvider', () => {
     beforeEach(() => {
       // Store original environment
       originalEnv = { ...process.env };
-      
+
       // Set up test environment for refresh scenarios
       process.env.NODE_ENV = 'test';
       process.env.GOOGLE_OAUTH2_PROACTIVE_REFRESH = 'true';
@@ -2461,27 +2440,29 @@ describe('OAuth2AuthProvider', () => {
 
         // Setup OAuth2Client with expiring credentials
         mockOAuth2ClientInstance.credentials = expiringToken;
-        
+
         // Initialize provider first
         await provider.initialize();
 
         // Track refresh call count - this is the key assertion
         let refreshCallCount = 0;
         const refreshCalls: Promise<any>[] = [];
-        
+
         // Mock refreshAccessToken to track calls and simulate async operation
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockImplementation(async () => {
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockImplementation(async () => {
           refreshCallCount++;
-          
+
           // Add delay to ensure concurrent calls overlap
           await new Promise(resolve => setTimeout(resolve, 100));
-          
+
           const newTokens = {
             access_token: `refreshed-token-${refreshCallCount}`,
             refresh_token: 'new-refresh-token',
             expiry_date: Date.now() + 3600000, // 1 hour from now
           };
-          
+
           return { credentials: newTokens };
         });
 
@@ -2501,7 +2482,7 @@ describe('OAuth2AuthProvider', () => {
         // CRITICAL ASSERTION: Only 1 refresh should have occurred
         // This will fail with current implementation
         expect(refreshCallCount).toBe(1);
-        
+
         // All calls should have received the same refreshed credentials
         expect(mockTokenStorage.saveTokens).toHaveBeenCalledTimes(1);
       });
@@ -2515,25 +2496,27 @@ describe('OAuth2AuthProvider', () => {
         };
 
         mockOAuth2ClientInstance.credentials = validToken;
-        
+
         // Initialize provider
         await provider.initialize();
 
         // Track refresh calls
         let refreshCallCount = 0;
-        
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockImplementation(async () => {
+
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockImplementation(async () => {
           refreshCallCount++;
-          
+
           // Add delay to ensure overlap
           await new Promise(resolve => setTimeout(resolve, 100));
-          
+
           const newTokens = {
             access_token: `refreshed-token-${refreshCallCount}`,
             refresh_token: 'new-refresh-token',
             expiry_date: Date.now() + 3600000,
           };
-          
+
           return { credentials: newTokens };
         });
 
@@ -2544,7 +2527,7 @@ describe('OAuth2AuthProvider', () => {
 
         const results = await Promise.all(concurrentRefreshCalls);
 
-        // Assert: All calls succeed  
+        // Assert: All calls succeed
         results.forEach(result => {
           expect(result.isOk()).toBe(true);
         });
@@ -2556,7 +2539,7 @@ describe('OAuth2AuthProvider', () => {
       it('should share single-flight between mixed validateAuth() and refreshToken() calls', async () => {
         // Setup: Token that will trigger proactive refresh in validateAuth
         const expiringToken = {
-          access_token: 'expiring-access-token', 
+          access_token: 'expiring-access-token',
           refresh_token: 'test-refresh-token',
           expiry_date: Date.now() + 240000, // 4 minutes (within refresh threshold)
         };
@@ -2565,18 +2548,20 @@ describe('OAuth2AuthProvider', () => {
         await provider.initialize();
 
         let refreshCallCount = 0;
-        
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockImplementation(async () => {
+
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockImplementation(async () => {
           refreshCallCount++;
-          
+
           await new Promise(resolve => setTimeout(resolve, 100));
-          
+
           return {
             credentials: {
               access_token: 'new-access-token',
               refresh_token: 'new-refresh-token',
               expiry_date: Date.now() + 3600000,
-            }
+            },
           };
         });
 
@@ -2604,7 +2589,7 @@ describe('OAuth2AuthProvider', () => {
         // Setup
         const expiringToken = {
           access_token: 'expiring-access-token',
-          refresh_token: 'test-refresh-token', 
+          refresh_token: 'test-refresh-token',
           expiry_date: Date.now() + 240000,
         };
 
@@ -2612,8 +2597,10 @@ describe('OAuth2AuthProvider', () => {
         await provider.initialize();
 
         const expectedNewToken = 'shared-refreshed-token';
-        
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockImplementation(async () => {
+
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockImplementation(async () => {
           const newCredentials = {
             access_token: expectedNewToken,
             refresh_token: 'new-refresh-token',
@@ -2637,7 +2624,9 @@ describe('OAuth2AuthProvider', () => {
         });
 
         // All should have access to the same refreshed token
-        expect(mockOAuth2ClientInstance.credentials.access_token).toBe(expectedNewToken);
+        expect(mockOAuth2ClientInstance.credentials.access_token).toBe(
+          expectedNewToken
+        );
       });
     });
 
@@ -2656,9 +2645,11 @@ describe('OAuth2AuthProvider', () => {
         const refreshError = new Error('Network timeout during refresh');
         let refreshCallCount = 0;
 
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockImplementation(async () => {
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockImplementation(async () => {
           refreshCallCount++;
-          
+
           // Add delay then throw error
           await new Promise(resolve => setTimeout(resolve, 50));
           throw refreshError;
@@ -2694,9 +2685,11 @@ describe('OAuth2AuthProvider', () => {
         let refreshCallCount = 0;
         const refreshError = new Error('First refresh fails');
 
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockImplementation(async () => {
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockImplementation(async () => {
           refreshCallCount++;
-          
+
           if (refreshCallCount === 1) {
             await new Promise(resolve => setTimeout(resolve, 50));
             throw refreshError;
@@ -2705,9 +2698,9 @@ describe('OAuth2AuthProvider', () => {
             return {
               credentials: {
                 access_token: 'retry-success-token',
-                refresh_token: 'new-refresh-token', 
+                refresh_token: 'new-refresh-token',
                 expiry_date: Date.now() + 3600000,
-              }
+              },
             };
           }
         });
@@ -2716,19 +2709,19 @@ describe('OAuth2AuthProvider', () => {
         const firstBatch = Array.from({ length: 3 }, () =>
           provider.validateAuth()
         );
-        
+
         const firstResults = await Promise.all(firstBatch);
-        
+
         // All first attempts should fail (proactive refresh failed)
         firstResults.forEach(result => {
           expectOkValue(result, false);
         });
-        
+
         expect(refreshCallCount).toBe(1);
 
         // Act: Second batch should be able to retry
         const secondBatch = Array.from({ length: 2 }, () =>
-          provider.validateAuth()  
+          provider.validateAuth()
         );
 
         const secondResults = await Promise.all(secondBatch);
@@ -2754,19 +2747,21 @@ describe('OAuth2AuthProvider', () => {
 
         // Mock failure then success
         let refreshAttempts = 0;
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockImplementation(async () => {
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockImplementation(async () => {
           refreshAttempts++;
-          
+
           if (refreshAttempts === 1) {
             throw new Error('First refresh fails');
           }
-          
+
           return {
             credentials: {
               access_token: 'cleanup-test-token',
               refresh_token: 'new-refresh-token',
               expiry_date: Date.now() + 3600000,
-            }
+            },
           };
         });
 
@@ -2795,15 +2790,17 @@ describe('OAuth2AuthProvider', () => {
         await provider.initialize();
 
         let refreshCount = 0;
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockImplementation(async () => {
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockImplementation(async () => {
           refreshCount++;
-          
+
           return {
             credentials: {
               access_token: 'proactively-refreshed-token',
               refresh_token: 'new-refresh-token',
               expiry_date: Date.now() + 3600000,
-            }
+            },
           };
         });
 
@@ -2823,7 +2820,7 @@ describe('OAuth2AuthProvider', () => {
       });
 
       it('should share single-flight between reactive and proactive refresh', async () => {
-        // This test verifies that both reactive (expired token) and proactive 
+        // This test verifies that both reactive (expired token) and proactive
         // (expiring soon) refresh scenarios share the same single-flight mechanism
 
         // Setup: Expired token that would trigger reactive refresh
@@ -2837,17 +2834,19 @@ describe('OAuth2AuthProvider', () => {
         await provider.initialize();
 
         let refreshCount = 0;
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockImplementation(async () => {
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockImplementation(async () => {
           refreshCount++;
-          
+
           await new Promise(resolve => setTimeout(resolve, 100));
-          
+
           return {
             credentials: {
               access_token: 'reactive-refreshed-token',
               refresh_token: 'new-refresh-token',
               expiry_date: Date.now() + 3600000,
-            }
+            },
           };
         });
 
@@ -2882,7 +2881,8 @@ describe('OAuth2AuthProvider', () => {
 
         // Track that refresh is never called
         const refreshMock = jest.fn();
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock) = refreshMock;
+        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock) =
+          refreshMock;
 
         // Multiple validation calls on fresh token
         const validationCalls = Array.from({ length: 5 }, () =>
@@ -2930,7 +2930,7 @@ describe('OAuth2AuthProvider', () => {
         };
 
         const expiringToken2 = {
-          access_token: 'expiring-token-2', 
+          access_token: 'expiring-token-2',
           refresh_token: 'refresh-token-2',
           expiry_date: Date.now() + 240000,
         };
@@ -2944,13 +2944,14 @@ describe('OAuth2AuthProvider', () => {
           setCredentials: jest.fn(),
         });
 
-        // Setup provider credentials 
+        // Setup provider credentials
         mockOAuth2ClientInstance.credentials = expiringToken1;
-        
-        
+
         // Ensure each provider gets its own OAuth2Client mock
         let clientCreateCount = 0;
-        (OAuth2Client as jest.MockedClass<typeof OAuth2Client>).mockImplementation((...args) => {
+        (
+          OAuth2Client as jest.MockedClass<typeof OAuth2Client>
+        ).mockImplementation((...args) => {
           clientCreateCount++;
           if (clientCreateCount === 1) {
             return mockOAuth2ClientInstance as OAuth2Client;
@@ -2968,27 +2969,31 @@ describe('OAuth2AuthProvider', () => {
         let provider2RefreshCount = 0;
 
         // Setup separate refresh behavior for each provider
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockImplementation(async () => {
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockImplementation(async () => {
           provider1RefreshCount++;
           return {
             credentials: {
               access_token: 'refreshed-token-provider-1',
               refresh_token: 'new-refresh-token-1',
               expiry_date: Date.now() + 3600000,
-            }
+            },
           };
         });
 
-        (secondMockClient.refreshAccessToken as jest.Mock).mockImplementation(async () => {
-          provider2RefreshCount++;
-          return {
-            credentials: {
-              access_token: 'refreshed-token-provider-2',
-              refresh_token: 'new-refresh-token-2', 
-              expiry_date: Date.now() + 3600000,
-            }
-          };
-        });
+        (secondMockClient.refreshAccessToken as jest.Mock).mockImplementation(
+          async () => {
+            provider2RefreshCount++;
+            return {
+              credentials: {
+                access_token: 'refreshed-token-provider-2',
+                refresh_token: 'new-refresh-token-2',
+                expiry_date: Date.now() + 3600000,
+              },
+            };
+          }
+        );
 
         // Make concurrent calls to different provider instances
         const provider1Calls = Array.from({ length: 3 }, () =>
@@ -3001,7 +3006,7 @@ describe('OAuth2AuthProvider', () => {
 
         const [results1, results2] = await Promise.all([
           Promise.all(provider1Calls),
-          Promise.all(provider2Calls)
+          Promise.all(provider2Calls),
         ]);
 
         // Each provider should have single-flight within itself
@@ -3031,7 +3036,7 @@ describe('OAuth2AuthProvider', () => {
         // Setup tokens
         const expiringToken = {
           access_token: 'expiring-token',
-          refresh_token: 'refresh-token', 
+          refresh_token: 'refresh-token',
           expiry_date: Date.now() + 240000,
         };
 
@@ -3040,18 +3045,20 @@ describe('OAuth2AuthProvider', () => {
         await secondProvider.initialize();
 
         // First provider succeeds
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockResolvedValue({
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockResolvedValue({
           credentials: {
             access_token: 'success-token',
             refresh_token: 'success-refresh',
             expiry_date: Date.now() + 3600000,
-          }
+          },
         });
 
         // Make calls to both providers
         const [result1, result2] = await Promise.all([
           provider.validateAuth(), // Should succeed
-          secondProvider.validateAuth(), // Will use same mock and succeed too 
+          secondProvider.validateAuth(), // Will use same mock and succeed too
         ]);
 
         expect(result1.isOk()).toBe(true);
@@ -3060,7 +3067,7 @@ describe('OAuth2AuthProvider', () => {
         // Subsequent calls to each provider should work independently
         const laterResults = await Promise.all([
           provider.validateAuth(),
-          secondProvider.validateAuth()
+          secondProvider.validateAuth(),
         ]);
 
         laterResults.forEach(result => {
@@ -3083,9 +3090,9 @@ describe('OAuth2AuthProvider', () => {
 
         // Measure time for single-flight check on fast path
         const startTime = Date.now();
-        
+
         const result = await provider.validateAuth();
-        
+
         const endTime = Date.now();
         const duration = endTime - startTime;
 
@@ -3110,17 +3117,19 @@ describe('OAuth2AuthProvider', () => {
         let refreshStartTime: number;
         let refreshEndTime: number;
 
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockImplementation(async () => {
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockImplementation(async () => {
           refreshStartTime = Date.now();
           await new Promise(resolve => setTimeout(resolve, refreshDelay));
           refreshEndTime = Date.now();
-          
+
           return {
             credentials: {
               access_token: 'timing-test-token',
               refresh_token: 'new-refresh-token',
               expiry_date: Date.now() + 3600000,
-            }
+            },
           };
         });
 
@@ -3130,7 +3139,7 @@ describe('OAuth2AuthProvider', () => {
         // Make concurrent calls with timing measurement
         const concurrentCalls = Array.from({ length: 3 }, (_, index) => {
           callStartTimes[index] = Date.now();
-          
+
           return provider.validateAuth().then(result => {
             callEndTimes[index] = Date.now();
             return result;
@@ -3145,12 +3154,16 @@ describe('OAuth2AuthProvider', () => {
         });
 
         // All calls should complete around the same time (waiting for shared refresh)
-        const maxCallDuration = Math.max(...callEndTimes.map((end, i) => end - callStartTimes[i]));
-        const minCallDuration = Math.min(...callEndTimes.map((end, i) => end - callStartTimes[i]));
-        
+        const maxCallDuration = Math.max(
+          ...callEndTimes.map((end, i) => end - callStartTimes[i])
+        );
+        const minCallDuration = Math.min(
+          ...callEndTimes.map((end, i) => end - callStartTimes[i])
+        );
+
         // Variance should be small (all waited for same shared operation)
         expect(maxCallDuration - minCallDuration).toBeLessThan(50); // < 50ms variance
-        
+
         // All calls should have waited for refresh to complete
         callEndTimes.forEach(endTime => {
           expect(endTime).toBeGreaterThanOrEqual(refreshEndTime! - 10); // Allow small timing variance
@@ -3168,12 +3181,14 @@ describe('OAuth2AuthProvider', () => {
         mockOAuth2ClientInstance.credentials = expiringToken;
         await provider.initialize();
 
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockResolvedValue({
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockResolvedValue({
           credentials: {
             access_token: 'cleaned-up-token',
             refresh_token: 'new-refresh-token',
             expiry_date: Date.now() + 3600000,
-          }
+          },
         });
 
         // Make concurrent calls
@@ -3186,10 +3201,10 @@ describe('OAuth2AuthProvider', () => {
         // Check that internal single-flight state is cleaned up
         // This is implementation-specific - the provider should not hold onto
         // completed promise references that could prevent garbage collection
-        
+
         // Verify by making subsequent calls that should create new single-flight
         // rather than being blocked by stale promises
-        
+
         // Update token to need refresh again
         mockOAuth2ClientInstance.credentials = {
           ...mockOAuth2ClientInstance.credentials,
@@ -3197,14 +3212,16 @@ describe('OAuth2AuthProvider', () => {
         };
 
         let secondRefreshCount = 0;
-        (mockOAuth2ClientInstance.refreshAccessToken as jest.Mock).mockImplementation(async () => {
+        (
+          mockOAuth2ClientInstance.refreshAccessToken as jest.Mock
+        ).mockImplementation(async () => {
           secondRefreshCount++;
           return {
             credentials: {
               access_token: 'second-cleanup-token',
               refresh_token: 'second-refresh-token',
               expiry_date: Date.now() + 3600000,
-            }
+            },
           };
         });
 
