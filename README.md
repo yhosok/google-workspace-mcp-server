@@ -13,7 +13,7 @@ This MCP server implements the [Model Context Protocol](https://modelcontextprot
 - **Google Sheets Integration**: Full CRUD operations on spreadsheets with optional folder placement
 - **Google Calendar Integration**: Complete calendar management with event creation, updates, and deletion
 - **Google Drive Integration**: Smart file creation with folder management for organized workspace
-- **Dual Authentication Support**: Both Service Account and OAuth2 user authentication with PKCE security
+- **Dual Authentication Support**: Both Service Account and OAuth2 user authentication with PKCE security for Public Clients
 - **Advanced Timeout Control**: Dual-layer timeout protection with AbortController
 - **Configurable Retry/Backoff Strategy**: Intelligent retry handling for transient API failures
 - **Folder-Based Organization**: Optional GOOGLE_DRIVE_FOLDER_ID for organized file management
@@ -116,16 +116,28 @@ For the service account to access your Google Workspace resources:
 
 **Best for:** Personal use, development, accessing user's own resources
 
-This option uses PKCE (Proof Key for Code Exchange) for enhanced security, following RFC 7636 standards to protect against authorization code interception attacks.
+This option supports both **Public Client** and **Confidential Client** configurations:
+
+#### Public Client (Recommended for CLI/Desktop Applications)
+- **Enhanced Security**: Automatically uses PKCE (Proof Key for Code Exchange) per RFC 7636
+- **No Client Secret Required**: Eliminates secret storage risks in client environments  
+- **Best for**: Command-line tools, desktop applications, development environments
+- **Security Benefits**: Protects against authorization code interception attacks
+- **Configuration**: Simply omit the client secret in your configuration
+
+#### Confidential Client (Traditional OAuth2)
+- **Client Secret Required**: Uses traditional OAuth2 flow with client secret
+- **Best for**: Server environments with secure secret storage
+- **Security Considerations**: Requires secure management of client secrets
 
 #### 1. Create OAuth2 Credentials
 
 1. In the [Google Cloud Console](https://console.cloud.google.com/), navigate to "APIs & Services" > "Credentials"
 2. Click "Create Credentials" > "OAuth 2.0 Client IDs"
-3. Select "Desktop application" as the application type
+3. Select "Desktop application" as the application type (suitable for both Public and Confidential clients)
 4. Give it a name (e.g., "Google Workspace MCP Server")
 5. Click "Create"
-6. Download the credentials JSON file or note the Client ID and Client Secret
+6. Download the credentials JSON file or note the Client ID (and Client Secret if using Confidential Client)
 
 #### 2. Configure Redirect URI
 
@@ -135,7 +147,16 @@ This option uses PKCE (Proof Key for Code Exchange) for enhanced security, follo
 
 #### 3. Configure Environment Variables
 
-Set up your `.env` file with OAuth2 credentials:
+**For Public Client (Recommended):**
+```env
+GOOGLE_AUTH_MODE=oauth2
+GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
+# GOOGLE_OAUTH_CLIENT_SECRET is intentionally omitted for PKCE security
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
+GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file
+```
+
+**For Confidential Client (Traditional):**
 ```env
 GOOGLE_AUTH_MODE=oauth2
 GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
@@ -174,7 +195,18 @@ GOOGLE_SERVICE_ACCOUNT_KEY_PATH=/path/to/your/service-account-key.json
 
 ### OAuth2 Configuration
 
-For OAuth2 authentication:
+**For Public Client OAuth2 authentication (Recommended):**
+
+```env
+GOOGLE_AUTH_MODE=oauth2
+GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
+# GOOGLE_OAUTH_CLIENT_SECRET is intentionally omitted for PKCE security
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
+GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file
+GOOGLE_OAUTH_PORT=3000
+```
+
+**For Confidential Client OAuth2 authentication (Traditional):**
 
 ```env
 GOOGLE_AUTH_MODE=oauth2
@@ -242,8 +274,25 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
 
 #### For OAuth2 Authentication
 
-Add to your Claude Desktop configuration (`claude_desktop_config.json`):
+**Public Client (Recommended):**
+```json
+{
+  "mcpServers": {
+    "google-workspace": {
+      "command": "node",
+      "args": ["/path/to/google-workspace-mcp-server/dist/index.js"],
+      "env": {
+        "GOOGLE_AUTH_MODE": "oauth2",
+        "GOOGLE_OAUTH_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
+        "GOOGLE_OAUTH_REDIRECT_URI": "http://localhost:3000/oauth2callback",
+        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file"
+      }
+    }
+  }
+}
+```
 
+**Confidential Client (Traditional):**
 ```json
 {
   "mcpServers": {
@@ -592,9 +641,17 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Verify that you've granted all requested permissions
 
 **"OAuth2 client configuration error"**
-- Ensure `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` are correct
+- Ensure `GOOGLE_OAUTH_CLIENT_ID` is correct
+- For Confidential Client: Verify `GOOGLE_OAUTH_CLIENT_SECRET` is correct
+- For Public Client: Ensure `GOOGLE_OAUTH_CLIENT_SECRET` is NOT set (commented out or omitted)
 - Verify the redirect URI matches: `http://localhost:3000/oauth2callback`
 - Check that the OAuth2 client is configured for "Desktop application"
+
+**"PKCE validation failed" (Public Client)**
+- This indicates a security validation issue with the PKCE flow
+- Clear stored tokens and re-authenticate
+- Ensure no client secret is configured when using Public Client
+- Verify your Google Cloud Console client is set up as a Desktop application
 
 **"Token storage error"**
 - On macOS: Check Keychain access permissions

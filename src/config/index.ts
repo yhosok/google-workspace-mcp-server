@@ -2,6 +2,16 @@ import { z } from 'zod';
 import type { EnvironmentConfig } from '../types/index.js';
 
 /**
+ * Helper function to check if a value is effectively empty (null, undefined, or empty string).
+ * Used to determine when default values should be applied.
+ * @param value - The environment variable value to check
+ * @returns The value if it's non-empty, undefined otherwise
+ */
+const getEffectiveValue = (value: string | undefined): string | undefined => {
+  return value && value.trim() !== '' ? value : undefined;
+};
+
+/**
  * Environment variable schema definition for Google Workspace MCP Server.
  * Validates and transforms environment variables with retry configuration
  * and OAuth2 authentication support.
@@ -43,10 +53,31 @@ const envSchema = z
       | undefined,
     GOOGLE_OAUTH_CLIENT_ID: data.GOOGLE_OAUTH_CLIENT_ID,
     GOOGLE_OAUTH_CLIENT_SECRET: data.GOOGLE_OAUTH_CLIENT_SECRET,
-    GOOGLE_OAUTH_REDIRECT_URI: data.GOOGLE_OAUTH_REDIRECT_URI,
-    GOOGLE_OAUTH_SCOPES: data.GOOGLE_OAUTH_SCOPES,
+    GOOGLE_OAUTH_REDIRECT_URI: ((): string | undefined => {
+      const explicitUri = getEffectiveValue(data.GOOGLE_OAUTH_REDIRECT_URI);
+      if (explicitUri) return explicitUri;
+
+      // OAuth2 Client IDが設定されている場合のみデフォルト値を適用
+      if (data.GOOGLE_OAUTH_CLIENT_ID) {
+        const port = data.GOOGLE_OAUTH_PORT
+          ? parseInt(data.GOOGLE_OAUTH_PORT)
+          : 3000;
+        return `http://localhost:${port}/oauth2callback`;
+      }
+      return undefined;
+    })(),
+    GOOGLE_OAUTH_SCOPES: ((): string | undefined => {
+      const explicitScopes = getEffectiveValue(data.GOOGLE_OAUTH_SCOPES);
+      if (explicitScopes) return explicitScopes;
+
+      // OAuth2 Client IDが設定されている場合のみデフォルト値を適用
+      return data.GOOGLE_OAUTH_CLIENT_ID
+        ? 'https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file'
+        : undefined;
+    })(),
     GOOGLE_OAUTH_PORT: parseIntegerEnvVar(
-      data.GOOGLE_OAUTH_PORT,
+      data.GOOGLE_OAUTH_PORT ||
+        (data.GOOGLE_OAUTH_CLIENT_ID ? '3000' : undefined),
       'GOOGLE_OAUTH_PORT'
     ),
 
@@ -213,20 +244,29 @@ function validateAuthConfig(data: EnvironmentConfig): void {
   if (GOOGLE_AUTH_MODE === 'service-account') {
     if (!GOOGLE_SERVICE_ACCOUNT_KEY_PATH) {
       throw new Error(
-        'GOOGLE_SERVICE_ACCOUNT_KEY_PATH is required when GOOGLE_AUTH_MODE is "service-account"'
+        'Service Account configuration incomplete: GOOGLE_SERVICE_ACCOUNT_KEY_PATH is required when GOOGLE_AUTH_MODE is "service-account".\n\n' +
+          'To configure Service Account authentication:\n' +
+          '1. Create a Service Account in Google Cloud Console (https://console.cloud.google.com/iam-admin/serviceaccounts)\n' +
+          '2. Generate and download a JSON key file\n' +
+          '3. Set GOOGLE_SERVICE_ACCOUNT_KEY_PATH=/path/to/service-account-key.json\n' +
+          '4. Share required Google Workspace resources with the service account email\n\n' +
+          'Security Note: Keep the JSON key file secure and never commit it to version control.'
       );
     }
   } else if (GOOGLE_AUTH_MODE === 'oauth2') {
     if (!GOOGLE_OAUTH_CLIENT_ID) {
       throw new Error(
-        'GOOGLE_OAUTH_CLIENT_ID is required when GOOGLE_AUTH_MODE is "oauth2"'
+        'OAuth2 configuration incomplete: GOOGLE_OAUTH_CLIENT_ID is required when GOOGLE_AUTH_MODE is "oauth2".\n\n' +
+          'To configure OAuth2 authentication:\n' +
+          '1. Create OAuth2 credentials in Google Cloud Console (https://console.cloud.google.com/apis/credentials)\n' +
+          '2. Set GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com\n' +
+          '3. Optionally set GOOGLE_OAUTH_CLIENT_SECRET for confidential clients\n\n' +
+          'Security Note: Public clients (without client secret) use PKCE for enhanced security.\n' +
+          'This is recommended for CLI tools and desktop applications.'
       );
     }
-    if (!GOOGLE_OAUTH_CLIENT_SECRET) {
-      throw new Error(
-        'GOOGLE_OAUTH_CLIENT_SECRET is required when GOOGLE_AUTH_MODE is "oauth2"'
-      );
-    }
+    // Note: GOOGLE_OAUTH_CLIENT_SECRET is optional for public clients (PKCE flow)
+    // For production environments, consider using confidential clients with client secrets
   }
 
   // If no explicit auth mode, but OAuth2 credentials are provided, validate them
@@ -234,16 +274,19 @@ function validateAuthConfig(data: EnvironmentConfig): void {
     !GOOGLE_AUTH_MODE &&
     (GOOGLE_OAUTH_CLIENT_ID || GOOGLE_OAUTH_CLIENT_SECRET)
   ) {
-    if (!GOOGLE_OAUTH_CLIENT_ID) {
+    if (GOOGLE_OAUTH_CLIENT_SECRET && !GOOGLE_OAUTH_CLIENT_ID) {
       throw new Error(
-        'GOOGLE_OAUTH_CLIENT_SECRET requires GOOGLE_OAUTH_CLIENT_ID'
+        'OAuth2 configuration error: GOOGLE_OAUTH_CLIENT_SECRET requires GOOGLE_OAUTH_CLIENT_ID.\n\n' +
+          "Client ID is required to identify the OAuth2 application to Google's servers.\n" +
+          'Both credentials must be obtained from the same OAuth2 client in Google Cloud Console.\n\n' +
+          'To fix this:\n' +
+          '1. Set GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com\n' +
+          '2. Keep GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret\n\n' +
+          'Alternative: Remove GOOGLE_OAUTH_CLIENT_SECRET to use public client (PKCE) mode.'
       );
     }
-    if (!GOOGLE_OAUTH_CLIENT_SECRET) {
-      throw new Error(
-        'GOOGLE_OAUTH_CLIENT_ID requires GOOGLE_OAUTH_CLIENT_SECRET'
-      );
-    }
+    // Note: GOOGLE_OAUTH_CLIENT_ID without GOOGLE_OAUTH_CLIENT_SECRET is valid for public clients (PKCE flow)
+    // This allows for more secure OAuth2 implementation for applications that cannot securely store secrets
   }
 
   // Validate OAuth2 port if provided
@@ -266,12 +309,29 @@ function validateAuthConfig(data: EnvironmentConfig): void {
 
   // Validate that at least one auth method is configured
   const hasServiceAccount = !!GOOGLE_SERVICE_ACCOUNT_KEY_PATH;
-  const hasOAuth2 = !!(GOOGLE_OAUTH_CLIENT_ID && GOOGLE_OAUTH_CLIENT_SECRET);
+  const hasOAuth2 = !!GOOGLE_OAUTH_CLIENT_ID; // Client ID is sufficient for OAuth2 (supports public clients)
 
   if (!hasServiceAccount && !hasOAuth2) {
     throw new Error(
-      'At least one authentication method must be configured. ' +
-        'Provide either GOOGLE_SERVICE_ACCOUNT_KEY_PATH or both GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET.'
+      'Authentication configuration required: At least one authentication method must be configured.\n\n' +
+        'Choose one of the following options:\n\n' +
+        '1. SERVICE ACCOUNT AUTHENTICATION (Recommended for server environments):\n' +
+        '   Set: GOOGLE_SERVICE_ACCOUNT_KEY_PATH=/path/to/service-account-key.json\n' +
+        '   - Best for: Automated workflows, server applications, organization-wide access\n' +
+        '   - Requires: Service account JSON key file from Google Cloud Console\n' +
+        '   - Security: High (no user interaction, uses JWT tokens)\n\n' +
+        '2. OAUTH2 USER AUTHENTICATION (Recommended for personal/development use):\n\n' +
+        '   Option 2A - Public Client (PKCE - Most Secure):\n' +
+        '   Set: GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com\n' +
+        '   - Best for: Desktop applications, CLI tools, development environments\n' +
+        '   - Security: High (PKCE protection, no client secret needed)\n' +
+        '   - User-friendly: Interactive browser-based authentication\n\n' +
+        '   Option 2B - Confidential Client (Legacy):\n' +
+        '   Set: GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com\n' +
+        '   Set: GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret\n' +
+        '   - Best for: Web applications with secure backend\n' +
+        '   - Security: Requires secure storage of client secret\n\n' +
+        'For more information, see: https://developers.google.com/identity/protocols/oauth2'
     );
   }
 }
