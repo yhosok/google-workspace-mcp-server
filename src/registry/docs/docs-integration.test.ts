@@ -23,14 +23,26 @@ jest.mock('../../services/drive.service.js');
 jest.mock('../../tools/docs/index.js');
 
 const MockedDocsService = DocsService as jest.MockedClass<typeof DocsService>;
-const MockedDriveService = DriveService as jest.MockedClass<typeof DriveService>;
+const MockedDriveService = DriveService as jest.MockedClass<
+  typeof DriveService
+>;
 
 // Mock tool constructors
-const MockedCreateDocumentTool = CreateDocumentTool as jest.MockedClass<typeof CreateDocumentTool>;
-const MockedGetDocumentTool = GetDocumentTool as jest.MockedClass<typeof GetDocumentTool>;
-const MockedUpdateDocumentTool = UpdateDocumentTool as jest.MockedClass<typeof UpdateDocumentTool>;
-const MockedInsertTextTool = InsertTextTool as jest.MockedClass<typeof InsertTextTool>;
-const MockedReplaceTextTool = ReplaceTextTool as jest.MockedClass<typeof ReplaceTextTool>;
+const MockedCreateDocumentTool = CreateDocumentTool as jest.MockedClass<
+  typeof CreateDocumentTool
+>;
+const MockedGetDocumentTool = GetDocumentTool as jest.MockedClass<
+  typeof GetDocumentTool
+>;
+const MockedUpdateDocumentTool = UpdateDocumentTool as jest.MockedClass<
+  typeof UpdateDocumentTool
+>;
+const MockedInsertTextTool = InsertTextTool as jest.MockedClass<
+  typeof InsertTextTool
+>;
+const MockedReplaceTextTool = ReplaceTextTool as jest.MockedClass<
+  typeof ReplaceTextTool
+>;
 
 describe('Docs Integration Tests', () => {
   let serviceRegistry: ServiceRegistry;
@@ -77,7 +89,7 @@ describe('Docs Integration Tests', () => {
       getToolName: jest.fn(),
       registerTool: jest.fn(),
     } as any;
-    
+
     MockedCreateDocumentTool.mockImplementation(() => mockTool);
     MockedGetDocumentTool.mockImplementation(() => mockTool);
     MockedUpdateDocumentTool.mockImplementation(() => mockTool);
@@ -123,7 +135,15 @@ describe('Docs Integration Tests', () => {
 
     // Mock DocsService initialization failure
     mockDocsService.initialize.mockResolvedValue(
-      err(new GoogleServiceError('Docs init failed', 'docs', 'INIT_FAILED', 500, {}))
+      err(
+        new GoogleServiceError(
+          'Docs init failed',
+          'docs',
+          'INIT_FAILED',
+          500,
+          {}
+        )
+      )
     );
 
     const initResult = await serviceRegistry.initializeAll(mockAuthService);
@@ -140,7 +160,15 @@ describe('Docs Integration Tests', () => {
 
     // Mock DriveService initialization failure
     mockDriveService.initialize.mockResolvedValue(
-      err(new GoogleServiceError('Drive init failed', 'drive', 'INIT_FAILED', 500, {}))
+      err(
+        new GoogleServiceError(
+          'Drive init failed',
+          'drive',
+          'INIT_FAILED',
+          500,
+          {}
+        )
+      )
     );
 
     const initResult = await serviceRegistry.initializeAll(mockAuthService);
@@ -158,15 +186,19 @@ describe('Docs Integration Tests', () => {
     await serviceRegistry.initializeAll(mockAuthService);
 
     // Mock tool registration failure by making the module's registerTools method fail
-    jest.spyOn(docsModule, 'registerTools').mockReturnValue(
-      err(new GoogleServiceError(
-        'Tool registration failed',
-        'docs',
-        'TOOL_REGISTRATION_FAILED',
-        500,
-        {}
-      ))
-    );
+    jest
+      .spyOn(docsModule, 'registerTools')
+      .mockReturnValue(
+        err(
+          new GoogleServiceError(
+            'Tool registration failed',
+            'docs',
+            'TOOL_REGISTRATION_FAILED',
+            500,
+            {}
+          )
+        )
+      );
 
     const toolsResult = serviceRegistry.registerAllTools(mockServer);
     expect(toolsResult.isErr()).toBe(true);
@@ -212,7 +244,9 @@ describe('Docs Integration Tests', () => {
     expect(initResult.isErr()).toBe(true);
 
     if (initResult.isErr()) {
-      expect(initResult.error.message).toContain('Failed to initialize Docs service');
+      expect(initResult.error.message).toContain(
+        'Failed to initialize Docs service'
+      );
     }
   });
 
@@ -224,12 +258,14 @@ describe('Docs Integration Tests', () => {
     await serviceRegistry.registerAllTools(mockServer);
 
     // Verify all tools are registered
-    const docsModuleInstance = serviceRegistry.getModule('docs') as DocsServiceModule;
+    const docsModuleInstance = serviceRegistry.getModule(
+      'docs'
+    ) as DocsServiceModule;
     expect(docsModuleInstance!.getTools()).toHaveLength(5);
 
     // Simulate concurrent tool usage
     const tools = docsModuleInstance!.getTools();
-    const toolExecutions = tools.map(tool => 
+    const toolExecutions = tools.map(tool =>
       Promise.resolve(tool.getToolName())
     );
 

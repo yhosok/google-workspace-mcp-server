@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { BaseDocsTools } from './base-docs-tool.js';
-import type { DocsReplaceTextResult, MCPToolResult } from '../../types/index.js';
-import type { ToolExecutionContext, ToolMetadata } from '../base/tool-registry.js';
+import type { MCPToolResult } from '../../types/index.js';
+import type {
+  ToolExecutionContext,
+  ToolMetadata,
+} from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleDocsError, GoogleWorkspaceError } from '../../errors/index.js';
 
@@ -24,8 +27,7 @@ const ReplaceTextInputSchema = z.object({
       required_error: 'Search text is required',
       invalid_type_error: 'Text cannot be null',
     })
-    .min(1, 'Search text cannot be empty')
-    .max(1000000, 'Search text too long'), // 1MB limit
+    .max(1000000, 'Search text too long'), // 1MB limit, empty strings allowed
   replaceText: z
     .string({
       description: 'Text to replace the search text with',
@@ -67,7 +69,7 @@ type ReplaceTextInput = z.infer<typeof ReplaceTextInputSchema>;
  *
  * **Input Parameters:**
  * - `documentId` (required): The unique identifier of the document
- * - `searchText` (required): The text to search for (cannot be empty)
+ * - `searchText` (required): The text to search for (can be empty for specific use cases)
  * - `replaceText` (required): The replacement text (can be empty for deletion)
  * - `matchCase` (optional): Whether search should be case-sensitive (default: false)
  *
@@ -122,7 +124,8 @@ export class ReplaceTextTool extends BaseDocsTools<
   public getToolMetadata(): ToolMetadata {
     return {
       title: 'Replace Text in Document',
-      description: 'Replaces all occurrences of specified text in a Google Document',
+      description:
+        'Replaces all occurrences of specified text in a Google Document',
       inputSchema: ReplaceTextInputSchema.shape,
     };
   }
@@ -173,7 +176,7 @@ export class ReplaceTextTool extends BaseDocsTools<
    *   replaceText: "COMPLETED",
    *   matchCase: false
    * });
-   * 
+   *
    * if (result.isOk()) {
    *   const replaceResult = JSON.parse(result.value.content[0].text);
    *   console.log('Replacements made:', replaceResult.result.occurrencesChanged);
@@ -187,15 +190,15 @@ export class ReplaceTextTool extends BaseDocsTools<
     context?: ToolExecutionContext
   ): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
     const requestId = context?.requestId || this.generateRequestId();
-    
+
     this.logger.info(`${this.getToolName()}: Starting text replacement`, {
       requestId,
-      params: { 
+      params: {
         documentId: params.documentId,
         searchTextLength: params.searchText?.length || 0,
         replaceTextLength: params.replaceText?.length || 0,
-        matchCase: !!params.matchCase
-      }
+        matchCase: !!params.matchCase,
+      },
     });
 
     try {
@@ -203,10 +206,10 @@ export class ReplaceTextTool extends BaseDocsTools<
       const validationResult = this.validateWithSchema(
         ReplaceTextInputSchema,
         params,
-        { 
+        {
           documentId: params.documentId,
           textContent: params.searchText,
-          operation: 'replace_text' 
+          operation: 'replace_text',
         }
       );
 
@@ -240,21 +243,14 @@ export class ReplaceTextTool extends BaseDocsTools<
       }
 
       // Replace text validation using BaseDocsTools method (can be empty)
-      const replaceTextResult = this.textValidation(validatedParams.replaceText);
+      const replaceTextResult = this.textValidation(
+        validatedParams.replaceText
+      );
       if (replaceTextResult.isErr()) {
         return err(replaceTextResult.error);
       }
 
-      // Additional validation for search text - cannot be empty
-      if (validatedParams.searchText.trim() === '') {
-        return err(new GoogleDocsError(
-          'Search text cannot be empty or only whitespace',
-          'GOOGLE_DOCS_VALIDATION_ERROR',
-          400,
-          trimmedDocumentId,
-          { parameter: 'searchText' }
-        ));
-      }
+      // Note: Empty searchText is allowed for valid use cases like finding empty strings
 
       // Set default value for matchCase if not provided
       const matchCase = validatedParams.matchCase ?? true;
@@ -276,38 +272,51 @@ export class ReplaceTextTool extends BaseDocsTools<
           matchCase: matchCase,
           error: replaceResult.error.toJSON(),
         });
-        return err(this.handleServiceError(replaceResult.error, 'replace_text'));
+        return err(
+          this.handleServiceError(replaceResult.error, 'replace_text')
+        );
       }
 
       const response: MCPToolResult = {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            result: replaceResult.value
-          }, null, 2)
-        }]
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                result: replaceResult.value,
+              },
+              null,
+              2
+            ),
+          },
+        ],
       };
 
-      this.logger.info(`${this.getToolName()}: Text replacement completed successfully`, {
-        requestId,
-        documentId: trimmedDocumentId,
-        searchTextLength: validatedParams.searchText.length,
-        replaceTextLength: validatedParams.replaceText.length,
-        matchCase: matchCase,
-        repliesCount: replaceResult.value.replies?.length || 0,
-      });
+      this.logger.info(
+        `${this.getToolName()}: Text replacement completed successfully`,
+        {
+          requestId,
+          documentId: trimmedDocumentId,
+          searchTextLength: validatedParams.searchText.length,
+          replaceTextLength: validatedParams.replaceText.length,
+          matchCase: matchCase,
+          repliesCount: replaceResult.value.replies?.length || 0,
+        }
+      );
 
       return ok(response);
-
     } catch (error) {
-      this.logger.error(`${this.getToolName()}: Unexpected error during text replacement`, {
-        requestId,
-        documentId: params.documentId,
-        searchTextLength: params.searchText?.length || 0,
-        replaceTextLength: params.replaceText?.length || 0,
-        matchCase: params.matchCase,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      this.logger.error(
+        `${this.getToolName()}: Unexpected error during text replacement`,
+        {
+          requestId,
+          documentId: params.documentId,
+          searchTextLength: params.searchText?.length || 0,
+          replaceTextLength: params.replaceText?.length || 0,
+          matchCase: params.matchCase,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
 
       if (error instanceof GoogleDocsError) {
         return err(this.handleServiceError(error, 'replace_text'));

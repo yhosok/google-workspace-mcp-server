@@ -2,7 +2,12 @@ import { InsertTextTool } from './insert-text.tool.js';
 import { DocsService } from '../../services/docs.service.js';
 import { AuthService } from '../../services/auth.service.js';
 import { ok, err } from 'neverthrow';
-import { GoogleDocsError, GoogleDocsNotFoundError, GoogleDocsPermissionError, GoogleAuthError } from '../../errors/index.js';
+import {
+  GoogleDocsError,
+  GoogleDocsNotFoundError,
+  GoogleDocsPermissionError,
+  GoogleAuthError,
+} from '../../errors/index.js';
 import type { DocsInsertTextResult, MCPToolResult } from '../../types/index.js';
 import { z } from 'zod';
 
@@ -111,7 +116,9 @@ describe('InsertTextTool', () => {
         const text = mcpResult.content[0].text;
         expect(text).toBeDefined();
         const resultData = JSON.parse(text!) as InsertTextResult;
-        expect(resultData.result.documentId).toBe('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+        expect(resultData.result.documentId).toBe(
+          '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
+        );
         expect(resultData.result.insertedText).toBe('Hello World');
         expect(resultData.result.insertionIndex).toBe(1);
         expect(resultData.result.newIndex).toBe(12);
@@ -278,7 +285,8 @@ describe('InsertTextTool', () => {
     });
 
     test('should handle HTML/XML characters in text', async () => {
-      const htmlText = '<p>This is a paragraph with &lt;tags&gt; and &amp; symbols.</p>';
+      const htmlText =
+        '<p>This is a paragraph with &lt;tags&gt; and &amp; symbols.</p>';
       const mockResult: DocsInsertTextResult = {
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
         insertedText: htmlText,
@@ -312,7 +320,9 @@ describe('InsertTextTool', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('Authentication validation failed');
+        expect(result.error.message).toContain(
+          'Authentication validation failed'
+        );
         expect(result.error.errorCode).toBe('GOOGLE_AUTH_ERROR');
       }
     });
@@ -452,16 +462,29 @@ describe('InsertTextTool', () => {
     });
 
     test('should validate index parameter when provided', async () => {
-      // Test zero index
+      // Mock setup for zero index test
+      const mockResult = {
+        documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+        insertionIndex: 0,
+        newIndex: 11, // "Hello World".length
+        replies: [],
+      };
+      mockDocsService.insertText.mockResolvedValue(ok(mockResult));
+
+      // Test zero index - should now succeed with 0-based indexing
       const result1 = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
         text: 'Hello World',
         index: 0,
       });
 
-      expect(result1.isErr()).toBe(true);
-      if (result1.isErr()) {
-        expect(result1.error.message).toContain('Index must be at least 1');
+      expect(result1.isOk()).toBe(true);
+      if (result1.isOk()) {
+        expect(mockDocsService.insertText).toHaveBeenCalledWith(
+          '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+          'Hello World',
+          0
+        );
       }
 
       // Test negative index
@@ -532,7 +555,7 @@ describe('InsertTextTool', () => {
     test('should trim documentId whitespace', async () => {
       const documentId = '  1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms  ';
       const trimmedId = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
-      
+
       const mockResult: DocsInsertTextResult = {
         documentId: trimmedId,
         insertedText: 'Hello World',

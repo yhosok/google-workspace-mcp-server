@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { BaseDocsTools } from './base-docs-tool.js';
 import type { DocsDocumentInfo, MCPToolResult } from '../../types/index.js';
-import type { ToolExecutionContext, ToolMetadata } from '../base/tool-registry.js';
+import type {
+  ToolExecutionContext,
+  ToolMetadata,
+} from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleDocsError, GoogleWorkspaceError } from '../../errors/index.js';
 import { docs_v1 } from 'googleapis';
@@ -57,9 +60,9 @@ type CreateDocumentInput = z.infer<typeof CreateDocumentInputSchema>;
  * const result = await tool.execute({ title: "My Document" });
  *
  * // Create document in specific folder
- * const result = await tool.execute({ 
- *   title: "My Document", 
- *   folderId: "folder-123" 
+ * const result = await tool.execute({
+ *   title: "My Document",
+ *   folderId: "folder-123"
  * });
  * ```
  *
@@ -84,7 +87,8 @@ export class CreateDocumentTool extends BaseDocsTools<
   public getToolMetadata(): ToolMetadata {
     return {
       title: 'Create Google Document',
-      description: 'Creates a new Google Document with the specified title and optional folder location',
+      description:
+        'Creates a new Google Document with the specified title and optional folder location',
       inputSchema: CreateDocumentInputSchema.shape,
     };
   }
@@ -94,23 +98,34 @@ export class CreateDocumentTool extends BaseDocsTools<
    * @param body - The Schema$Body from Google Docs API
    * @returns Converted body in our custom format
    */
-  private convertBodyToDocumentInfo(body: docs_v1.Schema$Body): DocsDocumentInfo['body'] {
+  private convertBodyToDocumentInfo(
+    body: docs_v1.Schema$Body
+  ): DocsDocumentInfo['body'] {
     if (!body.content || body.content.length === 0) {
       return undefined;
     }
 
     return {
-      content: body.content.map(element => ({
-        paragraph: element.paragraph ? {
-          elements: element.paragraph.elements?.map(el => ({
-            textRun: el.textRun ? {
-              content: el.textRun.content || '',
-              textStyle: el.textRun.textStyle || {}
-            } : undefined
-          })).filter(el => el.textRun) || [],
-          paragraphStyle: element.paragraph.paragraphStyle
-        } : undefined
-      })).filter(element => element.paragraph)
+      content: body.content
+        .map(element => ({
+          paragraph: element.paragraph
+            ? {
+                elements:
+                  element.paragraph.elements
+                    ?.map(el => ({
+                      textRun: el.textRun
+                        ? {
+                            content: el.textRun.content || '',
+                            textStyle: el.textRun.textStyle || {},
+                          }
+                        : undefined,
+                    }))
+                    .filter(el => el.textRun) || [],
+                paragraphStyle: element.paragraph.paragraphStyle,
+              }
+            : undefined,
+        }))
+        .filter(element => element.paragraph),
     };
   }
 
@@ -147,7 +162,7 @@ export class CreateDocumentTool extends BaseDocsTools<
    *   title: "Project Proposal",
    *   folderId: "team-folder-123"
    * });
-   * 
+   *
    * if (result.isOk()) {
    *   console.log('Created document:', result.value.content);
    * } else {
@@ -160,10 +175,10 @@ export class CreateDocumentTool extends BaseDocsTools<
     context?: ToolExecutionContext
   ): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
     const requestId = context?.requestId || this.generateRequestId();
-    
+
     this.logger.info(`${this.getToolName()}: Starting document creation`, {
       requestId,
-      params: { title: params.title, hasFolderId: !!params.folderId }
+      params: { title: params.title, hasFolderId: !!params.folderId },
     });
 
     try {
@@ -195,20 +210,27 @@ export class CreateDocumentTool extends BaseDocsTools<
       if (textResult.isErr()) {
         return err(textResult.error);
       }
-      
+
       // Validate and trim folderId if provided
       let trimmedFolderId: string | undefined = validatedParams.folderId;
-      if (validatedParams.folderId) {
-        trimmedFolderId = validatedParams.folderId.trim();
-        // Basic folder ID validation - similar to document ID validation
-        if (trimmedFolderId === '') {
-          return err(new GoogleDocsError(
-            'Folder ID cannot be empty',
-            'GOOGLE_DOCS_VALIDATION_ERROR',
-            400,
-            undefined,
-            { parameter: 'folderId' }
-          ));
+      if (validatedParams.folderId !== undefined) {
+        // Handle empty string case - convert to undefined (no folder specified)
+        if (validatedParams.folderId === '') {
+          trimmedFolderId = undefined;
+        } else {
+          trimmedFolderId = validatedParams.folderId.trim();
+          // Basic folder ID validation - whitespace-only strings are invalid
+          if (trimmedFolderId === '') {
+            return err(
+              new GoogleDocsError(
+                'Folder ID cannot be empty',
+                'GOOGLE_DOCS_VALIDATION_ERROR',
+                400,
+                undefined,
+                { parameter: 'folderId' }
+              )
+            );
+          }
         }
       }
 
@@ -223,7 +245,9 @@ export class CreateDocumentTool extends BaseDocsTools<
           requestId,
           error: createResult.error.toJSON(),
         });
-        return err(this.handleServiceError(createResult.error, 'create_document'));
+        return err(
+          this.handleServiceError(createResult.error, 'create_document')
+        );
       }
 
       // Format the response
@@ -233,33 +257,48 @@ export class CreateDocumentTool extends BaseDocsTools<
         revisionId: 'created',
         createdTime: new Date().toISOString(),
         modifiedTime: new Date().toISOString(),
-        documentUrl: createResult.value.documentUrl || `https://docs.google.com/document/d/${createResult.value.documentId}/edit`,
+        documentUrl:
+          createResult.value.documentUrl ||
+          `https://docs.google.com/document/d/${createResult.value.documentId}/edit`,
         // Convert Schema$Body to our custom format if body exists
-        body: createResult.value.body ? this.convertBodyToDocumentInfo(createResult.value.body) : undefined,
+        body: createResult.value.body
+          ? this.convertBodyToDocumentInfo(createResult.value.body)
+          : undefined,
       };
 
       const response: MCPToolResult = {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            document: documentInfo
-          }, null, 2)
-        }]
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                document: documentInfo,
+              },
+              null,
+              2
+            ),
+          },
+        ],
       };
 
-      this.logger.info(`${this.getToolName()}: Document creation completed successfully`, {
-        requestId,
-        documentId: createResult.value.documentId,
-        title: createResult.value.title,
-      });
+      this.logger.info(
+        `${this.getToolName()}: Document creation completed successfully`,
+        {
+          requestId,
+          documentId: createResult.value.documentId,
+          title: createResult.value.title,
+        }
+      );
 
       return ok(response);
-
     } catch (error) {
-      this.logger.error(`${this.getToolName()}: Unexpected error during creation`, {
-        requestId,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      this.logger.error(
+        `${this.getToolName()}: Unexpected error during creation`,
+        {
+          requestId,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
 
       if (error instanceof GoogleDocsError) {
         return err(this.handleServiceError(error, 'create_document'));

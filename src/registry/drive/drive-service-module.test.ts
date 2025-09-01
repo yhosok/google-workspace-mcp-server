@@ -21,9 +21,13 @@ const MockedDriveService = DriveService as jest.MockedClass<
 >;
 
 // Mock tool constructors
-const MockedListFilesTool = ListFilesTool as jest.MockedClass<typeof ListFilesTool>;
+const MockedListFilesTool = ListFilesTool as jest.MockedClass<
+  typeof ListFilesTool
+>;
 const MockedGetFileTool = GetFileTool as jest.MockedClass<typeof GetFileTool>;
-const MockedGetFileContentTool = GetFileContentTool as jest.MockedClass<typeof GetFileContentTool>;
+const MockedGetFileContentTool = GetFileContentTool as jest.MockedClass<
+  typeof GetFileContentTool
+>;
 
 describe('DriveServiceModule', () => {
   let module: DriveServiceModule;
@@ -60,7 +64,9 @@ describe('DriveServiceModule', () => {
       registerTool: jest.fn(),
     };
     mockGetFileContentTool = {
-      getToolName: jest.fn().mockReturnValue('google-workspace__drive-get-content'),
+      getToolName: jest
+        .fn()
+        .mockReturnValue('google-workspace__drive-get-content'),
       registerTool: jest.fn(),
     };
 
@@ -154,7 +160,9 @@ describe('DriveServiceModule', () => {
       expect(module.getTools()).toHaveLength(3);
       expect(mockListFilesTool.registerTool).toHaveBeenCalledWith(mockServer);
       expect(mockGetFileTool.registerTool).toHaveBeenCalledWith(mockServer);
-      expect(mockGetFileContentTool.registerTool).toHaveBeenCalledWith(mockServer);
+      expect(mockGetFileContentTool.registerTool).toHaveBeenCalledWith(
+        mockServer
+      );
     });
 
     it('should fail if not initialized', () => {

@@ -1,8 +1,14 @@
 import { z } from 'zod';
 import { docs_v1 } from 'googleapis';
 import { BaseDocsTools } from './base-docs-tool.js';
-import type { DocsBatchUpdateResult, MCPToolResult } from '../../types/index.js';
-import type { ToolExecutionContext, ToolMetadata } from '../base/tool-registry.js';
+import type {
+  DocsBatchUpdateResult,
+  MCPToolResult,
+} from '../../types/index.js';
+import type {
+  ToolExecutionContext,
+  ToolMetadata,
+} from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleDocsError, GoogleWorkspaceError } from '../../errors/index.js';
 
@@ -25,7 +31,6 @@ const UpdateDocumentInputSchema = z.object({
       required_error: 'Requests array is required',
       invalid_type_error: 'Requests must be an array',
     })
-    .min(1, 'At least one request is required')
     .max(500, 'Too many requests in batch (max 500)'),
 });
 
@@ -80,7 +85,7 @@ type UpdateDocumentInput = z.infer<typeof UpdateDocumentInputSchema>;
  *   documentId: "doc-123",
  *   requests: [
  *     { insertText: { text: "Title\n", location: { index: 1 } } },
- *     { updateTextStyle: { 
+ *     { updateTextStyle: {
  *         range: { startIndex: 1, endIndex: 6 },
  *         textStyle: { bold: true },
  *         fields: "bold"
@@ -111,7 +116,8 @@ export class UpdateDocumentTool extends BaseDocsTools<
   public getToolMetadata(): ToolMetadata {
     return {
       title: 'Update Google Document',
-      description: 'Performs batch updates on a Google Document using the Google Docs API batch update system',
+      description:
+        'Performs batch updates on a Google Document using the batchUpdate API',
       inputSchema: UpdateDocumentInputSchema.shape,
     };
   }
@@ -173,7 +179,7 @@ export class UpdateDocumentTool extends BaseDocsTools<
    *     }
    *   ]
    * });
-   * 
+   *
    * if (result.isOk()) {
    *   const updateResult = JSON.parse(result.value.content[0].text);
    *   console.log('Update replies:', updateResult.result.replies);
@@ -187,13 +193,13 @@ export class UpdateDocumentTool extends BaseDocsTools<
     context?: ToolExecutionContext
   ): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
     const requestId = context?.requestId || this.generateRequestId();
-    
+
     this.logger.info(`${this.getToolName()}: Starting document update`, {
       requestId,
-      params: { 
+      params: {
         documentId: params.documentId,
-        requestCount: params.requests?.length || 0
-      }
+        requestCount: params.requests?.length || 0,
+      },
     });
 
     try {
@@ -201,9 +207,9 @@ export class UpdateDocumentTool extends BaseDocsTools<
       const validationResult = this.validateWithSchema(
         UpdateDocumentInputSchema,
         params,
-        { 
+        {
           documentId: params.documentId,
-          operation: 'update_document' 
+          operation: 'update_document',
         }
       );
 
@@ -230,22 +236,56 @@ export class UpdateDocumentTool extends BaseDocsTools<
         return err(docIdResult.error);
       }
 
-      // Additional validation for requests array
-      if (!Array.isArray(validatedParams.requests) || validatedParams.requests.length === 0) {
-        return err(new GoogleDocsError(
-          'Requests array cannot be empty',
-          'GOOGLE_DOCS_VALIDATION_ERROR',
-          400,
-          trimmedDocumentId,
-          { parameter: 'requests' }
-        ));
+      // Basic validation for requests array (allow empty arrays)
+      if (!Array.isArray(validatedParams.requests)) {
+        return err(
+          new GoogleDocsError(
+            'Requests must be an array',
+            'GOOGLE_DOCS_VALIDATION_ERROR',
+            400,
+            trimmedDocumentId,
+            { parameter: 'requests', received: typeof validatedParams.requests }
+          )
+        );
       }
 
       // Perform batch update using DocsService
-      const updateResult = await this.docsService.batchUpdate(
-        trimmedDocumentId,
-        validatedParams.requests as docs_v1.Schema$Request[]
-      );
+      let updateResult;
+      try {
+        updateResult = await this.docsService.batchUpdate(
+          trimmedDocumentId,
+          validatedParams.requests as docs_v1.Schema$Request[]
+        );
+      } catch (serviceError) {
+        this.logger.error(
+          `${this.getToolName()}: Service call threw exception`,
+          {
+            requestId,
+            documentId: trimmedDocumentId,
+            error:
+              serviceError instanceof Error
+                ? serviceError.message
+                : String(serviceError),
+          }
+        );
+        return err(this.handleServiceError(serviceError, 'update_document'));
+      }
+
+      if (!updateResult) {
+        this.logger.error(
+          `${this.getToolName()}: Service returned undefined result`,
+          {
+            requestId,
+            documentId: trimmedDocumentId,
+          }
+        );
+        return err(
+          this.handleServiceError(
+            new Error('Service returned undefined result'),
+            'update_document'
+          )
+        );
+      }
 
       if (updateResult.isErr()) {
         this.logger.error(`${this.getToolName()}: Document update failed`, {
@@ -254,34 +294,65 @@ export class UpdateDocumentTool extends BaseDocsTools<
           requestCount: validatedParams.requests.length,
           error: updateResult.error.toJSON(),
         });
-        return err(this.handleServiceError(updateResult.error, 'update_document'));
+        return err(
+          this.handleServiceError(updateResult.error, 'update_document')
+        );
+      }
+
+      // Handle null or undefined response from service
+      if (!updateResult.value) {
+        this.logger.error(
+          `${this.getToolName()}: Service returned null or undefined response`,
+          {
+            requestId,
+            documentId: trimmedDocumentId,
+            requestCount: validatedParams.requests.length,
+          }
+        );
+        return err(
+          this.handleServiceError(
+            new Error('Service returned null response'),
+            'update_document'
+          )
+        );
       }
 
       const response: MCPToolResult = {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            result: updateResult.value
-          }, null, 2)
-        }]
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                result: updateResult.value,
+              },
+              null,
+              2
+            ),
+          },
+        ],
       };
 
-      this.logger.info(`${this.getToolName()}: Document update completed successfully`, {
-        requestId,
-        documentId: trimmedDocumentId,
-        requestCount: validatedParams.requests.length,
-        replyCount: updateResult.value.replies?.length || 0,
-      });
+      this.logger.info(
+        `${this.getToolName()}: Document update completed successfully`,
+        {
+          requestId,
+          documentId: trimmedDocumentId,
+          requestCount: validatedParams.requests.length,
+          replyCount: updateResult.value.replies?.length || 0,
+        }
+      );
 
       return ok(response);
-
     } catch (error) {
-      this.logger.error(`${this.getToolName()}: Unexpected error during update`, {
-        requestId,
-        documentId: params.documentId,
-        requestCount: params.requests?.length || 0,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      this.logger.error(
+        `${this.getToolName()}: Unexpected error during update`,
+        {
+          requestId,
+          documentId: params.documentId,
+          requestCount: params.requests?.length || 0,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
 
       if (error instanceof GoogleDocsError) {
         return err(this.handleServiceError(error, 'update_document'));

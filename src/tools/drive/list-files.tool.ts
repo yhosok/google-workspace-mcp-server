@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { BaseDriveTool } from './base-drive-tool.js';
 import type { DriveFileListResult, MCPToolResult } from '../../types/index.js';
-import type { ToolExecutionContext, ToolMetadata } from '../base/tool-registry.js';
+import type {
+  ToolExecutionContext,
+  ToolMetadata,
+} from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleDriveError } from '../../errors/index.js';
 
@@ -98,7 +101,10 @@ interface ListFilesResult {
  * });
  * ```
  */
-export class ListFilesTool extends BaseDriveTool<ListFilesInput, MCPToolResult> {
+export class ListFilesTool extends BaseDriveTool<
+  ListFilesInput,
+  MCPToolResult
+> {
   public getToolName(): string {
     return 'google-workspace__drive-list';
   }
@@ -106,7 +112,8 @@ export class ListFilesTool extends BaseDriveTool<ListFilesInput, MCPToolResult> 
   public getToolMetadata(): ToolMetadata {
     return {
       title: 'List Drive Files',
-      description: 'Lists files in Google Drive with optional filtering and search',
+      description:
+        'Lists files in Google Drive with optional filtering and search',
       inputSchema: {},
     };
   }
@@ -119,9 +126,14 @@ export class ListFilesTool extends BaseDriveTool<ListFilesInput, MCPToolResult> 
 
     try {
       // Validate input parameters
-      const validationResult = this.validateWithSchema(ListFilesInputSchema, args);
+      const validationResult = this.validateWithSchema(
+        ListFilesInputSchema,
+        args
+      );
       if (validationResult.isErr()) {
-        this.logger.error('Input validation failed', { error: validationResult.error.message });
+        this.logger.error('Input validation failed', {
+          error: validationResult.error.message,
+        });
         return err(validationResult.error);
       }
 
@@ -135,7 +147,9 @@ export class ListFilesTool extends BaseDriveTool<ListFilesInput, MCPToolResult> 
           'GOOGLE_DRIVE_AUTH_ERROR',
           401
         );
-        this.logger.error('Authentication validation failed', { error: error.message });
+        this.logger.error('Authentication validation failed', {
+          error: error.message,
+        });
         return err(error);
       }
 
@@ -145,7 +159,9 @@ export class ListFilesTool extends BaseDriveTool<ListFilesInput, MCPToolResult> 
           'GOOGLE_DRIVE_AUTH_ERROR',
           401
         );
-        this.logger.error('Authentication is invalid', { error: error.message });
+        this.logger.error('Authentication is invalid', {
+          error: error.message,
+        });
         return err(error);
       }
 

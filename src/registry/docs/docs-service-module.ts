@@ -17,13 +17,19 @@
  */
 
 import { Result, ok, err } from 'neverthrow';
-import type { ServiceModule, ServiceModuleHealthStatus } from '../service-module.interface.js';
+import type {
+  ServiceModule,
+  ServiceModuleHealthStatus,
+} from '../service-module.interface.js';
 import type { AuthService } from '../../services/auth.service.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ToolRegistry } from '../../tools/base/tool-registry.js';
 import { DocsService } from '../../services/docs.service.js';
 import { DriveService } from '../../services/drive.service.js';
-import { GoogleServiceError, GoogleWorkspaceError } from '../../errors/index.js';
+import {
+  GoogleServiceError,
+  GoogleWorkspaceError,
+} from '../../errors/index.js';
 import { createServiceLogger, type Logger } from '../../utils/logger.js';
 
 // Import all Docs tools
@@ -88,12 +94,9 @@ export class DocsServiceModule implements ServiceModule {
       const driveInitResult = await this.driveService.initialize();
 
       if (driveInitResult.isErr()) {
-        this.logger.warn(
-          'Failed to initialize Drive service for Docs module',
-          {
-            error: driveInitResult.error.toJSON(),
-          }
-        );
+        this.logger.warn('Failed to initialize Drive service for Docs module', {
+          error: driveInitResult.error.toJSON(),
+        });
         // Continue without DriveService - this maintains backward compatibility
         this.driveService = undefined;
       }

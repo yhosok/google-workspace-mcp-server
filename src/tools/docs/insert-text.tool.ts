@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { BaseDocsTools } from './base-docs-tool.js';
 import type { DocsInsertTextResult, MCPToolResult } from '../../types/index.js';
-import type { ToolExecutionContext, ToolMetadata } from '../base/tool-registry.js';
+import type {
+  ToolExecutionContext,
+  ToolMetadata,
+} from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleDocsError, GoogleWorkspaceError } from '../../errors/index.js';
 
@@ -54,8 +57,10 @@ type InsertTextInput = z.infer<typeof InsertTextInputSchema>;
  * - Automatic index calculation and validation
  *
  * **Text Insertion Behavior:**
- * - If no index is specified, text is inserted at the beginning (index 1)
- * - Index 0 is reserved for the document start marker
+ * - Uses 0-based indexing consistent with Google Docs API
+ * - If no index is specified, text is inserted at the beginning of body content (index 1)
+ * - Index 0 represents the document start position
+ * - Index 1 represents the beginning of document body content (typical insertion point)
  * - Text is inserted before the character at the specified index
  * - Supports multiline text with proper newline handling
  * - Preserves existing document formatting and structure
@@ -63,7 +68,7 @@ type InsertTextInput = z.infer<typeof InsertTextInputSchema>;
  * **Input Parameters:**
  * - `documentId` (required): The unique identifier of the document
  * - `text` (required): The text content to insert
- * - `index` (optional): The position where text should be inserted (default: 1)
+ * - `index` (optional): The zero-based position where text should be inserted (default: 1)
  *
  * **Output:**
  * Returns detailed information about the text insertion operation including
@@ -71,10 +76,24 @@ type InsertTextInput = z.infer<typeof InsertTextInputSchema>;
  *
  * **Usage Examples:**
  * ```typescript
- * // Insert text at beginning of document
+ * // Insert text at beginning of document body (default behavior)
  * const result = await tool.execute({
  *   documentId: "doc-123",
  *   text: "Hello, World!\n"
+ * });
+ *
+ * // Insert text at document start (index 0)
+ * const result = await tool.execute({
+ *   documentId: "doc-123",
+ *   text: "Document prefix ",
+ *   index: 0
+ * });
+ *
+ * // Insert text at beginning of body content (index 1)
+ * const result = await tool.execute({
+ *   documentId: "doc-123",
+ *   text: "Body content ",
+ *   index: 1
  * });
  *
  * // Insert text at specific position
@@ -156,7 +175,7 @@ export class InsertTextTool extends BaseDocsTools<
    *   text: "Chapter 1: Introduction\n\n",
    *   index: 1
    * });
-   * 
+   *
    * if (result.isOk()) {
    *   const insertResult = JSON.parse(result.value.content[0].text);
    *   console.log('Text inserted at index:', insertResult.result.insertionIndex);
@@ -171,15 +190,15 @@ export class InsertTextTool extends BaseDocsTools<
     context?: ToolExecutionContext
   ): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
     const requestId = context?.requestId || this.generateRequestId();
-    
+
     this.logger.info(`${this.getToolName()}: Starting text insertion`, {
       requestId,
-      params: { 
+      params: {
         documentId: params.documentId,
         textLength: params.text?.length || 0,
         hasIndex: params.index !== undefined,
-        index: params.index
-      }
+        index: params.index,
+      },
     });
 
     try {
@@ -187,11 +206,11 @@ export class InsertTextTool extends BaseDocsTools<
       const validationResult = this.validateWithSchema(
         InsertTextInputSchema,
         params,
-        { 
+        {
           documentId: params.documentId,
           textContent: params.text,
           index: params.index,
-          operation: 'insert_text' 
+          operation: 'insert_text',
         }
       );
 
@@ -225,15 +244,17 @@ export class InsertTextTool extends BaseDocsTools<
       }
 
       // Index validation using BaseDocsTools method with default value
+      let insertionIndex: number;
       if (validatedParams.index !== undefined) {
         const indexResult = this.indexValidation(validatedParams.index);
         if (indexResult.isErr()) {
           return err(indexResult.error);
         }
+        insertionIndex = indexResult.value;
+      } else {
+        // Use default index of 1 (beginning of document body) if not specified
+        insertionIndex = 1;
       }
-
-      // Use default index of 1 (beginning of document) if not specified
-      const insertionIndex = validatedParams.index ?? 1;
 
       // Insert text using DocsService
       const insertResult = await this.docsService.insertText(
@@ -254,32 +275,43 @@ export class InsertTextTool extends BaseDocsTools<
       }
 
       const response: MCPToolResult = {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            result: insertResult.value
-          }, null, 2)
-        }]
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                result: insertResult.value,
+              },
+              null,
+              2
+            ),
+          },
+        ],
       };
 
-      this.logger.info(`${this.getToolName()}: Text insertion completed successfully`, {
-        requestId,
-        documentId: trimmedDocumentId,
-        textLength: validatedParams.text.length,
-        insertionIndex: insertionIndex,
-        repliesCount: insertResult.value.replies?.length || 0,
-      });
+      this.logger.info(
+        `${this.getToolName()}: Text insertion completed successfully`,
+        {
+          requestId,
+          documentId: trimmedDocumentId,
+          textLength: validatedParams.text.length,
+          insertionIndex: insertionIndex,
+          repliesCount: insertResult.value.replies?.length || 0,
+        }
+      );
 
       return ok(response);
-
     } catch (error) {
-      this.logger.error(`${this.getToolName()}: Unexpected error during text insertion`, {
-        requestId,
-        documentId: params.documentId,
-        textLength: params.text?.length || 0,
-        index: params.index,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      this.logger.error(
+        `${this.getToolName()}: Unexpected error during text insertion`,
+        {
+          requestId,
+          documentId: params.documentId,
+          textLength: params.text?.length || 0,
+          index: params.index,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
 
       if (error instanceof GoogleDocsError) {
         return err(this.handleServiceError(error, 'insert_text'));

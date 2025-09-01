@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { BaseDocsTools } from './base-docs-tool.js';
 import type { DocsDocumentInfo, MCPToolResult } from '../../types/index.js';
-import type { ToolExecutionContext, ToolMetadata } from '../base/tool-registry.js';
+import type {
+  ToolExecutionContext,
+  ToolMetadata,
+} from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleDocsError, GoogleWorkspaceError } from '../../errors/index.js';
 import { docs_v1 } from 'googleapis';
@@ -21,7 +24,8 @@ const GetDocumentInputSchema = z.object({
     .max(100, 'Document ID too long'),
   includeContent: z
     .boolean({
-      description: 'Whether to include the document body content in the response',
+      description:
+        'Whether to include the document body content in the response',
       invalid_type_error: 'Include content must be a boolean',
     })
     .optional(),
@@ -58,9 +62,9 @@ type GetDocumentInput = z.infer<typeof GetDocumentInputSchema>;
  * const result = await tool.execute({ documentId: "doc-123" });
  *
  * // Get document with full content
- * const result = await tool.execute({ 
+ * const result = await tool.execute({
  *   documentId: "doc-123",
- *   includeContent: true 
+ *   includeContent: true
  * });
  * ```
  *
@@ -85,7 +89,8 @@ export class GetDocumentTool extends BaseDocsTools<
   public getToolMetadata(): ToolMetadata {
     return {
       title: 'Get Google Document',
-      description: 'Retrieves a Google Document with its metadata and optional content',
+      description:
+        'Retrieves a Google Document with its metadata and optional content',
       inputSchema: GetDocumentInputSchema.shape,
     };
   }
@@ -95,23 +100,34 @@ export class GetDocumentTool extends BaseDocsTools<
    * @param body - The Schema$Body from Google Docs API
    * @returns Converted body in our custom format
    */
-  private convertBodyToDocumentInfo(body: docs_v1.Schema$Body): DocsDocumentInfo['body'] {
+  private convertBodyToDocumentInfo(
+    body: docs_v1.Schema$Body
+  ): DocsDocumentInfo['body'] {
     if (!body.content || body.content.length === 0) {
       return undefined;
     }
 
     return {
-      content: body.content.map(element => ({
-        paragraph: element.paragraph ? {
-          elements: element.paragraph.elements?.map(el => ({
-            textRun: el.textRun ? {
-              content: el.textRun.content || '',
-              textStyle: el.textRun.textStyle || {}
-            } : undefined
-          })).filter(el => el.textRun) || [],
-          paragraphStyle: element.paragraph.paragraphStyle
-        } : undefined
-      })).filter(element => element.paragraph)
+      content: body.content
+        .map(element => ({
+          paragraph: element.paragraph
+            ? {
+                elements:
+                  element.paragraph.elements
+                    ?.map(el => ({
+                      textRun: el.textRun
+                        ? {
+                            content: el.textRun.content || '',
+                            textStyle: el.textRun.textStyle || {},
+                          }
+                        : undefined,
+                    }))
+                    .filter(el => el.textRun) || [],
+                paragraphStyle: element.paragraph.paragraphStyle,
+              }
+            : undefined,
+        }))
+        .filter(element => element.paragraph),
     };
   }
 
@@ -151,7 +167,7 @@ export class GetDocumentTool extends BaseDocsTools<
    *   documentId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
    *   includeContent: true
    * });
-   * 
+   *
    * if (result.isOk()) {
    *   const document = JSON.parse(result.value.content[0].text);
    *   console.log('Document title:', document.document.title);
@@ -165,13 +181,13 @@ export class GetDocumentTool extends BaseDocsTools<
     context?: ToolExecutionContext
   ): Promise<Result<MCPToolResult, GoogleWorkspaceError>> {
     const requestId = context?.requestId || this.generateRequestId();
-    
+
     this.logger.info(`${this.getToolName()}: Starting document retrieval`, {
       requestId,
-      params: { 
+      params: {
         documentId: params.documentId,
-        includeContent: !!params.includeContent 
-      }
+        includeContent: !!params.includeContent,
+      },
     });
 
     try {
@@ -179,9 +195,9 @@ export class GetDocumentTool extends BaseDocsTools<
       const validationResult = this.validateWithSchema(
         GetDocumentInputSchema,
         params,
-        { 
+        {
           documentId: params.documentId,
-          operation: 'get_document' 
+          operation: 'get_document',
         }
       );
 
@@ -208,9 +224,10 @@ export class GetDocumentTool extends BaseDocsTools<
         return err(docIdResult.error);
       }
 
-      // Retrieve document using DocsService - service method only takes documentId
+      // Retrieve document using DocsService with includeContent parameter
       const getResult = await this.docsService.getDocument(
-        trimmedDocumentId
+        trimmedDocumentId,
+        validatedParams.includeContent ?? false
       );
 
       if (getResult.isErr()) {
@@ -231,34 +248,45 @@ export class GetDocumentTool extends BaseDocsTools<
         createdTime: new Date().toISOString(), // Schema$Document doesn't have createdTime
         modifiedTime: new Date().toISOString(), // Schema$Document doesn't have modifiedTime
         documentUrl: `https://docs.google.com/document/d/${trimmedDocumentId}/edit`,
-        // Apply includeContent logic at the tool level, not service level
-        body: validatedParams.includeContent && doc.body ? this.convertBodyToDocumentInfo(doc.body) : undefined,
+        // Service now handles includeContent logic, so we convert the body if it exists
+        body: doc.body ? this.convertBodyToDocumentInfo(doc.body) : undefined,
       };
 
       const response: MCPToolResult = {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            document: documentInfo
-          }, null, 2)
-        }]
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                document: documentInfo,
+              },
+              null,
+              2
+            ),
+          },
+        ],
       };
 
-      this.logger.info(`${this.getToolName()}: Document retrieval completed successfully`, {
-        requestId,
-        documentId: trimmedDocumentId,
-        title: documentInfo.title,
-        hasContent: !!documentInfo.body,
-      });
+      this.logger.info(
+        `${this.getToolName()}: Document retrieval completed successfully`,
+        {
+          requestId,
+          documentId: trimmedDocumentId,
+          title: documentInfo.title,
+          hasContent: !!documentInfo.body,
+        }
+      );
 
       return ok(response);
-
     } catch (error) {
-      this.logger.error(`${this.getToolName()}: Unexpected error during retrieval`, {
-        requestId,
-        documentId: params.documentId,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      this.logger.error(
+        `${this.getToolName()}: Unexpected error during retrieval`,
+        {
+          requestId,
+          documentId: params.documentId,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
 
       if (error instanceof GoogleDocsError) {
         return err(this.handleServiceError(error, 'get_document'));

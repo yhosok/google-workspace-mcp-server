@@ -9,7 +9,10 @@
  */
 
 export { BaseDocsTools } from './base-docs-tool.js';
-export type { DocsValidationContext, SupportedDocsTools } from './base-docs-tool.js';
+export type {
+  DocsValidationContext,
+  SupportedDocsTools,
+} from './base-docs-tool.js';
 
 // Docs tools
 export { CreateDocumentTool } from './create-document.tool.js';

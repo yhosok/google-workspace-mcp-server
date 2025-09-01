@@ -2,8 +2,16 @@ import { ReplaceTextTool } from './replace-text.tool.js';
 import { DocsService } from '../../services/docs.service.js';
 import { AuthService } from '../../services/auth.service.js';
 import { ok, err } from 'neverthrow';
-import { GoogleDocsError, GoogleDocsNotFoundError, GoogleDocsPermissionError, GoogleAuthError } from '../../errors/index.js';
-import type { DocsReplaceTextResult, MCPToolResult } from '../../types/index.js';
+import {
+  GoogleDocsError,
+  GoogleDocsNotFoundError,
+  GoogleDocsPermissionError,
+  GoogleAuthError,
+} from '../../errors/index.js';
+import type {
+  DocsReplaceTextResult,
+  MCPToolResult,
+} from '../../types/index.js';
 import { z } from 'zod';
 
 // Mock interfaces for testing - these will be replaced by actual implementations
@@ -121,7 +129,9 @@ describe('ReplaceTextTool', () => {
         const text = mcpResult.content[0].text;
         expect(text).toBeDefined();
         const resultData = JSON.parse(text!) as ReplaceTextResult;
-        expect(resultData.result.documentId).toBe('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+        expect(resultData.result.documentId).toBe(
+          '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
+        );
         expect(resultData.result.searchText).toBe('old text');
         expect(resultData.result.replaceText).toBe('new text');
         expect(resultData.result.occurrencesChanged).toBe(3);
@@ -413,7 +423,9 @@ describe('ReplaceTextTool', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('Authentication validation failed');
+        expect(result.error.message).toContain(
+          'Authentication validation failed'
+        );
         expect(result.error.errorCode).toBe('GOOGLE_AUTH_ERROR');
       }
     });
@@ -634,7 +646,7 @@ describe('ReplaceTextTool', () => {
     test('should trim documentId whitespace', async () => {
       const documentId = '  1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms  ';
       const trimmedId = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
-      
+
       const mockResult: DocsReplaceTextResult = {
         documentId: trimmedId,
         searchText: 'old text',

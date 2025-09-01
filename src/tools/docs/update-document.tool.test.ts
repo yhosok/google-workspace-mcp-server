@@ -2,8 +2,16 @@ import { UpdateDocumentTool } from './update-document.tool.js';
 import { DocsService } from '../../services/docs.service.js';
 import { AuthService } from '../../services/auth.service.js';
 import { ok, err } from 'neverthrow';
-import { GoogleDocsError, GoogleDocsNotFoundError, GoogleDocsPermissionError, GoogleAuthError } from '../../errors/index.js';
-import type { DocsBatchUpdateResult, MCPToolResult } from '../../types/index.js';
+import {
+  GoogleDocsError,
+  GoogleDocsNotFoundError,
+  GoogleDocsPermissionError,
+  GoogleAuthError,
+} from '../../errors/index.js';
+import type {
+  DocsBatchUpdateResult,
+  MCPToolResult,
+} from '../../types/index.js';
 import { z } from 'zod';
 
 // Mock interfaces for testing - these will be replaced by actual implementations
@@ -173,9 +181,13 @@ describe('UpdateDocumentTool', () => {
         const text = mcpResult.content[0].text;
         expect(text).toBeDefined();
         const resultData = JSON.parse(text!) as UpdateDocumentResult;
-        expect(resultData.result.documentId).toBe('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+        expect(resultData.result.documentId).toBe(
+          '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
+        );
         expect(resultData.result.replies).toHaveLength(1);
-        expect(resultData.result.replies[0].insertText?.insertedText).toBe('Hello World');
+        expect(resultData.result.replies[0].insertText?.insertedText).toBe(
+          'Hello World'
+        );
       }
     });
 
@@ -318,7 +330,9 @@ describe('UpdateDocumentTool', () => {
         const mcpResult = result.value as MCPToolResult;
         const text = mcpResult.content[0].text;
         const resultData = JSON.parse(text!) as UpdateDocumentResult;
-        expect(resultData.result.replies[0].deleteContentRange?.deletedText).toBe('unwanted text');
+        expect(
+          resultData.result.replies[0].deleteContentRange?.deletedText
+        ).toBe('unwanted text');
       }
     });
 
@@ -370,7 +384,9 @@ describe('UpdateDocumentTool', () => {
         const mcpResult = result.value as MCPToolResult;
         const text = mcpResult.content[0].text;
         const resultData = JSON.parse(text!) as UpdateDocumentResult;
-        expect(resultData.result.replies[0].replaceAllText?.occurrencesChanged).toBe(3);
+        expect(
+          resultData.result.replies[0].replaceAllText?.occurrencesChanged
+        ).toBe(3);
       }
     });
 
@@ -554,7 +570,9 @@ describe('UpdateDocumentTool', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('Authentication validation failed');
+        expect(result.error.message).toContain(
+          'Authentication validation failed'
+        );
         expect(result.error.errorCode).toBe('GOOGLE_AUTH_ERROR');
       }
     });
@@ -717,6 +735,18 @@ describe('UpdateDocumentTool', () => {
     });
 
     test('should validate requests array structure', async () => {
+      // Mock the service to return a validation error for invalid requests
+      mockDocsService.batchUpdate.mockResolvedValue(
+        err(
+          new GoogleDocsError(
+            'Request validation failed: invalid structure',
+            'GOOGLE_DOCS_VALIDATION_ERROR',
+            400,
+            '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
+          )
+        )
+      );
+
       // Test invalid request structure
       const result = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
@@ -762,7 +792,7 @@ describe('UpdateDocumentTool', () => {
     test('should trim documentId whitespace', async () => {
       const documentId = '  1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms  ';
       const trimmedId = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
-      
+
       const mockResult: DocsBatchUpdateResult = {
         documentId: trimmedId,
         replies: [

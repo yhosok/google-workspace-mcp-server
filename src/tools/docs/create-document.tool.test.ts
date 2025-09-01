@@ -2,7 +2,11 @@ import { CreateDocumentTool } from './create-document.tool.js';
 import { DocsService } from '../../services/docs.service.js';
 import { AuthService } from '../../services/auth.service.js';
 import { ok, err } from 'neverthrow';
-import { GoogleDocsError, GoogleAuthError, GoogleDocsPermissionError } from '../../errors/index.js';
+import {
+  GoogleDocsError,
+  GoogleAuthError,
+  GoogleDocsPermissionError,
+} from '../../errors/index.js';
 import type { DocsDocumentInfo, MCPToolResult } from '../../types/index.js';
 import { z } from 'zod';
 
@@ -110,7 +114,10 @@ describe('CreateDocumentTool', () => {
         title: 'My New Document',
       });
 
-      expect(mockDocsService.createDocument).toHaveBeenCalledWith('My New Document', undefined);
+      expect(mockDocsService.createDocument).toHaveBeenCalledWith(
+        'My New Document',
+        undefined
+      );
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         const mcpResult = result.value as MCPToolResult;
@@ -119,7 +126,9 @@ describe('CreateDocumentTool', () => {
         const resultData = JSON.parse(text!) as CreateDocumentResult;
         expect(resultData.document.documentId).toBe('new-doc-123');
         expect(resultData.document.title).toBe('My New Document');
-        expect(resultData.document.documentUrl).toBe('https://docs.google.com/document/d/new-doc-123/edit');
+        expect(resultData.document.documentUrl).toBe(
+          'https://docs.google.com/document/d/new-doc-123/edit'
+        );
       }
     });
 
@@ -155,7 +164,10 @@ describe('CreateDocumentTool', () => {
         folderId: 'folder-123',
       });
 
-      expect(mockDocsService.createDocument).toHaveBeenCalledWith('Document in Folder', 'folder-123');
+      expect(mockDocsService.createDocument).toHaveBeenCalledWith(
+        'Document in Folder',
+        'folder-123'
+      );
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         const mcpResult = result.value as MCPToolResult;
@@ -198,7 +210,8 @@ describe('CreateDocumentTool', () => {
                 elements: [
                   {
                     textRun: {
-                      content: 'This is the second paragraph with regular text.\n',
+                      content:
+                        'This is the second paragraph with regular text.\n',
                     },
                   },
                 ],
@@ -233,7 +246,9 @@ describe('CreateDocumentTool', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('Authentication validation failed');
+        expect(result.error.message).toContain(
+          'Authentication validation failed'
+        );
         expect(result.error.errorCode).toBe('GOOGLE_AUTH_ERROR');
       }
     });
@@ -259,14 +274,11 @@ describe('CreateDocumentTool', () => {
     });
 
     test('should handle 403 forbidden error', async () => {
-      const permissionError = new GoogleDocsPermissionError(
-        undefined,
-        {
-          folderId: 'folder-123',
-          reason: 'Insufficient permission to create document in folder',
-          operation: 'create_document',
-        }
-      );
+      const permissionError = new GoogleDocsPermissionError(undefined, {
+        folderId: 'folder-123',
+        reason: 'Insufficient permission to create document in folder',
+        operation: 'create_document',
+      });
       mockDocsService.createDocument.mockResolvedValue(err(permissionError));
 
       const result = await tool.executeImpl({
@@ -371,14 +383,16 @@ describe('CreateDocumentTool', () => {
     });
 
     test('should handle title with special characters', async () => {
-      const specialTitle = 'Document with émojis 🚀 & special chars: àáâãäåæçèéêë';
+      const specialTitle =
+        'Document with émojis 🚀 & special chars: àáâãäåæçèéêë';
       const mockDocument: DocsDocumentInfo = {
         documentId: 'special-chars-doc',
         title: specialTitle,
         revisionId: 'revision-special',
         createdTime: '2023-01-01T10:00:00Z',
         modifiedTime: '2023-01-01T10:00:00Z',
-        documentUrl: 'https://docs.google.com/document/d/special-chars-doc/edit',
+        documentUrl:
+          'https://docs.google.com/document/d/special-chars-doc/edit',
         body: {
           content: [
             {
@@ -445,7 +459,10 @@ describe('CreateDocumentTool', () => {
       });
 
       expect(result.isOk()).toBe(true);
-      expect(mockDocsService.createDocument).toHaveBeenCalledWith('Test Document', undefined);
+      expect(mockDocsService.createDocument).toHaveBeenCalledWith(
+        'Test Document',
+        undefined
+      );
     });
 
     test('should validate folderId format when provided', async () => {
@@ -484,7 +501,9 @@ describe('CreateDocumentTool', () => {
         'GOOGLE_DOCS_NOT_INITIALIZED',
         500
       );
-      mockDocsService.createDocument.mockResolvedValue(err(initializationError));
+      mockDocsService.createDocument.mockResolvedValue(
+        err(initializationError)
+      );
 
       const result = await tool.executeImpl({
         title: 'Test Document',
@@ -529,7 +548,10 @@ describe('CreateDocumentTool', () => {
         title: title,
       });
 
-      expect(mockDocsService.createDocument).toHaveBeenCalledWith(title, undefined);
+      expect(mockDocsService.createDocument).toHaveBeenCalledWith(
+        title,
+        undefined
+      );
       expect(result.isOk()).toBe(true);
     });
 
@@ -567,7 +589,10 @@ describe('CreateDocumentTool', () => {
         folderId: folderId,
       });
 
-      expect(mockDocsService.createDocument).toHaveBeenCalledWith('Document', trimmedFolderId);
+      expect(mockDocsService.createDocument).toHaveBeenCalledWith(
+        'Document',
+        trimmedFolderId
+      );
       expect(result.isOk()).toBe(true);
     });
 
@@ -603,7 +628,10 @@ describe('CreateDocumentTool', () => {
         folderId: 'root',
       });
 
-      expect(mockDocsService.createDocument).toHaveBeenCalledWith('Root Document', 'root');
+      expect(mockDocsService.createDocument).toHaveBeenCalledWith(
+        'Root Document',
+        'root'
+      );
       expect(result.isOk()).toBe(true);
     });
 

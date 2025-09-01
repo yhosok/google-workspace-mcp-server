@@ -32,7 +32,7 @@ export interface DocsValidationContext extends ValidationContext {
 /**
  * Supported Docs tools for schema factory
  */
-export type SupportedDocsTools = 
+export type SupportedDocsTools =
   | 'docs-create'
   | 'docs-get'
   | 'docs-update'
@@ -203,34 +203,40 @@ export abstract class BaseDocsTools<
    * const validDocumentId = result.value; // Guaranteed to be valid and trimmed
    * ```
    */
-  protected documentIdValidation(documentId: string): Result<string, GoogleDocsError> {
+  protected documentIdValidation(
+    documentId: string
+  ): Result<string, GoogleDocsError> {
     if (!documentId || documentId.trim() === '') {
-      return err(new GoogleDocsError(
-        'Document ID cannot be empty',
-        'GOOGLE_DOCS_VALIDATION_ERROR',
-        400,
-        documentId || '<empty>',
-        {
-          reason: 'Document ID cannot be empty',
-          parameter: 'documentId',
-        }
-      ));
+      return err(
+        new GoogleDocsError(
+          'Document ID cannot be empty',
+          'GOOGLE_DOCS_VALIDATION_ERROR',
+          400,
+          documentId || '<empty>',
+          {
+            reason: 'Document ID cannot be empty',
+            parameter: 'documentId',
+          }
+        )
+      );
     }
-    
+
     const trimmedId = documentId.trim();
     if (trimmedId.length === 0) {
-      return err(new GoogleDocsError(
-        'Document ID cannot be empty',
-        'GOOGLE_DOCS_VALIDATION_ERROR',
-        400,
-        documentId,
-        {
-          reason: 'Document ID cannot be only whitespace',
-          parameter: 'documentId',
-        }
-      ));
+      return err(
+        new GoogleDocsError(
+          'Document ID cannot be empty',
+          'GOOGLE_DOCS_VALIDATION_ERROR',
+          400,
+          documentId,
+          {
+            reason: 'Document ID cannot be only whitespace',
+            parameter: 'documentId',
+          }
+        )
+      );
     }
-    
+
     return ok(trimmedId);
   }
 
@@ -265,28 +271,32 @@ export abstract class BaseDocsTools<
    */
   protected textValidation(text: string): Result<string, GoogleDocsError> {
     if (text === null) {
-      return err(new GoogleDocsError(
-        'Text cannot be null',
-        'GOOGLE_DOCS_VALIDATION_ERROR',
-        400,
-        undefined,
-        {
-          reason: 'Text cannot be null',
-          parameter: 'text',
-        }
-      ));
+      return err(
+        new GoogleDocsError(
+          'Text cannot be null',
+          'GOOGLE_DOCS_VALIDATION_ERROR',
+          400,
+          undefined,
+          {
+            reason: 'Text cannot be null',
+            parameter: 'text',
+          }
+        )
+      );
     }
     if (text === undefined) {
-      return err(new GoogleDocsError(
-        'Text cannot be undefined',
-        'GOOGLE_DOCS_VALIDATION_ERROR',
-        400,
-        undefined,
-        {
-          reason: 'Text cannot be undefined',
-          parameter: 'text',
-        }
-      ));
+      return err(
+        new GoogleDocsError(
+          'Text cannot be undefined',
+          'GOOGLE_DOCS_VALIDATION_ERROR',
+          400,
+          undefined,
+          {
+            reason: 'Text cannot be undefined',
+            parameter: 'text',
+          }
+        )
+      );
     }
     // Note: Empty strings are allowed for text content
     return ok(text);
@@ -299,16 +309,22 @@ export abstract class BaseDocsTools<
    * including range checks and type validation.
    *
    * **Index Handling:**
-   * - Supports zero and positive integers for document positions
+   * - Supports zero-based indexing consistent with Google Docs API
+   * - Allows zero and positive integers for document positions
    * - Handles large index values for long documents
    * - Provides index-specific error messages and context
    * - Maintains consistency with other validation patterns
    *
    * **Validation Rules:**
-   * - Must be a non-negative integer
+   * - Must be a non-negative integer (>= 0)
    * - Must not be a floating-point number
    * - Must not be null or undefined when required
    * - Results in Docs permission error for invalid index values
+   *
+   * **Google Docs API Indexing:**
+   * - Uses 0-based indexing where 0 represents the document start
+   * - Index 1 typically represents the beginning of document body content
+   * - Index values must be within the document bounds
    *
    * @param index - The index value to validate
    * @param defaultValue - Optional default value if index is undefined
@@ -320,79 +336,77 @@ export abstract class BaseDocsTools<
    * if (result.isErr()) {
    *   return err(result.error);
    * }
-   * const validIndex = result.value; // Guaranteed to be valid
+   * const validIndex = result.value; // Guaranteed to be valid (>= 0)
    * ```
    */
-  protected indexValidation(index: number, defaultValue?: number): Result<number, GoogleDocsError> {
+  protected indexValidation(
+    index: number,
+    defaultValue?: number
+  ): Result<number, GoogleDocsError> {
     if (index === null || index === undefined) {
       if (defaultValue !== undefined) {
         // Use default value - no error
         return ok(defaultValue);
       }
-      return err(new GoogleDocsError(
-        'Index cannot be null or undefined',
-        'GOOGLE_DOCS_VALIDATION_ERROR',
-        400,
-        undefined,
-        {
-          reason: 'Index cannot be null or undefined',
-          parameter: 'index',
-        }
-      ));
+      return err(
+        new GoogleDocsError(
+          'Index cannot be null or undefined',
+          'GOOGLE_DOCS_VALIDATION_ERROR',
+          400,
+          undefined,
+          {
+            reason: 'Index cannot be null or undefined',
+            parameter: 'index',
+          }
+        )
+      );
     }
-    
+
     if (typeof index !== 'number') {
-      return err(new GoogleDocsError(
-        'Index must be a number',
-        'GOOGLE_DOCS_VALIDATION_ERROR',
-        400,
-        undefined,
-        {
-          reason: 'Index must be a number',
-          parameter: 'index',
-        }
-      ));
+      return err(
+        new GoogleDocsError(
+          'Index must be a number',
+          'GOOGLE_DOCS_VALIDATION_ERROR',
+          400,
+          undefined,
+          {
+            reason: 'Index must be a number',
+            parameter: 'index',
+          }
+        )
+      );
     }
-    
+
     if (!Number.isInteger(index)) {
-      return err(new GoogleDocsError(
-        'Index must be an integer',
-        'GOOGLE_DOCS_VALIDATION_ERROR',
-        400,
-        undefined,
-        {
-          reason: 'Index must be an integer',
-          parameter: 'index',
-        }
-      ));
+      return err(
+        new GoogleDocsError(
+          'Index must be an integer',
+          'GOOGLE_DOCS_VALIDATION_ERROR',
+          400,
+          undefined,
+          {
+            reason: 'Index must be an integer',
+            parameter: 'index',
+          }
+        )
+      );
     }
-    
-    if (index === 0) {
-      return err(new GoogleDocsError(
-        'Index must be at least 1',
-        'GOOGLE_DOCS_VALIDATION_ERROR',
-        400,
-        undefined,
-        {
-          reason: 'Index must be at least 1',
-          parameter: 'index',
-        }
-      ));
-    }
-    
+
     if (index < 0) {
-      return err(new GoogleDocsError(
-        'Index must be positive',
-        'GOOGLE_DOCS_VALIDATION_ERROR',
-        400,
-        undefined,
-        {
-          reason: 'Index must be positive',
-          parameter: 'index',
-        }
-      ));
+      return err(
+        new GoogleDocsError(
+          'Index must be non-negative',
+          'GOOGLE_DOCS_VALIDATION_ERROR',
+          400,
+          undefined,
+          {
+            reason: 'Index must be non-negative (>= 0)',
+            parameter: 'index',
+          }
+        )
+      );
     }
-    
+
     return ok(index);
   }
 
@@ -491,15 +505,32 @@ export abstract class BaseDocsTools<
    * }
    * ```
    */
-  protected handleServiceError(error: unknown, context?: string): GoogleDocsError {
+  protected handleServiceError(
+    error: unknown,
+    context?: string
+  ): GoogleDocsError {
     if (error instanceof GoogleDocsError) {
+      // Transform 401 errors to auth errors for consistency
+      if (error.statusCode === 401) {
+        return new GoogleDocsError(
+          error.message,
+          'GOOGLE_AUTH_ERROR',
+          error.statusCode,
+          typeof error.context === 'object' &&
+          error.context &&
+          'documentId' in error.context
+            ? (error.context.documentId as string)
+            : undefined,
+          { originalError: error, context }
+        );
+      }
       return error;
     }
 
     if (error instanceof GoogleAuthError) {
       return new GoogleDocsError(
         error.message,
-        'GOOGLE_DOCS_AUTH_ERROR',
+        'GOOGLE_AUTH_ERROR',
         error.statusCode,
         undefined,
         { originalError: error, context }
@@ -593,9 +624,15 @@ export abstract class BaseDocsTools<
    *
    * **Schema Features:**
    * - Number type validation
-   * - Positive integer constraints (minimum 1)
+   * - Non-negative integer constraints (minimum 0)
    * - Reasonable upper bounds for document positions
    * - Descriptive error messages
+   * - Consistent with Google Docs API 0-based indexing
+   *
+   * **Index Meaning:**
+   * - Index 0: Document start position
+   * - Index 1: Beginning of document body content (typical insertion point)
+   * - Higher indices: Positions within document content
    *
    * @returns Zod number schema for index validation
    *
@@ -609,10 +646,11 @@ export abstract class BaseDocsTools<
   protected createIndexSchema(): z.ZodNumber {
     return z
       .number({
-        description: 'One-based index position in the document',
+        description:
+          'Zero-based index position in the document (0 = document start, 1 = body start)',
       })
       .int('Index must be an integer')
-      .min(1, 'Index must be at least 1')
+      .min(0, 'Index must be non-negative')
       .max(10000000, 'Index too large'); // 10M character limit
   }
 
@@ -624,7 +662,7 @@ export abstract class BaseDocsTools<
    *
    * **Supported Tool Types:**
    * - `create-document`: Schema for document creation operations
-   * - `get-document`: Schema for document retrieval operations  
+   * - `get-document`: Schema for document retrieval operations
    * - `update-document`: Schema for document batch update operations
    * - `insert-text`: Schema for text insertion operations
    * - `replace-text`: Schema for text replacement operations
@@ -646,26 +684,26 @@ export abstract class BaseDocsTools<
           title: z.string().min(1, 'Title cannot be empty'),
           folderId: z.string().optional(),
         });
-        
+
       case 'get-document':
         return z.object({
           documentId: this.createDocumentIdSchema(),
           includeContent: z.boolean().optional(),
         });
-        
+
       case 'update-document':
         return z.object({
           documentId: this.createDocumentIdSchema(),
-          requests: z.array(z.any()).min(1, 'At least one request is required'),
+          requests: z.array(z.any()),
         });
-        
+
       case 'insert-text':
         return z.object({
           documentId: this.createDocumentIdSchema(),
           text: this.createTextSchema(),
           index: this.createIndexSchema().optional(),
         });
-        
+
       case 'replace-text':
         return z.object({
           documentId: this.createDocumentIdSchema(),
@@ -673,7 +711,7 @@ export abstract class BaseDocsTools<
           replaceText: this.createTextSchema(),
           matchCase: z.boolean().optional(),
         });
-        
+
       default:
         throw new Error(`Unsupported tool type: ${tool}`);
     }

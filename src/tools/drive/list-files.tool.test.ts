@@ -2,7 +2,11 @@ import { ListFilesTool } from './list-files.tool.js';
 import { DriveService } from '../../services/drive.service.js';
 import { AuthService } from '../../services/auth.service.js';
 import { ok, err } from 'neverthrow';
-import { GoogleDriveError, GoogleDriveNotFoundError, GoogleDrivePermissionError } from '../../errors/index.js';
+import {
+  GoogleDriveError,
+  GoogleDriveNotFoundError,
+  GoogleDrivePermissionError,
+} from '../../errors/index.js';
 import type { DriveFileListResult, MCPToolResult } from '../../types/index.js';
 import { z } from 'zod';
 
@@ -317,7 +321,9 @@ describe('ListFilesTool', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('Authentication validation failed');
+        expect(result.error.message).toContain(
+          'Authentication validation failed'
+        );
         expect(result.error.errorCode).toBe('GOOGLE_DRIVE_AUTH_ERROR');
       }
     });
@@ -463,7 +469,7 @@ describe('ListFilesTool', () => {
       });
 
       expect(mockDriveService.listFiles).toHaveBeenCalledWith({
-        query: "'folder123' in parents and (name contains \"Test\")",
+        query: '\'folder123\' in parents and (name contains "Test")',
       });
       expect(result.isOk()).toBe(true);
     });

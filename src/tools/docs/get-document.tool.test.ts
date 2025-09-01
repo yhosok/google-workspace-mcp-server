@@ -2,7 +2,12 @@ import { GetDocumentTool } from './get-document.tool.js';
 import { DocsService } from '../../services/docs.service.js';
 import { AuthService } from '../../services/auth.service.js';
 import { ok, err } from 'neverthrow';
-import { GoogleDocsError, GoogleDocsNotFoundError, GoogleDocsPermissionError, GoogleAuthError } from '../../errors/index.js';
+import {
+  GoogleDocsError,
+  GoogleDocsNotFoundError,
+  GoogleDocsPermissionError,
+  GoogleAuthError,
+} from '../../errors/index.js';
 import type { DocsDocumentInfo, MCPToolResult } from '../../types/index.js';
 import { z } from 'zod';
 
@@ -101,7 +106,8 @@ describe('GetDocumentTool', () => {
         revisionId: 'ALm37BVQwJlMJhSF2Iz2JR5VHyJB1Jyyz1b7l0vWj-7O',
         createdTime: '2023-01-01T10:00:00Z',
         modifiedTime: '2023-01-01T10:30:00Z',
-        documentUrl: 'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
+        documentUrl:
+          'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
         body: {
           content: [
             {
@@ -125,17 +131,26 @@ describe('GetDocumentTool', () => {
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
       });
 
-      expect(mockDocsService.getDocument).toHaveBeenCalledWith('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms', false);
+      expect(mockDocsService.getDocument).toHaveBeenCalledWith(
+        '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+        false
+      );
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         const mcpResult = result.value as MCPToolResult;
         const text = mcpResult.content[0].text;
         expect(text).toBeDefined();
         const resultData = JSON.parse(text!) as GetDocumentResult;
-        expect(resultData.document.documentId).toBe('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+        expect(resultData.document.documentId).toBe(
+          '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
+        );
         expect(resultData.document.title).toBe('Test Document');
-        expect(resultData.document.revisionId).toBe('ALm37BVQwJlMJhSF2Iz2JR5VHyJB1Jyyz1b7l0vWj-7O');
-        expect(resultData.document.documentUrl).toBe('https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit');
+        expect(resultData.document.revisionId).toBe(
+          'ALm37BVQwJlMJhSF2Iz2JR5VHyJB1Jyyz1b7l0vWj-7O'
+        );
+        expect(resultData.document.documentUrl).toBe(
+          'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit'
+        );
       }
     });
 
@@ -146,7 +161,8 @@ describe('GetDocumentTool', () => {
         revisionId: 'ALm37BVQwJlMJhSF2Iz2JR5VHyJB1Jyyz1b7l0vWj-7O',
         createdTime: '2023-01-01T10:00:00Z',
         modifiedTime: '2023-01-01T10:30:00Z',
-        documentUrl: 'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
+        documentUrl:
+          'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
         body: {
           content: [
             {
@@ -171,7 +187,8 @@ describe('GetDocumentTool', () => {
                 elements: [
                   {
                     textRun: {
-                      content: 'This is the second paragraph with regular text.\n',
+                      content:
+                        'This is the second paragraph with regular text.\n',
                     },
                   },
                 ],
@@ -188,7 +205,10 @@ describe('GetDocumentTool', () => {
         includeContent: true,
       });
 
-      expect(mockDocsService.getDocument).toHaveBeenCalledWith('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms', true);
+      expect(mockDocsService.getDocument).toHaveBeenCalledWith(
+        '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+        true
+      );
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         const mcpResult = result.value as MCPToolResult;
@@ -207,7 +227,8 @@ describe('GetDocumentTool', () => {
         revisionId: 'ALm37BVQwJlMJhSF2Iz2JR5VHyJB1Jyyz1b7l0vWj-7O',
         createdTime: '2023-01-01T10:00:00Z',
         modifiedTime: '2023-01-01T10:30:00Z',
-        documentUrl: 'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
+        documentUrl:
+          'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
         // No body content returned when includeContent is false
       };
 
@@ -218,7 +239,10 @@ describe('GetDocumentTool', () => {
         includeContent: false,
       });
 
-      expect(mockDocsService.getDocument).toHaveBeenCalledWith('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms', false);
+      expect(mockDocsService.getDocument).toHaveBeenCalledWith(
+        '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+        false
+      );
       expect(result.isOk()).toBe(true);
     });
 
@@ -349,7 +373,10 @@ describe('GetDocumentTool', () => {
         const text = mcpResult.content[0].text;
         const resultData = JSON.parse(text!) as GetDocumentResult;
         expect(resultData.document.body?.content).toHaveLength(2);
-        expect(resultData.document.body?.content[0].paragraph?.elements[0].textRun?.textStyle?.bold).toBe(true);
+        expect(
+          resultData.document.body?.content[0].paragraph?.elements[0].textRun
+            ?.textStyle?.bold
+        ).toBe(true);
       }
     });
 
@@ -362,7 +389,9 @@ describe('GetDocumentTool', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('Authentication validation failed');
+        expect(result.error.message).toContain(
+          'Authentication validation failed'
+        );
         expect(result.error.errorCode).toBe('GOOGLE_AUTH_ERROR');
       }
     });
@@ -477,7 +506,7 @@ describe('GetDocumentTool', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('Document not found');
+        expect(result.error.message).toContain('Document ID cannot be empty');
       }
     });
 
@@ -526,7 +555,7 @@ describe('GetDocumentTool', () => {
     test('should trim documentId whitespace', async () => {
       const documentId = '  1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms  ';
       const trimmedId = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
-      
+
       const mockDocument: DocsDocumentInfo = {
         documentId: trimmedId,
         title: 'Trimmed Document',
@@ -542,7 +571,10 @@ describe('GetDocumentTool', () => {
         documentId: documentId,
       });
 
-      expect(mockDocsService.getDocument).toHaveBeenCalledWith(trimmedId);
+      expect(mockDocsService.getDocument).toHaveBeenCalledWith(
+        trimmedId,
+        false
+      );
       expect(result.isOk()).toBe(true);
     });
 
@@ -564,7 +596,10 @@ describe('GetDocumentTool', () => {
         includeContent: true,
       });
 
-      expect(mockDocsService.getDocument).toHaveBeenCalledWith('bool-test-doc');
+      expect(mockDocsService.getDocument).toHaveBeenCalledWith(
+        'bool-test-doc',
+        true
+      );
       expect(result1.isOk()).toBe(true);
 
       // Test with explicit false
@@ -573,7 +608,10 @@ describe('GetDocumentTool', () => {
         includeContent: false,
       });
 
-      expect(mockDocsService.getDocument).toHaveBeenCalledWith('bool-test-doc');
+      expect(mockDocsService.getDocument).toHaveBeenCalledWith(
+        'bool-test-doc',
+        false
+      );
       expect(result2.isOk()).toBe(true);
 
       // Test with undefined (should default to false)
@@ -581,7 +619,10 @@ describe('GetDocumentTool', () => {
         documentId: 'bool-test-doc',
       });
 
-      expect(mockDocsService.getDocument).toHaveBeenCalledWith('bool-test-doc');
+      expect(mockDocsService.getDocument).toHaveBeenCalledWith(
+        'bool-test-doc',
+        false
+      );
       expect(result3.isOk()).toBe(true);
     });
 
@@ -592,7 +633,8 @@ describe('GetDocumentTool', () => {
         revisionId: 'structured-revision',
         createdTime: '2023-01-01T10:00:00Z',
         modifiedTime: '2023-01-01T10:30:00Z',
-        documentUrl: 'https://docs.google.com/document/d/structured-doc-789/edit',
+        documentUrl:
+          'https://docs.google.com/document/d/structured-doc-789/edit',
         body: {
           content: [
             {
@@ -648,7 +690,10 @@ describe('GetDocumentTool', () => {
         const text = mcpResult.content[0].text;
         const resultData = JSON.parse(text!) as GetDocumentResult;
         expect(resultData.document.body?.content).toHaveLength(3);
-        expect(resultData.document.body?.content[1].paragraph?.elements[0].textRun?.content).toBe('First item\n');
+        expect(
+          resultData.document.body?.content[1].paragraph?.elements[0].textRun
+            ?.content
+        ).toBe('First item\n');
       }
     });
 

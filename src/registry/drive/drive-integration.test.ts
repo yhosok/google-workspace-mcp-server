@@ -23,9 +23,13 @@ const MockedDriveService = DriveService as jest.MockedClass<
 >;
 
 // Mock tool constructors
-const MockedListFilesTool = ListFilesTool as jest.MockedClass<typeof ListFilesTool>;
+const MockedListFilesTool = ListFilesTool as jest.MockedClass<
+  typeof ListFilesTool
+>;
 const MockedGetFileTool = GetFileTool as jest.MockedClass<typeof GetFileTool>;
-const MockedGetFileContentTool = GetFileContentTool as jest.MockedClass<typeof GetFileContentTool>;
+const MockedGetFileContentTool = GetFileContentTool as jest.MockedClass<
+  typeof GetFileContentTool
+>;
 
 describe('Drive Integration Tests', () => {
   let serviceRegistry: ServiceRegistry;
@@ -63,7 +67,7 @@ describe('Drive Integration Tests', () => {
       getToolName: jest.fn(),
       registerTool: jest.fn(),
     } as any;
-    
+
     MockedListFilesTool.mockImplementation(() => mockTool);
     MockedGetFileTool.mockImplementation(() => mockTool);
     MockedGetFileContentTool.mockImplementation(() => mockTool);
@@ -208,7 +212,7 @@ describe('Drive Integration Tests', () => {
 
     it('should provide proper module metadata', () => {
       const driveModule = new DriveServiceModule();
-      
+
       expect(driveModule.name).toBe('drive');
       expect(driveModule.displayName).toBe('Google Drive');
       expect(driveModule.version).toBe('1.0.0');
@@ -223,16 +227,16 @@ describe('Drive Integration Tests', () => {
       const initPromises = [
         serviceRegistry.initializeAll(mockAuthService),
         serviceRegistry.initializeAll(mockAuthService),
-        serviceRegistry.initializeAll(mockAuthService)
+        serviceRegistry.initializeAll(mockAuthService),
       ];
 
       const results = await Promise.all(initPromises);
-      
+
       // All should succeed (first one initializes, others wait)
       results.forEach(result => {
         expect(result.isOk()).toBe(true);
       });
-      
+
       // Module should be created 3 times but initialized properly
       expect(MockedDriveService).toHaveBeenCalled();
       expect(driveModule.isInitialized()).toBe(true);
@@ -250,7 +254,9 @@ describe('Drive Integration Tests', () => {
 
       // Create comprehensive mock tool with all methods
       mockTool = {
-        getToolName: jest.fn().mockReturnValue('google-workspace__drive__list-files'),
+        getToolName: jest
+          .fn()
+          .mockReturnValue('google-workspace__drive__list-files'),
         registerTool: jest.fn(),
         call: jest.fn(),
       };
@@ -269,24 +275,26 @@ describe('Drive Integration Tests', () => {
             name: 'Document 1.docx',
             mimeType: 'application/vnd.google-apps.document',
             modifiedTime: '2023-01-15T10:00:00.000Z',
-            size: '1024'
+            size: '1024',
           },
           {
-            id: 'file-2', 
+            id: 'file-2',
             name: 'Spreadsheet 1.xlsx',
             mimeType: 'application/vnd.google-apps.spreadsheet',
             modifiedTime: '2023-01-14T15:30:00.000Z',
-            size: '2048'
-          }
+            size: '2048',
+          },
         ],
-        nextPageToken: undefined
+        nextPageToken: undefined,
       };
 
       mockTool.call.mockResolvedValue({
-        content: [{
-          type: 'text',
-          text: JSON.stringify({ result: mockApiResponse })
-        }]
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ result: mockApiResponse }),
+          },
+        ],
       });
 
       // Execute tool call through the registry
@@ -295,14 +303,14 @@ describe('Drive Integration Tests', () => {
 
       const callResult = await mockTool.call({
         folderId: 'root',
-        maxResults: 10
+        maxResults: 10,
       });
 
       expect(callResult).toBeDefined();
       expect(callResult.content).toBeDefined();
       expect(mockTool.call).toHaveBeenCalledWith({
         folderId: 'root',
-        maxResults: 10
+        maxResults: 10,
       });
     });
 
@@ -315,17 +323,21 @@ describe('Drive Integration Tests', () => {
         modifiedTime: '2023-01-15T10:00:00.000Z',
         createdTime: '2023-01-10T08:30:00.000Z',
         parents: ['folder-456'],
-        owners: [{
-          displayName: 'John Doe',
-          emailAddress: 'john.doe@example.com'
-        }]
+        owners: [
+          {
+            displayName: 'John Doe',
+            emailAddress: 'john.doe@example.com',
+          },
+        ],
       };
 
       mockTool.call.mockResolvedValue({
-        content: [{
-          type: 'text',
-          text: JSON.stringify({ result: mockFileMetadata })
-        }]
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ result: mockFileMetadata }),
+          },
+        ],
       });
 
       const toolsResult = serviceRegistry.registerAllTools(mockServer);
@@ -341,18 +353,20 @@ describe('Drive Integration Tests', () => {
       const mockFileContent = 'This is the content of the document...';
 
       mockTool.call.mockResolvedValue({
-        content: [{
-          type: 'text',
-          text: mockFileContent
-        }]
+        content: [
+          {
+            type: 'text',
+            text: mockFileContent,
+          },
+        ],
       });
 
       const toolsResult = serviceRegistry.registerAllTools(mockServer);
       expect(toolsResult.isOk()).toBe(true);
 
-      const callResult = await mockTool.call({ 
+      const callResult = await mockTool.call({
         fileId: 'document-123',
-        mimeType: 'text/plain'
+        mimeType: 'text/plain',
       });
 
       expect(callResult).toBeDefined();
@@ -362,23 +376,29 @@ describe('Drive Integration Tests', () => {
     it('should maintain tool isolation and proper error boundaries', async () => {
       // Test that tool failures don't affect other tools
       const successfulTool = {
-        getToolName: jest.fn().mockReturnValue('google-workspace__drive__list-files'),
+        getToolName: jest
+          .fn()
+          .mockReturnValue('google-workspace__drive__list-files'),
         registerTool: jest.fn(),
-        call: jest.fn().mockResolvedValue({ content: [{ type: 'text', text: 'success' }] }),
+        call: jest
+          .fn()
+          .mockResolvedValue({ content: [{ type: 'text', text: 'success' }] }),
         getToolMetadata: jest.fn(),
         executeImpl: jest.fn(),
         driveService: mockDriveService,
-        authService: mockAuthService
+        authService: mockAuthService,
       } as any;
 
       const failingTool = {
-        getToolName: jest.fn().mockReturnValue('google-workspace__drive__get-file'),
+        getToolName: jest
+          .fn()
+          .mockReturnValue('google-workspace__drive__get-file'),
         registerTool: jest.fn(),
         call: jest.fn().mockRejectedValue(new Error('Tool failed')),
         getToolMetadata: jest.fn(),
         executeImpl: jest.fn(),
         driveService: mockDriveService,
-        authService: mockAuthService
+        authService: mockAuthService,
       } as any;
 
       MockedListFilesTool.mockImplementation(() => successfulTool);
@@ -392,7 +412,9 @@ describe('Drive Integration Tests', () => {
       expect(successResult.content[0].text).toBe('success');
 
       // Failed tool should fail independently
-      await expect(failingTool.call({ fileId: 'test' })).rejects.toThrow('Tool failed');
+      await expect(failingTool.call({ fileId: 'test' })).rejects.toThrow(
+        'Tool failed'
+      );
     });
   });
 
@@ -419,15 +441,25 @@ describe('Drive Integration Tests', () => {
       // we need to test the module's ability to handle initialization failure.
 
       // Create fresh mocks for isolation
-      const MockedDriveServiceLocal = DriveService as jest.MockedClass<typeof DriveService>;
+      const MockedDriveServiceLocal = DriveService as jest.MockedClass<
+        typeof DriveService
+      >;
       const mockDriveServiceLocal = {
-        initialize: jest.fn().mockResolvedValue(
-          err(new GoogleServiceError('Auth client failed', 'drive', 'AUTH_CLIENT_FAILED'))
-        ),
+        initialize: jest
+          .fn()
+          .mockResolvedValue(
+            err(
+              new GoogleServiceError(
+                'Auth client failed',
+                'drive',
+                'AUTH_CLIENT_FAILED'
+              )
+            )
+          ),
         getServiceName: jest.fn().mockReturnValue('DriveService'),
         getServiceVersion: jest.fn().mockReturnValue('v3'),
       } as unknown as jest.Mocked<DriveService>;
-      
+
       MockedDriveServiceLocal.mockImplementation(() => mockDriveServiceLocal);
 
       // Use fresh registry and module for isolation
@@ -447,7 +479,13 @@ describe('Drive Integration Tests', () => {
     it('should propagate DriveService errors correctly', async () => {
       // Mock DriveService initialization failure
       mockDriveService.initialize.mockResolvedValue(
-        err(new GoogleServiceError('Drive init failed', 'drive', 'DRIVE_INIT_FAILED'))
+        err(
+          new GoogleServiceError(
+            'Drive init failed',
+            'drive',
+            'DRIVE_INIT_FAILED'
+          )
+        )
       );
 
       const driveModule = new DriveServiceModule();
@@ -455,7 +493,7 @@ describe('Drive Integration Tests', () => {
 
       const initResult = await serviceRegistry.initializeAll(mockAuthService);
       expect(initResult.isErr()).toBe(true);
-      
+
       const error = initResult._unsafeUnwrapErr();
       expect(error.message).toContain('Failed to initialize Drive service');
       expect(driveModule.isInitialized()).toBe(false);
@@ -478,7 +516,7 @@ describe('Drive Integration Tests', () => {
 
       const initResult = await serviceRegistry.initializeAll(mockAuthService);
       expect(initResult.isErr()).toBe(true);
-      
+
       const error = initResult._unsafeUnwrapErr();
       expect(error).toBeInstanceOf(GoogleServiceError);
       expect(error.message).toContain('Drive service');
@@ -486,49 +524,55 @@ describe('Drive Integration Tests', () => {
 
     it('should handle API quota errors in integration', async () => {
       await serviceRegistry.initializeAll(mockAuthService);
-      
+
       // Mock quota exceeded error in tool call
       const mockTool = {
-        getToolName: jest.fn().mockReturnValue('google-workspace__drive__list-files'),
+        getToolName: jest
+          .fn()
+          .mockReturnValue('google-workspace__drive__list-files'),
         registerTool: jest.fn(),
-        call: jest.fn().mockRejectedValue(
-          new GoogleServiceError('Quota exceeded', 'drive', 'QUOTA_EXCEEDED')
-        ),
+        call: jest
+          .fn()
+          .mockRejectedValue(
+            new GoogleServiceError('Quota exceeded', 'drive', 'QUOTA_EXCEEDED')
+          ),
         getToolMetadata: jest.fn(),
         executeImpl: jest.fn(),
         driveService: mockDriveService,
-        authService: mockAuthService
+        authService: mockAuthService,
       } as any;
 
       MockedListFilesTool.mockImplementation(() => mockTool);
-      
+
       const toolsResult = serviceRegistry.registerAllTools(mockServer);
       expect(toolsResult.isOk()).toBe(true);
 
       // Tool call should propagate error correctly
-      await expect(mockTool.call({ folderId: 'root' })).rejects.toThrow('Quota exceeded');
+      await expect(mockTool.call({ folderId: 'root' })).rejects.toThrow(
+        'Quota exceeded'
+      );
     });
 
     it('should maintain system stability during error conditions', async () => {
       await serviceRegistry.initializeAll(mockAuthService);
-      
+
       // Simulate various error conditions
       const errors = [
         new GoogleServiceError('Network error', 'drive', 'NETWORK_ERROR'),
         new GoogleTimeoutError('Timeout error', 'request', 5000),
-        new Error('Unexpected error')
+        new Error('Unexpected error'),
       ];
 
       errors.forEach(async (error, index) => {
         const mockTool = {
           getToolName: jest.fn().mockReturnValue(`tool-${index}`),
           registerTool: jest.fn(),
-          call: jest.fn().mockRejectedValue(error)
+          call: jest.fn().mockRejectedValue(error),
         };
 
         // Each error should be contained
         await expect(mockTool.call({})).rejects.toThrow();
-        
+
         // Module should remain healthy
         expect(driveModule.isInitialized()).toBe(true);
         expect(driveModule.getHealthStatus().status).toBe('healthy');
@@ -540,13 +584,17 @@ describe('Drive Integration Tests', () => {
       expect(driveModule.isInitialized()).toBe(true);
 
       // Mock cleanup failure
-      jest.spyOn(driveModule, 'cleanup').mockResolvedValue(
-        err(new GoogleServiceError('Cleanup failed', 'drive', 'CLEANUP_FAILED'))
-      );
+      jest
+        .spyOn(driveModule, 'cleanup')
+        .mockResolvedValue(
+          err(
+            new GoogleServiceError('Cleanup failed', 'drive', 'CLEANUP_FAILED')
+          )
+        );
 
       const cleanupResult = await serviceRegistry.cleanup();
       expect(cleanupResult.isErr()).toBe(true);
-      
+
       // Registry should still reset state
       expect(serviceRegistry.getIsInitialized()).toBe(false);
     });
@@ -567,7 +615,9 @@ describe('Drive Integration Tests', () => {
       const healthStatus = driveModule.getHealthStatus();
       expect(healthStatus.metrics).toBeDefined();
       expect(healthStatus.metrics?.toolsRegistered).toBeGreaterThanOrEqual(3);
-      expect(healthStatus.metrics?.initializationTime).toBeGreaterThanOrEqual(0);
+      expect(healthStatus.metrics?.initializationTime).toBeGreaterThanOrEqual(
+        0
+      );
       expect(healthStatus.lastChecked).toBeInstanceOf(Date);
     });
 
@@ -596,9 +646,9 @@ describe('Drive Integration Tests', () => {
       await serviceRegistry.initializeAll(mockAuthService);
 
       // Multiple rapid tool registrations
-      const registrationPromises = Array(10).fill(0).map(() => 
-        serviceRegistry.registerAllTools(mockServer)
-      );
+      const registrationPromises = Array(10)
+        .fill(0)
+        .map(() => serviceRegistry.registerAllTools(mockServer));
 
       const results = await Promise.all(registrationPromises);
       results.forEach(result => {
@@ -616,54 +666,58 @@ describe('Drive Integration Tests', () => {
     it('should demonstrate complete integration scenario', async () => {
       // Complete production-like scenario
       const driveModule = new DriveServiceModule();
-      
+
       // 1. Registration
       const registrationResult = serviceRegistry.registerModule(driveModule);
       expect(registrationResult.isOk()).toBe(true);
-      
+
       // 2. Initialization with auth
       const productionAuthService = createMockAuthService();
       productionAuthService.initialize.mockResolvedValue(ok(undefined));
-      const initResult = await serviceRegistry.initializeAll(productionAuthService);
+      const initResult = await serviceRegistry.initializeAll(
+        productionAuthService
+      );
       expect(initResult.isOk()).toBe(true);
-      
+
       // 3. Tool and resource registration
       const toolsResult = serviceRegistry.registerAllTools(mockServer);
       const resourcesResult = serviceRegistry.registerAllResources(mockServer);
       expect(toolsResult.isOk()).toBe(true);
       expect(resourcesResult.isOk()).toBe(true);
-      
+
       // 4. Health monitoring
       const healthStatus = serviceRegistry.getOverallHealthStatus();
       expect(healthStatus.status).toBe('healthy');
       expect(healthStatus.modules.drive).toBeDefined();
-      
+
       // 5. Simulate production workload
       const mockTool = {
-        getToolName: jest.fn().mockReturnValue('google-workspace__drive__list-files'),
+        getToolName: jest
+          .fn()
+          .mockReturnValue('google-workspace__drive__list-files'),
         registerTool: jest.fn(),
-        call: jest.fn().mockResolvedValue({ 
-          content: [{ type: 'text', text: JSON.stringify({ files: [] }) }] 
+        call: jest.fn().mockResolvedValue({
+          content: [{ type: 'text', text: JSON.stringify({ files: [] }) }],
         }),
         getToolMetadata: jest.fn(),
         executeImpl: jest.fn(),
         driveService: mockDriveService,
-        authService: mockAuthService
+        authService: mockAuthService,
       } as any;
-      
+
       MockedListFilesTool.mockImplementation(() => mockTool);
-      
+
       // Multiple concurrent operations
-      const workloadPromises = Array(5).fill(0).map(() => 
-        mockTool.call({ folderId: 'root' })
-      );
-      
+      const workloadPromises = Array(5)
+        .fill(0)
+        .map(() => mockTool.call({ folderId: 'root' }));
+
       const workloadResults = await Promise.all(workloadPromises);
       workloadResults.forEach(result => {
         expect(result).toBeDefined();
         expect(result.content).toBeDefined();
       });
-      
+
       // 6. Graceful shutdown
       const cleanupResult = await serviceRegistry.cleanup();
       expect(cleanupResult.isOk()).toBe(true);
@@ -674,34 +728,32 @@ describe('Drive Integration Tests', () => {
       const driveModule = new DriveServiceModule();
       serviceRegistry.registerModule(driveModule);
       await serviceRegistry.initializeAll(mockAuthService);
-      
+
       // Verify service dependencies
-      expect(MockedDriveService).toHaveBeenCalledWith(
-        mockAuthService
-      );
-      
+      expect(MockedDriveService).toHaveBeenCalledWith(mockAuthService);
+
       // Verify tool instantiation - tools receive driveService, authService, and logger
       expect(MockedListFilesTool).toHaveBeenCalledWith(
-        expect.any(Object),  // driveService
-        expect.any(Object),  // authService
-        expect.any(Object)   // logger
+        expect.any(Object), // driveService
+        expect.any(Object), // authService
+        expect.any(Object) // logger
       );
       expect(MockedGetFileTool).toHaveBeenCalledWith(
-        expect.any(Object),  // driveService
-        expect.any(Object),  // authService
-        expect.any(Object)   // logger
+        expect.any(Object), // driveService
+        expect.any(Object), // authService
+        expect.any(Object) // logger
       );
       expect(MockedGetFileContentTool).toHaveBeenCalledWith(
-        expect.any(Object),  // driveService
-        expect.any(Object),  // authService
-        expect.any(Object)   // logger
+        expect.any(Object), // driveService
+        expect.any(Object), // authService
+        expect.any(Object) // logger
       );
-      
+
       // Verify health monitoring
       const healthStatus = driveModule.getHealthStatus();
       expect(healthStatus.status).toBe('healthy');
       expect(healthStatus.metrics?.toolsRegistered).toBeGreaterThanOrEqual(3);
-      
+
       // Verify proper module metadata
       expect(driveModule.name).toBe('drive');
       expect(driveModule.displayName).toBe('Google Drive');

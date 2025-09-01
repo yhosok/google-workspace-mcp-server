@@ -2,7 +2,11 @@ import { GetFileContentTool } from './get-file-content.tool.js';
 import { DriveService } from '../../services/drive.service.js';
 import { AuthService } from '../../services/auth.service.js';
 import { ok, err } from 'neverthrow';
-import { GoogleDriveError, GoogleDriveNotFoundError, GoogleDrivePermissionError } from '../../errors/index.js';
+import {
+  GoogleDriveError,
+  GoogleDriveNotFoundError,
+  GoogleDrivePermissionError,
+} from '../../errors/index.js';
 import type { DriveFileContent, MCPToolResult } from '../../types/index.js';
 import { z } from 'zod';
 
@@ -87,7 +91,10 @@ describe('GetFileContentTool', () => {
         fileId: 'text123',
       });
 
-      expect(mockDriveService.getFileContent).toHaveBeenCalledWith('text123', undefined);
+      expect(mockDriveService.getFileContent).toHaveBeenCalledWith(
+        'text123',
+        undefined
+      );
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         const mcpResult = result.value as MCPToolResult;
@@ -138,7 +145,8 @@ describe('GetFileContentTool', () => {
       const xlsxBuffer = Buffer.from('Excel file content', 'binary');
       const mockContent: DriveFileContent = {
         content: xlsxBuffer,
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        mimeType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         size: xlsxBuffer.length,
         isExported: true,
         exportFormat: 'xlsx',
@@ -159,7 +167,9 @@ describe('GetFileContentTool', () => {
         const mcpResult = result.value as MCPToolResult;
         const text = mcpResult.content[0].text;
         const resultData = JSON.parse(text!) as GetFileContentResult;
-        expect(resultData.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        expect(resultData.mimeType).toBe(
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        );
         expect(resultData.isExported).toBe(true);
         expect(resultData.exportFormat).toBe('xlsx');
       }
@@ -276,7 +286,9 @@ describe('GetFileContentTool', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('Authentication validation failed');
+        expect(result.error.message).toContain(
+          'Authentication validation failed'
+        );
         expect(result.error.errorCode).toBe('GOOGLE_DRIVE_AUTH_ERROR');
       }
     });
@@ -397,8 +409,17 @@ describe('GetFileContentTool', () => {
     });
 
     test('should handle valid export formats', async () => {
-      const validFormats = ['pdf', 'docx', 'xlsx', 'csv', 'txt', 'html', 'odt', 'rtf'];
-      
+      const validFormats = [
+        'pdf',
+        'docx',
+        'xlsx',
+        'csv',
+        'txt',
+        'html',
+        'odt',
+        'rtf',
+      ];
+
       for (const format of validFormats) {
         const mockContent: DriveFileContent = {
           content: 'test content',
@@ -415,9 +436,12 @@ describe('GetFileContentTool', () => {
           exportFormat: format as any,
         });
 
-        expect(mockDriveService.getFileContent).toHaveBeenCalledWith('file123', {
-          exportFormat: format,
-        });
+        expect(mockDriveService.getFileContent).toHaveBeenCalledWith(
+          'file123',
+          {
+            exportFormat: format,
+          }
+        );
         expect(result.isOk()).toBe(true);
       }
     });

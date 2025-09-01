@@ -497,7 +497,7 @@ export class DocsService extends GoogleService {
    *
    * Gets comprehensive information about a document including:
    * - Document metadata (ID, title, creation info)
-   * - Document content and structure
+   * - Document content and structure (when includeContent is true)
    * - Document styling information
    *
    * **Use Cases**:
@@ -507,12 +507,16 @@ export class DocsService extends GoogleService {
    * - Pre-operation validation
    *
    * @param documentId The ID of the document to retrieve
+   * @param includeContent Whether to include the document body content (defaults to true for backward compatibility)
    * @returns Promise resolving to document data or error
    *
    * @example
    * ```typescript
-   * // Get full document
-   * const result = await service.getDocument('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+   * // Get full document with content
+   * const result = await service.getDocument('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms', true);
+   *
+   * // Get metadata only
+   * const metadataResult = await service.getDocument('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms', false);
    *
    * if (result.isOk()) {
    *   console.log(`Title: ${result.value.title}`);
@@ -521,7 +525,8 @@ export class DocsService extends GoogleService {
    * ```
    */
   public async getDocument(
-    documentId: string
+    documentId: string,
+    includeContent: boolean = true
   ): Promise<GoogleDocsResult<docs_v1.Schema$Document>> {
     // Input validation
     if (
@@ -557,9 +562,13 @@ export class DocsService extends GoogleService {
 
       await this.ensureInitialized();
 
-      // Call Docs API
+      // Call Docs API - include suggestions mode if content is not needed for better performance
       const response = await this.docsApi.documents.get({
         documentId: documentId.trim(),
+        // When includeContent is false, we can use suggestionsViewMode to reduce payload size
+        ...(includeContent
+          ? {}
+          : { suggestionsViewMode: 'PREVIEW_WITHOUT_SUGGESTIONS' }),
       });
 
       // Validate response
@@ -574,9 +583,16 @@ export class DocsService extends GoogleService {
 
       const document = response.data;
 
+      // If includeContent is false, remove the body to match the expected behavior
+      if (!includeContent && document.body) {
+        delete document.body;
+      }
+
       this.logger.info('Successfully retrieved document', {
         documentId: document.documentId,
         title: document.title,
+        includeContent,
+        hasBody: !!document.body,
         requestId: context.requestId,
       });
 

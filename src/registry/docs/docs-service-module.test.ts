@@ -21,14 +21,26 @@ jest.mock('../../services/drive.service.js');
 jest.mock('../../tools/docs/index.js');
 
 const MockedDocsService = DocsService as jest.MockedClass<typeof DocsService>;
-const MockedDriveService = DriveService as jest.MockedClass<typeof DriveService>;
+const MockedDriveService = DriveService as jest.MockedClass<
+  typeof DriveService
+>;
 
 // Mock tool constructors
-const MockedCreateDocumentTool = CreateDocumentTool as jest.MockedClass<typeof CreateDocumentTool>;
-const MockedGetDocumentTool = GetDocumentTool as jest.MockedClass<typeof GetDocumentTool>;
-const MockedUpdateDocumentTool = UpdateDocumentTool as jest.MockedClass<typeof UpdateDocumentTool>;
-const MockedInsertTextTool = InsertTextTool as jest.MockedClass<typeof InsertTextTool>;
-const MockedReplaceTextTool = ReplaceTextTool as jest.MockedClass<typeof ReplaceTextTool>;
+const MockedCreateDocumentTool = CreateDocumentTool as jest.MockedClass<
+  typeof CreateDocumentTool
+>;
+const MockedGetDocumentTool = GetDocumentTool as jest.MockedClass<
+  typeof GetDocumentTool
+>;
+const MockedUpdateDocumentTool = UpdateDocumentTool as jest.MockedClass<
+  typeof UpdateDocumentTool
+>;
+const MockedInsertTextTool = InsertTextTool as jest.MockedClass<
+  typeof InsertTextTool
+>;
+const MockedReplaceTextTool = ReplaceTextTool as jest.MockedClass<
+  typeof ReplaceTextTool
+>;
 
 describe('DocsServiceModule', () => {
   let module: DocsServiceModule;
@@ -80,11 +92,15 @@ describe('DocsServiceModule', () => {
       registerTool: jest.fn(),
     };
     mockInsertTextTool = {
-      getToolName: jest.fn().mockReturnValue('google-workspace__docs__insert-text'),
+      getToolName: jest
+        .fn()
+        .mockReturnValue('google-workspace__docs__insert-text'),
       registerTool: jest.fn(),
     };
     mockReplaceTextTool = {
-      getToolName: jest.fn().mockReturnValue('google-workspace__docs__replace-text'),
+      getToolName: jest
+        .fn()
+        .mockReturnValue('google-workspace__docs__replace-text'),
       registerTool: jest.fn(),
     };
 
@@ -131,7 +147,15 @@ describe('DocsServiceModule', () => {
 
     it('should initialize successfully without DriveService when it fails', async () => {
       mockDriveService.initialize.mockResolvedValue(
-        err(new GoogleServiceError('Drive init failed', 'drive', 'INIT_FAILED', 500, {}))
+        err(
+          new GoogleServiceError(
+            'Drive init failed',
+            'drive',
+            'INIT_FAILED',
+            500,
+            {}
+          )
+        )
       );
       mockDocsService.initialize.mockResolvedValue(ok(undefined));
 
@@ -163,30 +187,38 @@ describe('DocsServiceModule', () => {
     it('should fail when DocsService initialization fails', async () => {
       mockDriveService.initialize.mockResolvedValue(ok(undefined));
       mockDocsService.initialize.mockResolvedValue(
-        err(new GoogleServiceError('Init failed', 'docs', 'INIT_FAILED', 500, {}))
+        err(
+          new GoogleServiceError('Init failed', 'docs', 'INIT_FAILED', 500, {})
+        )
       );
 
       const result = await module.initialize(mockAuthService);
 
       expect(result.isErr()).toBe(true);
       expect(module.isInitialized()).toBe(false);
-      
+
       if (result.isErr()) {
-        expect(result.error.message).toContain('Failed to initialize Docs service');
+        expect(result.error.message).toContain(
+          'Failed to initialize Docs service'
+        );
         expect(result.error.code).toBe('DOCS_SERVICE_INIT_FAILED');
       }
     });
 
     it('should handle unexpected errors during initialization', async () => {
-      mockDriveService.initialize.mockRejectedValue(new Error('Unexpected error'));
+      mockDriveService.initialize.mockRejectedValue(
+        new Error('Unexpected error')
+      );
 
       const result = await module.initialize(mockAuthService);
 
       expect(result.isErr()).toBe(true);
       expect(module.isInitialized()).toBe(false);
-      
+
       if (result.isErr()) {
-        expect(result.error.message).toContain('Docs service module initialization failed');
+        expect(result.error.message).toContain(
+          'Docs service module initialization failed'
+        );
         expect(result.error.code).toBe('DOCS_MODULE_INIT_FAILED');
       }
     });
@@ -203,16 +235,20 @@ describe('DocsServiceModule', () => {
       const result = module.registerTools(mockServer);
 
       expect(result.isOk()).toBe(true);
-      expect(mockCreateDocumentTool.registerTool).toHaveBeenCalledWith(mockServer);
+      expect(mockCreateDocumentTool.registerTool).toHaveBeenCalledWith(
+        mockServer
+      );
       expect(mockGetDocumentTool.registerTool).toHaveBeenCalledWith(mockServer);
-      expect(mockUpdateDocumentTool.registerTool).toHaveBeenCalledWith(mockServer);
+      expect(mockUpdateDocumentTool.registerTool).toHaveBeenCalledWith(
+        mockServer
+      );
       expect(mockInsertTextTool.registerTool).toHaveBeenCalledWith(mockServer);
       expect(mockReplaceTextTool.registerTool).toHaveBeenCalledWith(mockServer);
     });
 
     it('should fail if module is not initialized', () => {
       const uninitializedModule = new DocsServiceModule();
-      
+
       const result = uninitializedModule.registerTools(mockServer);
 
       expect(result.isErr()).toBe(true);
@@ -231,7 +267,9 @@ describe('DocsServiceModule', () => {
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         expect(result.error.code).toBe('TOOL_REGISTRATION_FAILED');
-        expect(result.error.message).toContain('Failed to register tool google-workspace__docs__create');
+        expect(result.error.message).toContain(
+          'Failed to register tool google-workspace__docs__create'
+        );
       }
     });
 
@@ -241,7 +279,7 @@ describe('DocsServiceModule', () => {
         getToolName: jest.fn().mockReturnValue('test-tool'),
         registerTool: jest.fn().mockImplementation(() => {
           throw new Error('Unexpected error');
-        })
+        }),
       };
 
       // Replace the tools array with a mock that has a failing tool
@@ -272,7 +310,7 @@ describe('DocsServiceModule', () => {
 
     it('should fail if module is not initialized', () => {
       const uninitializedModule = new DocsServiceModule();
-      
+
       const result = uninitializedModule.registerResources(mockServer);
 
       expect(result.isErr()).toBe(true);
@@ -307,7 +345,7 @@ describe('DocsServiceModule', () => {
         }),
         error: jest.fn(),
         debug: jest.fn(),
-        warn: jest.fn()
+        warn: jest.fn(),
       };
       (module as any).logger = mockLogger;
 
@@ -362,7 +400,7 @@ describe('DocsServiceModule', () => {
       expect(module.getDocsService()).toBeDefined();
       expect(module.getDriveService()).toBeDefined();
       expect(module.getTools()).toHaveLength(5);
-      
+
       // Test that getTools returns a copy (defensive copy)
       const tools1 = module.getTools();
       const tools2 = module.getTools();

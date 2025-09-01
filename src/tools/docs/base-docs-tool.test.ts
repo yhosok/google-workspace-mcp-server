@@ -77,11 +77,7 @@ describe('BaseDocsTools', () => {
       updateConfig: jest.fn(),
     } as unknown as jest.Mocked<Logger>;
 
-    testTool = new TestDocsTools(
-      mockDocsService,
-      mockAuthService,
-      mockLogger
-    );
+    testTool = new TestDocsTools(mockDocsService, mockAuthService, mockLogger);
 
     // Reset mocks
     jest.clearAllMocks();
@@ -169,10 +165,10 @@ describe('BaseDocsTools', () => {
 
     it('should validate correct document ID format', () => {
       const validDocumentId = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
-      
+
       // This test should fail because documentIdValidation doesn't exist yet
       const result = (testTool as any).documentIdValidation(validDocumentId);
-      
+
       expect(result.isOk()).toBe(true);
       expect(result._unsafeUnwrap()).toBe(validDocumentId);
     });
@@ -180,7 +176,7 @@ describe('BaseDocsTools', () => {
     it('should reject empty document ID', () => {
       // This test should fail because documentIdValidation doesn't exist yet
       const result = (testTool as any).documentIdValidation('');
-      
+
       expect(result.isErr()).toBe(true);
       const error = result._unsafeUnwrapErr();
       expect(error).toBeInstanceOf(GoogleDocsError);
@@ -190,7 +186,7 @@ describe('BaseDocsTools', () => {
     it('should reject null document ID', () => {
       // This test should fail because documentIdValidation doesn't exist yet
       const result = (testTool as any).documentIdValidation(null);
-      
+
       expect(result.isErr()).toBe(true);
       const error = result._unsafeUnwrapErr();
       expect(error).toBeInstanceOf(GoogleDocsError);
@@ -199,7 +195,7 @@ describe('BaseDocsTools', () => {
     it('should reject undefined document ID', () => {
       // This test should fail because documentIdValidation doesn't exist yet
       const result = (testTool as any).documentIdValidation(undefined);
-      
+
       expect(result.isErr()).toBe(true);
       const error = result._unsafeUnwrapErr();
       expect(error).toBeInstanceOf(GoogleDocsError);
@@ -208,7 +204,7 @@ describe('BaseDocsTools', () => {
     it('should reject whitespace-only document ID', () => {
       // This test should fail because documentIdValidation doesn't exist yet
       const result = (testTool as any).documentIdValidation('   \t\n   ');
-      
+
       expect(result.isErr()).toBe(true);
       const error = result._unsafeUnwrapErr();
       expect(error).toBeInstanceOf(GoogleDocsError);
@@ -217,12 +213,14 @@ describe('BaseDocsTools', () => {
 
     it('should trim valid document ID', () => {
       const documentId = '  1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms  ';
-      
+
       // This test should fail because documentIdValidation doesn't exist yet
       const result = (testTool as any).documentIdValidation(documentId);
-      
+
       expect(result.isOk()).toBe(true);
-      expect(result._unsafeUnwrap()).toBe('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+      expect(result._unsafeUnwrap()).toBe(
+        '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
+      );
     });
 
     it('should handle malformed document ID formats', () => {
@@ -236,7 +234,7 @@ describe('BaseDocsTools', () => {
       invalidIds.forEach(invalidId => {
         // This test should fail because documentIdValidation doesn't exist yet
         const result = (testTool as any).documentIdValidation(invalidId);
-        
+
         // For now, we expect it to pass through (minimal validation)
         // Later implementations may add more strict format validation
         expect(result.isOk()).toBe(true);
@@ -256,10 +254,10 @@ describe('BaseDocsTools', () => {
 
     it('should validate valid text content', () => {
       const validText = 'This is valid text content for a document.';
-      
+
       // This test should fail because textValidation doesn't exist yet
       const result = (testTool as any).textValidation(validText);
-      
+
       expect(result.isOk()).toBe(true);
       expect(result._unsafeUnwrap()).toBe(validText);
     });
@@ -267,7 +265,7 @@ describe('BaseDocsTools', () => {
     it('should reject null text', () => {
       // This test should fail because textValidation doesn't exist yet
       const result = (testTool as any).textValidation(null);
-      
+
       expect(result.isErr()).toBe(true);
       const error = result._unsafeUnwrapErr();
       expect(error).toBeInstanceOf(GoogleDocsError);
@@ -277,7 +275,7 @@ describe('BaseDocsTools', () => {
     it('should reject undefined text', () => {
       // This test should fail because textValidation doesn't exist yet
       const result = (testTool as any).textValidation(undefined);
-      
+
       expect(result.isErr()).toBe(true);
       const error = result._unsafeUnwrapErr();
       expect(error).toBeInstanceOf(GoogleDocsError);
@@ -287,47 +285,48 @@ describe('BaseDocsTools', () => {
     it('should allow empty string text', () => {
       // This test should fail because textValidation doesn't exist yet
       const result = (testTool as any).textValidation('');
-      
+
       expect(result.isOk()).toBe(true);
       expect(result._unsafeUnwrap()).toBe('');
     });
 
     it('should handle long text content', () => {
       const longText = 'A'.repeat(10000); // 10KB of text
-      
+
       // This test should fail because textValidation doesn't exist yet
       const result = (testTool as any).textValidation(longText);
-      
+
       expect(result.isOk()).toBe(true);
       expect(result._unsafeUnwrap()).toBe(longText);
     });
 
     it('should handle text with special characters', () => {
       const specialText = 'Text with émojis 🚀 and special chars: àáâãäåæçèéêë';
-      
+
       // This test should fail because textValidation doesn't exist yet
       const result = (testTool as any).textValidation(specialText);
-      
+
       expect(result.isOk()).toBe(true);
       expect(result._unsafeUnwrap()).toBe(specialText);
     });
 
     it('should handle multiline text', () => {
       const multilineText = 'Line 1\nLine 2\nLine 3\n\nLine 5';
-      
+
       // This test should fail because textValidation doesn't exist yet
       const result = (testTool as any).textValidation(multilineText);
-      
+
       expect(result.isOk()).toBe(true);
       expect(result._unsafeUnwrap()).toBe(multilineText);
     });
 
     it('should handle text with HTML/XML characters', () => {
-      const htmlText = '<p>This is a paragraph with &lt;tags&gt; and &amp; symbols.</p>';
-      
+      const htmlText =
+        '<p>This is a paragraph with &lt;tags&gt; and &amp; symbols.</p>';
+
       // This test should fail because textValidation doesn't exist yet
       const result = (testTool as any).textValidation(htmlText);
-      
+
       expect(result.isOk()).toBe(true);
       expect(result._unsafeUnwrap()).toBe(htmlText);
     });
@@ -345,48 +344,46 @@ describe('BaseDocsTools', () => {
 
     it('should validate valid positive index', () => {
       const validIndex = 1;
-      
+
       // This test should fail because indexValidation doesn't exist yet
       const result = (testTool as any).indexValidation(validIndex);
-      
+
       expect(result.isOk()).toBe(true);
       expect(result._unsafeUnwrap()).toBe(validIndex);
     });
 
     it('should validate large positive index', () => {
       const largeIndex = 1000000;
-      
+
       // This test should fail because indexValidation doesn't exist yet
       const result = (testTool as any).indexValidation(largeIndex);
-      
+
       expect(result.isOk()).toBe(true);
       expect(result._unsafeUnwrap()).toBe(largeIndex);
     });
 
-    it('should reject zero index', () => {
-      // This test should fail because indexValidation doesn't exist yet
+    it('should accept zero index with 0-based indexing', () => {
+      // Zero index should now be accepted with 0-based indexing
       const result = (testTool as any).indexValidation(0);
-      
-      expect(result.isErr()).toBe(true);
-      const error = result._unsafeUnwrapErr();
-      expect(error).toBeInstanceOf(GoogleDocsError);
-      expect(error.message).toContain('Index must be at least 1');
+
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBe(0);
     });
 
     it('should reject negative index', () => {
       // This test should fail because indexValidation doesn't exist yet
       const result = (testTool as any).indexValidation(-1);
-      
+
       expect(result.isErr()).toBe(true);
       const error = result._unsafeUnwrapErr();
       expect(error).toBeInstanceOf(GoogleDocsError);
-      expect(error.message).toContain('Index must be positive');
+      expect(error.message).toContain('Index must be non-negative');
     });
 
     it('should reject non-integer index', () => {
       // This test should fail because indexValidation doesn't exist yet
       const result = (testTool as any).indexValidation(1.5);
-      
+
       expect(result.isErr()).toBe(true);
       const error = result._unsafeUnwrapErr();
       expect(error).toBeInstanceOf(GoogleDocsError);
@@ -396,7 +393,7 @@ describe('BaseDocsTools', () => {
     it('should handle default index when not provided', () => {
       // This test should fail because indexValidation doesn't exist yet
       const result = (testTool as any).indexValidation(undefined, 1);
-      
+
       expect(result.isOk()).toBe(true);
       expect(result._unsafeUnwrap()).toBe(1);
     });
@@ -404,7 +401,7 @@ describe('BaseDocsTools', () => {
     it('should handle null index with default', () => {
       // This test should fail because indexValidation doesn't exist yet
       const result = (testTool as any).indexValidation(null, 10);
-      
+
       expect(result.isOk()).toBe(true);
       expect(result._unsafeUnwrap()).toBe(10);
     });
@@ -419,7 +416,7 @@ describe('BaseDocsTools', () => {
       it('should exist and return a Zod schema', () => {
         // This test should fail because createDocumentIdSchema doesn't exist yet
         const schema = (testTool as any).createDocumentIdSchema();
-        
+
         expect(schema).toBeDefined();
         expect(typeof schema.safeParse).toBe('function');
       });
@@ -427,10 +424,10 @@ describe('BaseDocsTools', () => {
       it('should validate correct document IDs', () => {
         // This test should fail because createDocumentIdSchema doesn't exist yet
         const schema = (testTool as any).createDocumentIdSchema();
-        
+
         const validId = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
         const result = schema.safeParse(validId);
-        
+
         expect(result.success).toBe(true);
         if (result.success) {
           expect(result.data).toBe(validId);
@@ -440,9 +437,9 @@ describe('BaseDocsTools', () => {
       it('should reject empty document IDs', () => {
         // This test should fail because createDocumentIdSchema doesn't exist yet
         const schema = (testTool as any).createDocumentIdSchema();
-        
+
         const result = schema.safeParse('');
-        
+
         expect(result.success).toBe(false);
         if (!result.success) {
           expect(result.error.issues[0].message).toContain('empty');
@@ -454,7 +451,7 @@ describe('BaseDocsTools', () => {
       it('should exist and return a Zod schema', () => {
         // This test should fail because createTextSchema doesn't exist yet
         const schema = (testTool as any).createTextSchema();
-        
+
         expect(schema).toBeDefined();
         expect(typeof schema.safeParse).toBe('function');
       });
@@ -462,10 +459,10 @@ describe('BaseDocsTools', () => {
       it('should validate text content', () => {
         // This test should fail because createTextSchema doesn't exist yet
         const schema = (testTool as any).createTextSchema();
-        
+
         const validText = 'This is valid text content.';
         const result = schema.safeParse(validText);
-        
+
         expect(result.success).toBe(true);
         if (result.success) {
           expect(result.data).toBe(validText);
@@ -475,9 +472,9 @@ describe('BaseDocsTools', () => {
       it('should allow empty string', () => {
         // This test should fail because createTextSchema doesn't exist yet
         const schema = (testTool as any).createTextSchema();
-        
+
         const result = schema.safeParse('');
-        
+
         expect(result.success).toBe(true);
       });
     });
@@ -486,7 +483,7 @@ describe('BaseDocsTools', () => {
       it('should exist and return a Zod schema', () => {
         // This test should fail because createIndexSchema doesn't exist yet
         const schema = (testTool as any).createIndexSchema();
-        
+
         expect(schema).toBeDefined();
         expect(typeof schema.safeParse).toBe('function');
       });
@@ -494,21 +491,24 @@ describe('BaseDocsTools', () => {
       it('should validate positive integers', () => {
         // This test should fail because createIndexSchema doesn't exist yet
         const schema = (testTool as any).createIndexSchema();
-        
+
         const result = schema.safeParse(1);
-        
+
         expect(result.success).toBe(true);
         if (result.success) {
           expect(result.data).toBe(1);
         }
       });
 
-      it('should reject zero and negative numbers', () => {
-        // This test should fail because createIndexSchema doesn't exist yet
+      it('should accept zero but reject negative numbers', () => {
+        // Zero should now be accepted with 0-based indexing
         const schema = (testTool as any).createIndexSchema();
-        
+
         const zeroResult = schema.safeParse(0);
-        expect(zeroResult.success).toBe(false);
+        expect(zeroResult.success).toBe(true);
+        if (zeroResult.success) {
+          expect(zeroResult.data).toBe(0);
+        }
 
         const negativeResult = schema.safeParse(-1);
         expect(negativeResult.success).toBe(false);
@@ -517,9 +517,9 @@ describe('BaseDocsTools', () => {
       it('should reject non-integers', () => {
         // This test should fail because createIndexSchema doesn't exist yet
         const schema = (testTool as any).createIndexSchema();
-        
+
         const result = schema.safeParse(1.5);
-        
+
         expect(result.success).toBe(false);
       });
     });
@@ -532,8 +532,10 @@ describe('BaseDocsTools', () => {
 
       it('should create schema for create-document tool', () => {
         // This test should fail because createToolInputSchema doesn't exist yet
-        const schema = (testTool as any).createToolInputSchema('create-document');
-        
+        const schema = (testTool as any).createToolInputSchema(
+          'create-document'
+        );
+
         expect(schema).toBeDefined();
         expect(typeof schema.safeParse).toBe('function');
       });
@@ -541,12 +543,12 @@ describe('BaseDocsTools', () => {
       it('should create schema for get-document tool', () => {
         // This test should fail because createToolInputSchema doesn't exist yet
         const schema = (testTool as any).createToolInputSchema('get-document');
-        
+
         expect(schema).toBeDefined();
-        
+
         // Test with valid input
         const validInput = {
-          documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
+          documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
         };
         const result = schema.safeParse(validInput);
         expect(result.success).toBe(true);
@@ -554,14 +556,16 @@ describe('BaseDocsTools', () => {
 
       it('should create schema for update-document tool', () => {
         // This test should fail because createToolInputSchema doesn't exist yet
-        const schema = (testTool as any).createToolInputSchema('update-document');
-        
+        const schema = (testTool as any).createToolInputSchema(
+          'update-document'
+        );
+
         expect(schema).toBeDefined();
-        
+
         // Test with valid input
         const validInput = {
           documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-          requests: [{ insertText: { text: 'Hello', location: { index: 1 } } }]
+          requests: [{ insertText: { text: 'Hello', location: { index: 1 } } }],
         };
         const result = schema.safeParse(validInput);
         expect(result.success).toBe(true);
@@ -570,14 +574,14 @@ describe('BaseDocsTools', () => {
       it('should create schema for insert-text tool', () => {
         // This test should fail because createToolInputSchema doesn't exist yet
         const schema = (testTool as any).createToolInputSchema('insert-text');
-        
+
         expect(schema).toBeDefined();
-        
+
         // Test with valid input
         const validInput = {
           documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
           text: 'Hello World',
-          index: 1
+          index: 1,
         };
         const result = schema.safeParse(validInput);
         expect(result.success).toBe(true);
@@ -586,15 +590,15 @@ describe('BaseDocsTools', () => {
       it('should create schema for replace-text tool', () => {
         // This test should fail because createToolInputSchema doesn't exist yet
         const schema = (testTool as any).createToolInputSchema('replace-text');
-        
+
         expect(schema).toBeDefined();
-        
+
         // Test with valid input
         const validInput = {
           documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
           searchText: 'old text',
           replaceText: 'new text',
-          matchCase: true
+          matchCase: true,
         };
         const result = schema.safeParse(validInput);
         expect(result.success).toBe(true);
@@ -626,19 +630,19 @@ describe('BaseDocsTools', () => {
         400,
         'doc123'
       );
-      
+
       // This test should fail because handleServiceError doesn't exist yet
       const result = (testTool as any).handleServiceError(docsError);
-      
+
       expect(result).toBe(docsError);
     });
 
     it('should convert GoogleAuthError to GoogleDocsError', () => {
       const authError = new GoogleAuthError('Auth failed', 'oauth2');
-      
+
       // This test should fail because handleServiceError doesn't exist yet
       const result = (testTool as any).handleServiceError(authError);
-      
+
       expect(result).toBeInstanceOf(GoogleDocsError);
       expect(result.message).toContain('Auth failed');
       expect(result.errorCode).toBe('GOOGLE_AUTH_ERROR');
@@ -652,10 +656,10 @@ describe('BaseDocsTools', () => {
         'WORKSPACE_ERROR',
         500
       );
-      
+
       // This test should fail because handleServiceError doesn't exist yet
       const result = (testTool as any).handleServiceError(workspaceError);
-      
+
       expect(result).toBeInstanceOf(GoogleDocsError);
       expect(result.message).toContain('Workspace error');
       expect(result.errorCode).toBe('GOOGLE_DOCS_SERVICE_ERROR');
@@ -664,10 +668,10 @@ describe('BaseDocsTools', () => {
 
     it('should convert generic Error to GoogleDocsError', () => {
       const genericError = new Error('Generic error');
-      
+
       // This test should fail because handleServiceError doesn't exist yet
       const result = (testTool as any).handleServiceError(genericError);
-      
+
       expect(result).toBeInstanceOf(GoogleDocsError);
       expect(result.message).toContain('Generic error');
       expect(result.errorCode).toBe('GOOGLE_DOCS_UNKNOWN_ERROR');
@@ -676,10 +680,10 @@ describe('BaseDocsTools', () => {
 
     it('should handle non-Error objects', () => {
       const stringError = 'String error';
-      
+
       // This test should fail because handleServiceError doesn't exist yet
       const result = (testTool as any).handleServiceError(stringError);
-      
+
       expect(result).toBeInstanceOf(GoogleDocsError);
       expect(result.message).toBe('String error');
       expect(result.errorCode).toBe('GOOGLE_DOCS_UNKNOWN_ERROR');
