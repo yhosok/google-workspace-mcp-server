@@ -47,6 +47,7 @@ describe('DocsService', () => {
       healthCheck: jest.fn(),
       getServiceStats: jest.fn(),
       createSpreadsheet: jest.fn(),
+      createDocument: jest.fn(),
     } as unknown as jest.Mocked<DriveService>;
 
     mockLogger = {
@@ -309,15 +310,13 @@ describe('DocsService', () => {
         },
       };
 
-      mockDriveService.createSpreadsheet.mockResolvedValue(
-        ok(mockDriveResponse)
-      );
+      mockDriveService.createDocument.mockResolvedValue(ok(mockDriveResponse));
       mockDocsApi.documents.get.mockResolvedValue(mockDocsResponse);
 
       const result = await docsService.createDocument('Test Document');
 
       expect(result.isOk()).toBe(true);
-      expect(mockDriveService.createSpreadsheet).toHaveBeenCalledWith(
+      expect(mockDriveService.createDocument).toHaveBeenCalledWith(
         'Test Document',
         'target-folder-id'
       );
@@ -1053,15 +1052,13 @@ describe('DocsService', () => {
         },
       };
 
-      mockDriveService.createSpreadsheet.mockResolvedValue(
-        ok(mockDriveResponse)
-      );
+      mockDriveService.createDocument.mockResolvedValue(ok(mockDriveResponse));
       mockDocsApi.documents.get.mockResolvedValue(mockDocsResponse);
 
       const result = await docsService.createDocument('Test Document');
 
       expect(result.isOk()).toBe(true);
-      expect(mockDriveService.createSpreadsheet).toHaveBeenCalledWith(
+      expect(mockDriveService.createDocument).toHaveBeenCalledWith(
         'Test Document',
         'test-folder-id'
       );

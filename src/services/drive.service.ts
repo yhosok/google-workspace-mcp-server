@@ -19,15 +19,26 @@ import {
 import { createServiceLogger, Logger } from '../utils/logger.js';
 
 /**
- * DriveSpreadsheetInfo represents the result of creating a spreadsheet via Drive API
+ * Base interface for Drive file creation results.
+ * Used for both spreadsheets and documents created via Drive API.
  */
-export interface DriveSpreadsheetInfo {
+export interface DriveCreatedFileInfo {
   id: string;
   name: string;
   webViewLink: string;
   parents: (string | undefined)[];
   createdTime: string;
 }
+
+/**
+ * DriveSpreadsheetInfo represents the result of creating a spreadsheet via Drive API
+ */
+export type DriveSpreadsheetInfo = DriveCreatedFileInfo;
+
+/**
+ * DriveDocumentInfo represents the result of creating a document via Drive API
+ */
+export type DriveDocumentInfo = DriveCreatedFileInfo;
 
 /**
  * Google Drive Service
@@ -355,11 +366,81 @@ export class DriveService extends GoogleService {
     title: string,
     parentFolderId?: string
   ): Promise<GoogleDriveResult<DriveSpreadsheetInfo>> {
+    return this.createWorkspaceFile(
+      title,
+      'application/vnd.google-apps.spreadsheet',
+      parentFolderId,
+      'createSpreadsheet'
+    );
+  }
+
+  /**
+   * Creates a new Google Document in the specified folder.
+   *
+   * This method uses the Drive API to create a new Google Document with the given title.
+   * The document can be created in a specific folder if a parent folder ID is provided,
+   * otherwise it will be created in the root directory.
+   *
+   * @param title - The title/name for the new document
+   * @param parentFolderId - Optional ID of the parent folder where the document should be created
+   * @returns Promise<GoogleDriveResult<DriveDocumentInfo>> - Result containing document information
+   *
+   * @throws {GoogleDriveError} When:
+   *   - Service is not initialized
+   *   - Title is empty or invalid
+   *   - Parent folder ID is invalid
+   *   - Drive API operation fails
+   *   - Network or authentication errors occur
+   *
+   * @example
+   * ```typescript
+   * // Create document in root folder
+   * const result = await driveService.createDocument('My Document');
+   * if (result.isOk()) {
+   *   console.log(`Created: ${result.value.webViewLink}`);
+   * }
+   *
+   * // Create document in specific folder
+   * const result = await driveService.createDocument('My Document', 'folder-id');
+   * if (result.isOk()) {
+   *   console.log(`Created: ${result.value.webViewLink}`);
+   * }
+   * ```
+   */
+  public async createDocument(
+    title: string,
+    parentFolderId?: string
+  ): Promise<GoogleDriveResult<DriveDocumentInfo>> {
+    return this.createWorkspaceFile(
+      title,
+      'application/vnd.google-apps.document',
+      parentFolderId,
+      'createDocument'
+    );
+  }
+
+  /**
+   * Common file creation method for Google Workspace files.
+   * This is a private helper method used by createSpreadsheet and createDocument.
+   *
+   * @private
+   * @param title - The title/name for the new file
+   * @param mimeType - The MIME type for the file (document or spreadsheet)
+   * @param parentFolderId - Optional ID of the parent folder
+   * @param operationName - Name of the operation for logging and context
+   * @returns Promise<GoogleDriveResult<DriveCreatedFileInfo>> - Result containing file information
+   */
+  private async createWorkspaceFile(
+    title: string,
+    mimeType: string,
+    parentFolderId: string | undefined,
+    operationName: string
+  ): Promise<GoogleDriveResult<DriveCreatedFileInfo>> {
     // Input validation
     if (!title || typeof title !== 'string' || title.trim() === '') {
       return driveErr(
         new GoogleDriveError(
-          'Spreadsheet title cannot be empty',
+          `${operationName} title cannot be empty`,
           'GOOGLE_DRIVE_INVALID_INPUT',
           400,
           undefined,
@@ -369,9 +450,10 @@ export class DriveService extends GoogleService {
       );
     }
 
-    const context = this.createContext('createSpreadsheet', {
+    const context = this.createContext(operationName, {
       title,
       parentFolderId,
+      mimeType,
     });
 
     return this.executeAsyncWithRetry(async () => {
@@ -388,14 +470,14 @@ export class DriveService extends GoogleService {
 
       await this.ensureInitialized();
 
-      // Prepare file metadata for spreadsheet creation
+      // Prepare file metadata
       const fileMetadata: drive_v3.Schema$File = {
         name: title.trim(),
-        mimeType: 'application/vnd.google-apps.spreadsheet',
+        mimeType,
         ...(parentFolderId && { parents: [parentFolderId] }),
       };
 
-      // Create the spreadsheet using Drive API
+      // Create the file using Drive API
       const response = await this.driveApi.files.create({
         requestBody: fileMetadata,
         fields: 'id, name, webViewLink, parents, createdTime',
@@ -404,7 +486,7 @@ export class DriveService extends GoogleService {
       // Validate response
       if (!response.data.id) {
         throw new GoogleDriveError(
-          'Failed to create spreadsheet - no file ID returned',
+          `Failed to create ${operationName.toLowerCase()} - no file ID returned`,
           'GOOGLE_DRIVE_CREATE_FAILED',
           500,
           undefined,
@@ -412,26 +494,28 @@ export class DriveService extends GoogleService {
         );
       }
 
-      const spreadsheetInfo: DriveSpreadsheetInfo = {
+      const fileInfo: DriveCreatedFileInfo = {
         id: response.data.id,
         name: response.data.name || title.trim(),
         webViewLink:
           response.data.webViewLink ||
-          `https://docs.google.com/spreadsheets/d/${response.data.id}`,
+          `https://docs.google.com/${
+            mimeType.includes('spreadsheet') ? 'spreadsheets' : 'document'
+          }/d/${response.data.id}`,
         parents:
           response.data.parents ||
           (parentFolderId ? [parentFolderId] : ['root']),
         createdTime: response.data.createdTime || new Date().toISOString(),
       };
 
-      this.logger.info('Successfully created spreadsheet', {
-        fileId: spreadsheetInfo.id,
-        title: spreadsheetInfo.name,
+      this.logger.info(`Successfully created ${operationName.toLowerCase()}`, {
+        fileId: fileInfo.id,
+        title: fileInfo.name,
         parentFolderId,
         requestId: context.requestId,
       });
 
-      return spreadsheetInfo;
+      return fileInfo;
     }, context).andThen(result => driveOk(result));
   }
 

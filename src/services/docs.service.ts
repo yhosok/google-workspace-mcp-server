@@ -2,7 +2,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { docs_v1, google } from 'googleapis';
 
 import { AuthService } from './auth.service.js';
-import { DriveService } from './drive.service.js';
+import { DriveService, DriveDocumentInfo } from './drive.service.js';
 import {
   GoogleService,
   GoogleServiceRetryConfig,
@@ -413,9 +413,8 @@ export class DocsService extends GoogleService {
       // If folder placement is requested and DriveService is available, use Drive API
       if (targetFolderId && this.driveService) {
         try {
-          // Note: Using createSpreadsheet as a workaround - DriveService would need a createDocument method
-          // In a real implementation, DriveService should have a createDocument method
-          const driveResult = await this.driveService.createSpreadsheet(
+          // Use DriveService to create the document in the specified folder
+          const driveResult = await this.driveService.createDocument(
             title.trim(),
             targetFolderId
           );
@@ -424,7 +423,7 @@ export class DocsService extends GoogleService {
             throw driveResult.error;
           }
 
-          const driveInfo = driveResult.value;
+          const driveInfo: DriveDocumentInfo = driveResult.value;
 
           // Get the actual document content from Docs API
           const docResponse = await this.docsApi.documents.get({

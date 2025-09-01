@@ -369,6 +369,118 @@ describe('DriveService', () => {
     });
   });
 
+  describe('createDocument', () => {
+    beforeEach(async () => {
+      mockGoogle.drive.mockReturnValue(mockDriveApi);
+      await driveService.initialize();
+    });
+
+    test('should create document in root folder when no parent provided', async () => {
+      // This test will initially fail because createDocument method does not exist yet
+      const mockResponse = {
+        data: {
+          id: 'new-document-id',
+          name: 'Test Document',
+          webViewLink: 'https://docs.google.com/document/d/new-document-id',
+          parents: ['root'],
+          createdTime: '2024-01-01T12:00:00.000Z',
+        },
+      };
+
+      mockDriveApi.files.create.mockResolvedValue(mockResponse);
+
+      const result = await driveService.createDocument('Test Document');
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value).toEqual({
+          id: 'new-document-id',
+          name: 'Test Document',
+          webViewLink: 'https://docs.google.com/document/d/new-document-id',
+          parents: ['root'],
+          createdTime: '2024-01-01T12:00:00.000Z',
+        });
+      }
+
+      expect(mockDriveApi.files.create).toHaveBeenCalledWith({
+        requestBody: {
+          name: 'Test Document',
+          mimeType: 'application/vnd.google-apps.document',
+        },
+        fields: 'id, name, webViewLink, parents, createdTime',
+      });
+    });
+
+    test('should create document in specific folder when parent provided', async () => {
+      const mockResponse = {
+        data: {
+          id: 'new-document-id',
+          name: 'Test Document',
+          webViewLink: 'https://docs.google.com/document/d/new-document-id',
+          parents: ['target-folder-id'],
+          createdTime: '2024-01-01T12:00:00.000Z',
+        },
+      };
+
+      mockDriveApi.files.create.mockResolvedValue(mockResponse);
+
+      const result = await driveService.createDocument(
+        'Test Document',
+        'target-folder-id'
+      );
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.parents).toEqual(['target-folder-id']);
+      }
+
+      expect(mockDriveApi.files.create).toHaveBeenCalledWith({
+        requestBody: {
+          name: 'Test Document',
+          mimeType: 'application/vnd.google-apps.document',
+          parents: ['target-folder-id'],
+        },
+        fields: 'id, name, webViewLink, parents, createdTime',
+      });
+    });
+
+    test('should validate input parameters', async () => {
+      // Empty title
+      const result1 = await driveService.createDocument('');
+      expect(result1.isErr()).toBe(true);
+      if (result1.isErr()) {
+        expect(result1.error.message).toContain('title cannot be empty');
+      }
+
+      // Null title
+      const result2 = await driveService.createDocument(
+        null as unknown as string
+      );
+      expect(result2.isErr()).toBe(true);
+
+      // Undefined title
+      const result3 = await driveService.createDocument(
+        undefined as unknown as string
+      );
+      expect(result3.isErr()).toBe(true);
+
+      // Whitespace-only title
+      const result4 = await driveService.createDocument('   ');
+      expect(result4.isErr()).toBe(true);
+    });
+
+    test('should require service initialization before use', async () => {
+      const uninitializedService = new DriveService(mockAuthService);
+
+      const result = await uninitializedService.createDocument('Test');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('GOOGLE_DRIVE_NOT_INITIALIZED');
+      }
+    });
+  });
+
   describe('Error Handling', () => {
     test('should convert generic errors to GoogleDriveError', async () => {
       mockGoogle.drive.mockReturnValue(mockDriveApi);
