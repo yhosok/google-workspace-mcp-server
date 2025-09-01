@@ -1,3 +1,5 @@
+import type { docs_v1 } from 'googleapis';
+
 // 環境変数の型定義
 export interface EnvironmentConfig {
   // Service Account Configuration
@@ -453,4 +455,61 @@ export interface DriveFileContent {
   size: number;
   isExported: boolean;
   exportFormat?: string;
+}
+
+// Google Docs related types
+export interface DocsDocumentInfo {
+  documentId: string;
+  title: string;
+  revisionId: string;
+  createdTime: string;
+  modifiedTime: string;
+  documentUrl: string;
+  body?: {
+    content: Array<{
+      paragraph?: {
+        elements: Array<{
+          textRun?: {
+            content: string;
+            textStyle?: object;
+          };
+        }>;
+        paragraphStyle?: docs_v1.Schema$ParagraphStyle;
+      };
+    }>;
+  };
+}
+
+export interface DocsBatchUpdateResult {
+  documentId: string;
+  replies?: Array<{
+    insertText?: {
+      insertedText?: string;
+    };
+    deleteContentRange?: {
+      deletedText?: string;
+    };
+    replaceAllText?: {
+      occurrencesChanged?: number;
+    };
+    updateTextStyle?: {
+      updatedText?: string;
+    };
+  }>;
+  writeControl?: docs_v1.Schema$WriteControl;
+}
+
+export interface DocsInsertTextResult {
+  documentId: string;
+  insertedText: string;
+  insertionIndex: number;
+  newIndex: number;
+}
+
+export interface DocsReplaceTextResult {
+  documentId: string;
+  searchText: string;
+  replaceText: string;
+  occurrencesChanged: number;
+  matchCase: boolean;
 }
