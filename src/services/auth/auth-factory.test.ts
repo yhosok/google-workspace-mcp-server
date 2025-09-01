@@ -390,6 +390,7 @@ describe('AuthFactory', () => {
               'https://www.googleapis.com/auth/spreadsheets',
               'https://www.googleapis.com/auth/calendar',
               'https://www.googleapis.com/auth/drive.file',
+              'https://www.googleapis.com/auth/documents',
             ],
             port: 3000,
           }),

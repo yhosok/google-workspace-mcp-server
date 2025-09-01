@@ -2,17 +2,18 @@
 
 [![CI](https://github.com/yourusername/google-workspace-mcp-server/workflows/CI/badge.svg)](https://github.com/yourusername/google-workspace-mcp-server/actions)
 
-A Model Context Protocol (MCP) server for Google Workspace integration, providing seamless access to Google Sheets, Calendar, and Drive services with advanced folder management capabilities.
+A Model Context Protocol (MCP) server for Google Workspace integration, providing seamless access to Google Sheets, Calendar, Drive, and Docs services with advanced folder management capabilities.
 
 ## Overview
 
-This MCP server implements the [Model Context Protocol](https://modelcontextprotocol.io/) to enable Claude and other AI assistants to interact with Google Workspace resources. The server provides a standardized interface for accessing Google Sheets data, making it easy to read, write, and manage spreadsheet content through natural language interactions.
+This MCP server implements the [Model Context Protocol](https://modelcontextprotocol.io/) to enable Claude and other AI assistants to interact with Google Workspace resources. The server provides a standardized interface for accessing Google Sheets data, managing Calendar events, organizing Drive files, and editing Google Docs through natural language interactions.
 
 ### Key Features
 
 - **Google Sheets Integration**: Full CRUD operations on spreadsheets with optional folder placement
 - **Google Calendar Integration**: Complete calendar management with event creation, updates, and deletion
 - **Google Drive Integration**: Smart file creation with folder management for organized workspace
+- **Google Docs Integration**: Complete document creation, editing, and content management
 - **Dual Authentication Support**: Both Service Account and OAuth2 user authentication with PKCE enhanced security
 - **Advanced Timeout Control**: Dual-layer timeout protection with AbortController
 - **Configurable Retry/Backoff Strategy**: Intelligent retry handling for transient API failures
@@ -26,7 +27,7 @@ This MCP server implements the [Model Context Protocol](https://modelcontextprot
 
 The server follows a modular architecture with these key components:
 
-- **Service Registry**: Manages service lifecycle and dependencies (Sheets, Calendar, Drive)
+- **Service Registry**: Manages service lifecycle and dependencies (Sheets, Calendar, Drive, Docs)
 - **Service Collaboration**: DriveService integration for folder-based file creation
 - **Tool System**: Implements MCP tools for specific operations
 - **Resource System**: Exposes structured data through MCP resources
@@ -36,7 +37,7 @@ The server follows a modular architecture with these key components:
 ## Prerequisites
 
 - Node.js >= 18.0.0
-- A Google Cloud Project with Google Sheets API, Google Calendar API, and Google Drive API enabled
+- A Google Cloud Project with Google Sheets API, Google Calendar API, Google Drive API, and Google Docs API enabled
 - Authentication credentials (Service Account or OAuth2 Client credentials)
 
 ## Installation
@@ -74,6 +75,7 @@ This server supports two authentication methods:
    - Search for "Google Sheets API" and click "Enable"
    - Search for "Google Calendar API" and click "Enable"
    - Search for "Google Drive API" and click "Enable"
+   - Search for "Google Docs API" and click "Enable"
 
 #### 2. Create a Service Account
 
@@ -112,6 +114,12 @@ For the service account to access your Google Workspace resources:
 6. Add the service account email (found in the JSON key file)
 7. Grant appropriate permissions (See all event details/Make changes to events)
 
+**For Google Docs:**
+1. Open the Google Doc you want to access
+2. Click "Share"
+3. Add the service account email (found in the JSON key file)
+4. Grant appropriate permissions (Viewer/Editor)
+
 ### Option 2: OAuth2 User Authentication (Interactive)
 
 **Best for:** Personal use, development, accessing user's own resources
@@ -141,7 +149,7 @@ GOOGLE_AUTH_MODE=oauth2
 GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
 GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
-GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file
+GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/documents
 ```
 
 **Note**: Both `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` are required. PKCE security is automatically enabled to provide additional protection beyond the client secret.
@@ -185,7 +193,7 @@ GOOGLE_AUTH_MODE=oauth2
 GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
 GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
-GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file
+GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/documents
 GOOGLE_OAUTH_PORT=3000
 ```
 
@@ -529,6 +537,76 @@ Downloads and retrieves the content of a Google Drive file, with automatic expor
 "Download this presentation as PowerPoint"
 ```
 
+### Docs Tools
+
+#### `google-workspace__docs__create`
+Creates a new Google Document with the specified title and optional folder placement.
+
+**Parameters:**
+- `title` (required): The title of the new document
+- `folderId` (optional): Optional folder ID where the document should be created
+
+**Example usage in Claude:**
+```
+"Create a new document called 'Project Report'"
+"Create a document titled 'Meeting Notes' in folder [folder-id]"
+```
+
+#### `google-workspace__docs__get`
+Retrieves Google Document metadata and optional content.
+
+**Parameters:**
+- `documentId` (required): The unique identifier of the Google Docs document
+- `includeContent` (optional): Whether to include the document body content in the response
+
+**Example usage in Claude:**
+```
+"Get metadata for document [document-id]"
+"Get the full content of document [document-id]"
+```
+
+#### `google-workspace__docs__update`
+Performs batch updates on Google Documents using the Google Docs API batch update system.
+
+**Parameters:**
+- `documentId` (required): The unique identifier of the Google Docs document
+- `requests` (required): Array of batch update requests to apply to the document (max 500)
+
+**Example usage in Claude:**
+```
+"Apply these batch updates to document [document-id]: [insert text at index 0, format paragraph]"
+"Update document [document-id] with multiple text insertions and formatting changes"
+```
+
+#### `google-workspace__docs__insert-text`
+Inserts text at a specific position in a Google Document.
+
+**Parameters:**
+- `documentId` (required): The unique identifier of the Google Docs document
+- `text` (required): Text content to insert into the document
+- `index` (optional): Zero-based index position where text should be inserted (defaults to beginning)
+
+**Example usage in Claude:**
+```
+"Insert 'Hello World' at the beginning of document [document-id]"
+"Insert 'New paragraph content' at position 100 in document [document-id]"
+```
+
+#### `google-workspace__docs__replace-text`
+Replaces all occurrences of specified text in a Google Document.
+
+**Parameters:**
+- `documentId` (required): The unique identifier of the Google Docs document
+- `searchText` (required): Text to search for in the document
+- `replaceText` (required): Text to replace the search text with
+- `matchCase` (optional): Whether the search should be case-sensitive
+
+**Example usage in Claude:**
+```
+"Replace all instances of 'draft' with 'final' in document [document-id]"
+"Replace 'Project X' with 'Project Alpha' in document [document-id] with case sensitivity"
+```
+
 ## Retry and Error Handling
 
 ### Automatic Retry Strategy
@@ -634,8 +712,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **"Authentication failed"**
 - Verify that your service account key file path is correct
-- Ensure the service account has been granted access to the specific Google Sheets/Calendars
-- Check that the Google Sheets API and Google Calendar API are enabled in your Google Cloud project
+- Ensure the service account has been granted access to the specific Google Sheets/Calendars/Docs
+- Check that the Google Sheets API, Google Calendar API, Google Drive API, and Google Docs API are enabled in your Google Cloud project
 
 **"Spreadsheet not found"**
 - Confirm the spreadsheet ID is correct
@@ -705,6 +783,9 @@ GOOGLE_RETRY_MAX_DELAY=60000
 - Check the [Issues](https://github.com/yourusername/google-workspace-mcp-server/issues) page
 - Review the [Model Context Protocol documentation](https://modelcontextprotocol.io/)
 - Consult the [Google Sheets API documentation](https://developers.google.com/sheets/api)
+- Refer to the [Google Calendar API documentation](https://developers.google.com/calendar)
+- See the [Google Drive API documentation](https://developers.google.com/drive)
+- Check the [Google Docs API documentation](https://developers.google.com/docs)
 
 ## Roadmap
 
@@ -717,8 +798,8 @@ GOOGLE_RETRY_MAX_DELAY=60000
 - [x] Google Drive service abstraction with folder management
 - [x] Optional folder-based spreadsheet creation (GOOGLE_DRIVE_FOLDER_ID)
 - [x] Google Drive search and reference functionality (list, get, get-content)
+- [x] Google Docs integration with full document management (create, get, update, insert-text, replace-text)
 - [ ] Additional Google Drive file operations (upload, modify, share)
-- [ ] Google Docs integration  
 - [ ] Batch operations support
 - [ ] Real-time updates via webhooks
 - [ ] Google Forms integration
