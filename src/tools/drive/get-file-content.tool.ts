@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { BaseDriveTool } from './base-drive-tool.js';
 import type { DriveFileContent, MCPToolResult } from '../../types/index.js';
-import type { ToolExecutionContext, ToolMetadata } from '../base/tool-registry.js';
+import type {
+  ToolExecutionContext,
+  ToolMetadata,
+} from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleDriveError } from '../../errors/index.js';
 
@@ -89,7 +92,10 @@ interface GetFileContentResult {
  * });
  * ```
  */
-export class GetFileContentTool extends BaseDriveTool<GetFileContentInput, MCPToolResult> {
+export class GetFileContentTool extends BaseDriveTool<
+  GetFileContentInput,
+  MCPToolResult
+> {
   public getToolName(): string {
     return 'google-workspace__drive-get-content';
   }
@@ -110,20 +116,28 @@ export class GetFileContentTool extends BaseDriveTool<GetFileContentInput, MCPTo
 
     try {
       // Validate input parameters
-      const validationResult = this.validateWithSchema(GetFileContentInputSchema, args);
+      const validationResult = this.validateWithSchema(
+        GetFileContentInputSchema,
+        args
+      );
       if (validationResult.isErr()) {
-        this.logger.error('Input validation failed', { error: validationResult.error.message });
+        this.logger.error('Input validation failed', {
+          error: validationResult.error.message,
+        });
         return err(validationResult.error);
       }
 
       const validatedArgs = validationResult.value;
 
       // Additional file ID validation
-      const fileIdResult = this.validateFileId(validatedArgs.fileId, 'get_file_content');
+      const fileIdResult = this.validateFileId(
+        validatedArgs.fileId,
+        'get_file_content'
+      );
       if (fileIdResult.isErr()) {
-        this.logger.error('File ID validation failed', { 
+        this.logger.error('File ID validation failed', {
           fileId: validatedArgs.fileId,
-          error: fileIdResult.error.message 
+          error: fileIdResult.error.message,
         });
         return err(fileIdResult.error);
       }
@@ -132,7 +146,16 @@ export class GetFileContentTool extends BaseDriveTool<GetFileContentInput, MCPTo
 
       // Validate export format if provided
       if (validatedArgs.exportFormat) {
-        const validFormats = ['pdf', 'docx', 'xlsx', 'csv', 'txt', 'html', 'odt', 'rtf'];
+        const validFormats = [
+          'pdf',
+          'docx',
+          'xlsx',
+          'csv',
+          'txt',
+          'html',
+          'odt',
+          'rtf',
+        ];
         if (!validFormats.includes(validatedArgs.exportFormat)) {
           const error = new GoogleDriveError(
             `Invalid export format: ${validatedArgs.exportFormat}. Valid formats: ${validFormats.join(', ')}`,
@@ -140,9 +163,9 @@ export class GetFileContentTool extends BaseDriveTool<GetFileContentInput, MCPTo
             400,
             fileId
           );
-          this.logger.error('Export format validation failed', { 
+          this.logger.error('Export format validation failed', {
             exportFormat: validatedArgs.exportFormat,
-            error: error.message 
+            error: error.message,
           });
           return err(error);
         }
@@ -157,23 +180,24 @@ export class GetFileContentTool extends BaseDriveTool<GetFileContentInput, MCPTo
             400,
             fileId
           );
-          this.logger.error('Max file size validation failed', { 
+          this.logger.error('Max file size validation failed', {
             maxFileSize: validatedArgs.maxFileSize,
-            error: error.message 
+            error: error.message,
           });
           return err(error);
         }
 
-        if (validatedArgs.maxFileSize > 2 * 1024 * 1024 * 1024) { // 2GB
+        if (validatedArgs.maxFileSize > 2 * 1024 * 1024 * 1024) {
+          // 2GB
           const error = new GoogleDriveError(
             'Maximum file size too large (max 1GB)',
             'GOOGLE_DRIVE_VALIDATION_ERROR',
             400,
             fileId
           );
-          this.logger.error('Max file size too large', { 
+          this.logger.error('Max file size too large', {
             maxFileSize: validatedArgs.maxFileSize,
-            error: error.message 
+            error: error.message,
           });
           return err(error);
         }
@@ -187,7 +211,9 @@ export class GetFileContentTool extends BaseDriveTool<GetFileContentInput, MCPTo
           'GOOGLE_DRIVE_AUTH_ERROR',
           401
         );
-        this.logger.error('Authentication validation failed', { error: error.message });
+        this.logger.error('Authentication validation failed', {
+          error: error.message,
+        });
         return err(error);
       }
 
@@ -197,7 +223,9 @@ export class GetFileContentTool extends BaseDriveTool<GetFileContentInput, MCPTo
           'GOOGLE_DRIVE_AUTH_ERROR',
           401
         );
-        this.logger.error('Authentication is invalid', { error: error.message });
+        this.logger.error('Authentication is invalid', {
+          error: error.message,
+        });
         return err(error);
       }
 
@@ -207,7 +235,10 @@ export class GetFileContentTool extends BaseDriveTool<GetFileContentInput, MCPTo
       // Build options for the drive service call
       let driveOptions: any = undefined;
 
-      if (validatedArgs.exportFormat || validatedArgs.maxFileSize !== undefined) {
+      if (
+        validatedArgs.exportFormat ||
+        validatedArgs.maxFileSize !== undefined
+      ) {
         driveOptions = {};
 
         if (validatedArgs.exportFormat) {
@@ -220,7 +251,10 @@ export class GetFileContentTool extends BaseDriveTool<GetFileContentInput, MCPTo
       }
 
       // Get file content using the drive service
-      const result = await this.driveService.getFileContent(fileId, driveOptions);
+      const result = await this.driveService.getFileContent(
+        fileId,
+        driveOptions
+      );
 
       if (result.isErr()) {
         const error = this.handleServiceError(result.error);

@@ -792,6 +792,124 @@ export class GoogleCalendarInvalidOperationError extends GoogleCalendarError {
 }
 
 /**
+ * Google Docs Service Errors
+ */
+export class GoogleDocsError extends GoogleWorkspaceError {
+  public readonly documentId?: string;
+
+  constructor(
+    message: string,
+    code: string,
+    statusCode: number = 500,
+    documentId?: string,
+    context?: Record<string, unknown>,
+    cause?: Error
+  ) {
+    super(message, code, statusCode, { documentId, ...context }, cause);
+    this.documentId = documentId;
+  }
+
+  public isRetryable(): boolean {
+    // Rate limit and quota errors are typically retryable
+    return (
+      this.errorCode === 'GOOGLE_DOCS_RATE_LIMIT' ||
+      this.errorCode === 'GOOGLE_DOCS_QUOTA_EXCEEDED' ||
+      this.statusCode >= 500
+    ); // Server errors are retryable
+  }
+}
+
+/**
+ * Specific Docs error subtypes
+ */
+export class GoogleDocsNotFoundError extends GoogleDocsError {
+  constructor(documentId: string, context?: Record<string, unknown>) {
+    super(
+      `Document with ID '${documentId}' not found`,
+      'GOOGLE_DOCS_DOCUMENT_NOT_FOUND',
+      404,
+      documentId,
+      context
+    );
+  }
+
+  public isRetryable(): boolean {
+    return false; // Not found errors won't resolve by retrying
+  }
+}
+
+export class GoogleDocsPermissionError extends GoogleDocsError {
+  constructor(documentId?: string, context?: Record<string, unknown>) {
+    super(
+      'Insufficient permissions to access the requested document',
+      'GOOGLE_DOCS_PERMISSION_DENIED',
+      403,
+      documentId,
+      context
+    );
+  }
+
+  public isRetryable(): boolean {
+    return false;
+  }
+}
+
+export class GoogleDocsRateLimitError extends GoogleDocsError {
+  public readonly retryAfterMs?: number;
+
+  constructor(retryAfterMs?: number, context?: Record<string, unknown>) {
+    super(
+      'Rate limit exceeded for Google Docs API',
+      'GOOGLE_DOCS_RATE_LIMIT',
+      429,
+      undefined,
+      { retryAfterMs, ...context }
+    );
+    this.retryAfterMs = retryAfterMs;
+  }
+
+  public isRetryable(): boolean {
+    return true;
+  }
+}
+
+export class GoogleDocsQuotaExceededError extends GoogleDocsError {
+  constructor(context?: Record<string, unknown>) {
+    super(
+      'Daily quota exceeded for Google Docs API',
+      'GOOGLE_DOCS_QUOTA_EXCEEDED',
+      429,
+      undefined,
+      context
+    );
+  }
+
+  public isRetryable(): boolean {
+    return true; // But with exponential backoff
+  }
+}
+
+export class GoogleDocsInvalidRequestError extends GoogleDocsError {
+  constructor(
+    reason: string,
+    documentId?: string,
+    context?: Record<string, unknown>
+  ) {
+    super(
+      `Invalid request: ${reason}`,
+      'GOOGLE_DOCS_INVALID_REQUEST',
+      400,
+      documentId,
+      context
+    );
+  }
+
+  public isRetryable(): boolean {
+    return false;
+  }
+}
+
+/**
  * Google Drive Service Errors
  */
 export class GoogleDriveError extends GoogleWorkspaceError {
@@ -921,6 +1039,7 @@ export type GoogleWorkspaceResult<T> = Result<T, GoogleWorkspaceError>;
 export type GoogleAuthResult<T> = Result<T, GoogleAuthError>;
 export type GoogleSheetsResult<T> = Result<T, GoogleSheetsError>;
 export type GoogleCalendarResult<T> = Result<T, GoogleCalendarError>;
+export type GoogleDocsResult<T> = Result<T, GoogleDocsError>;
 export type GoogleDriveResult<T> = Result<T, GoogleDriveError>;
 
 /**
@@ -946,6 +1065,10 @@ export const calendarOk = <T>(value: T): GoogleCalendarResult<T> =>
 export const calendarErr = (
   error: GoogleCalendarError
 ): GoogleCalendarResult<never> => new Err(error);
+
+export const docsOk = <T>(value: T): GoogleDocsResult<T> => new Ok(value);
+export const docsErr = (error: GoogleDocsError): GoogleDocsResult<never> =>
+  new Err(error);
 
 export const driveOk = <T>(value: T): GoogleDriveResult<T> => new Ok(value);
 export const driveErr = (error: GoogleDriveError): GoogleDriveResult<never> =>
@@ -1814,6 +1937,210 @@ export class GoogleErrorFactory {
       normalizedError.httpStatus,
       fileId,
       folderId,
+      enrichedContext,
+      cause
+    );
+  }
+
+  /**
+   * Create a Docs error from a generic error
+   *
+   * @param cause - The original error that occurred
+   * @param documentId - The ID of the document being accessed (if applicable)
+   * @param context - Additional context data
+   * @returns Appropriate GoogleDocsError subclass
+   */
+  static createDocsError(
+    cause: Error | null | undefined,
+    documentId?: string,
+    context?: Record<string, unknown>
+  ): GoogleDocsError {
+    // Extract normalized error information
+    const errorToExtract = context?.originalGaxiosError || cause;
+    const normalizedError = extractGoogleApiError(errorToExtract);
+    const enrichedContext = {
+      normalizedError,
+      ...context,
+    };
+
+    // Handle null/undefined errors gracefully
+    if (!cause) {
+      return new GoogleDocsError(
+        'Unknown Docs error',
+        'GOOGLE_DOCS_ERROR',
+        500,
+        documentId,
+        enrichedContext
+      );
+    }
+
+    // Helper function to override error message when normalized message is more specific
+    const overrideMessageIfBetter = <T extends GoogleDocsError>(
+      errorInstance: T
+    ): T => {
+      if (
+        normalizedError.message &&
+        normalizedError.message !== cause.message
+      ) {
+        Object.defineProperty(errorInstance, 'message', {
+          value: normalizedError.message,
+          writable: false,
+          configurable: false,
+        });
+      }
+      return errorInstance;
+    };
+
+    // Helper function to extract retry-after from headers
+    const extractRetryAfter = (): number | undefined => {
+      if (context?.originalGaxiosError) {
+        const gaxiosError = context.originalGaxiosError as GaxiosErrorLike;
+        const retryAfterHeader = gaxiosError?.response?.headers?.[
+          'retry-after'
+        ] as string | undefined;
+        if (retryAfterHeader) {
+          return parseInt(retryAfterHeader, 10) * 1000;
+        }
+      }
+      return undefined;
+    };
+
+    // Priority 1: Use structured reason field for classification
+    if (normalizedError.reason) {
+      switch (normalizedError.reason) {
+        case 'notFound':
+          return overrideMessageIfBetter(
+            new GoogleDocsNotFoundError(
+              documentId || 'unknown',
+              enrichedContext
+            )
+          );
+
+        case 'forbidden':
+          return overrideMessageIfBetter(
+            new GoogleDocsPermissionError(documentId, enrichedContext)
+          );
+
+        case 'rateLimitExceeded':
+          return new GoogleDocsRateLimitError(
+            extractRetryAfter(),
+            enrichedContext
+          );
+
+        case 'quotaExceeded':
+          return new GoogleDocsQuotaExceededError(enrichedContext);
+
+        case 'invalidParameter':
+        case 'badRequest':
+        case 'invalid':
+          return new GoogleDocsInvalidRequestError(
+            normalizedError.message || 'Invalid request',
+            documentId,
+            enrichedContext
+          );
+
+        case 'backendError':
+        case 'internalServerError':
+          return new GoogleDocsError(
+            normalizedError.message,
+            'GOOGLE_DOCS_SERVER_ERROR',
+            normalizedError.httpStatus,
+            documentId,
+            enrichedContext,
+            cause
+          );
+      }
+    }
+
+    // Priority 2: Use HTTP status code for classification
+    switch (normalizedError.httpStatus) {
+      case 404:
+        return overrideMessageIfBetter(
+          new GoogleDocsNotFoundError(documentId || 'unknown', enrichedContext)
+        );
+
+      case 403:
+        return overrideMessageIfBetter(
+          new GoogleDocsPermissionError(documentId, enrichedContext)
+        );
+
+      case 429:
+        // Distinguish between rate limit and quota based on context
+        if (
+          normalizedError.reason === 'quotaExceeded' ||
+          normalizedError.domain === 'usageLimits' ||
+          normalizedError.message.toLowerCase().includes('quota')
+        ) {
+          return new GoogleDocsQuotaExceededError(enrichedContext);
+        }
+        return new GoogleDocsRateLimitError(
+          extractRetryAfter(),
+          enrichedContext
+        );
+
+      case 400:
+        return new GoogleDocsInvalidRequestError(
+          normalizedError.message || 'Bad request',
+          documentId,
+          enrichedContext
+        );
+
+      case 500:
+      case 502:
+      case 503:
+      case 504:
+        return new GoogleDocsError(
+          normalizedError.message,
+          'GOOGLE_DOCS_SERVER_ERROR',
+          normalizedError.httpStatus,
+          documentId,
+          enrichedContext,
+          cause
+        );
+    }
+
+    // Priority 3: Fallback to string matching only if no structured data available
+    if (!normalizedError.reason && cause.message) {
+      const message = cause.message.toLowerCase();
+
+      if (message.includes('not found')) {
+        return new GoogleDocsNotFoundError(
+          documentId || 'unknown',
+          enrichedContext
+        );
+      }
+
+      if (message.includes('permission') || message.includes('forbidden')) {
+        return new GoogleDocsPermissionError(documentId, enrichedContext);
+      }
+
+      if (message.includes('rate limit')) {
+        const retryAfterMatch = cause.message.match(/retry after (\d+)/i);
+        const retryAfterMs = retryAfterMatch
+          ? parseInt(retryAfterMatch[1], 10) * 1000
+          : undefined;
+        return new GoogleDocsRateLimitError(retryAfterMs, enrichedContext);
+      }
+
+      if (message.includes('quota') || message.includes('exceeded')) {
+        return new GoogleDocsQuotaExceededError(enrichedContext);
+      }
+
+      if (message.includes('invalid') || message.includes('bad request')) {
+        return new GoogleDocsInvalidRequestError(
+          cause.message,
+          documentId,
+          enrichedContext
+        );
+      }
+    }
+
+    // Default fallback
+    return new GoogleDocsError(
+      normalizedError.message,
+      'GOOGLE_DOCS_ERROR',
+      normalizedError.httpStatus,
+      documentId,
       enrichedContext,
       cause
     );

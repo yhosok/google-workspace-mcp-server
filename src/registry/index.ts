@@ -10,3 +10,4 @@ export { ServiceRegistry } from './service-registry.js';
 export { SheetsServiceModule } from './sheets/sheets-service-module.js';
 export { CalendarServiceModule } from './calendar/calendar-service-module.js';
 export { DriveServiceModule } from './drive/drive-service-module.js';
+export { DocsServiceModule } from './docs/docs-service-module.js';

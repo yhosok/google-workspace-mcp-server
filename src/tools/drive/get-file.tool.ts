@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { BaseDriveTool } from './base-drive-tool.js';
 import type { DriveFileInfo, MCPToolResult } from '../../types/index.js';
-import type { ToolExecutionContext, ToolMetadata } from '../base/tool-registry.js';
+import type {
+  ToolExecutionContext,
+  ToolMetadata,
+} from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleDriveError } from '../../errors/index.js';
 
@@ -107,20 +110,28 @@ export class GetFileTool extends BaseDriveTool<GetFileInput, MCPToolResult> {
 
     try {
       // Validate input parameters
-      const validationResult = this.validateWithSchema(GetFileInputSchema, args);
+      const validationResult = this.validateWithSchema(
+        GetFileInputSchema,
+        args
+      );
       if (validationResult.isErr()) {
-        this.logger.error('Input validation failed', { error: validationResult.error.message });
+        this.logger.error('Input validation failed', {
+          error: validationResult.error.message,
+        });
         return err(validationResult.error);
       }
 
       const validatedArgs = validationResult.value;
 
       // Additional file ID validation
-      const fileIdResult = this.validateFileId(validatedArgs.fileId, 'get_file');
+      const fileIdResult = this.validateFileId(
+        validatedArgs.fileId,
+        'get_file'
+      );
       if (fileIdResult.isErr()) {
-        this.logger.error('File ID validation failed', { 
+        this.logger.error('File ID validation failed', {
           fileId: validatedArgs.fileId,
-          error: fileIdResult.error.message 
+          error: fileIdResult.error.message,
         });
         return err(fileIdResult.error);
       }
@@ -135,7 +146,9 @@ export class GetFileTool extends BaseDriveTool<GetFileInput, MCPToolResult> {
           'GOOGLE_DRIVE_AUTH_ERROR',
           401
         );
-        this.logger.error('Authentication validation failed', { error: error.message });
+        this.logger.error('Authentication validation failed', {
+          error: error.message,
+        });
         return err(error);
       }
 
@@ -145,7 +158,9 @@ export class GetFileTool extends BaseDriveTool<GetFileInput, MCPToolResult> {
           'GOOGLE_DRIVE_AUTH_ERROR',
           401
         );
-        this.logger.error('Authentication is invalid', { error: error.message });
+        this.logger.error('Authentication is invalid', {
+          error: error.message,
+        });
         return err(error);
       }
 

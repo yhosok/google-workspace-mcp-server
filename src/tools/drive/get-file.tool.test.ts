@@ -2,7 +2,11 @@ import { GetFileTool } from './get-file.tool.js';
 import { DriveService } from '../../services/drive.service.js';
 import { AuthService } from '../../services/auth.service.js';
 import { ok, err } from 'neverthrow';
-import { GoogleDriveError, GoogleDriveNotFoundError, GoogleDrivePermissionError } from '../../errors/index.js';
+import {
+  GoogleDriveError,
+  GoogleDriveNotFoundError,
+  GoogleDrivePermissionError,
+} from '../../errors/index.js';
 import type { DriveFileInfo, MCPToolResult } from '../../types/index.js';
 import { z } from 'zod';
 
@@ -115,7 +119,10 @@ describe('GetFileTool', () => {
         fileId: 'file123',
       });
 
-      expect(mockDriveService.getFile).toHaveBeenCalledWith('file123', undefined);
+      expect(mockDriveService.getFile).toHaveBeenCalledWith(
+        'file123',
+        undefined
+      );
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         const mcpResult = result.value as MCPToolResult;
@@ -124,7 +131,9 @@ describe('GetFileTool', () => {
         const resultData = JSON.parse(text!) as GetFileResult;
         expect(resultData.file.id).toBe('file123');
         expect(resultData.file.name).toBe('Test Document.docx');
-        expect(resultData.file.mimeType).toBe('application/vnd.google-apps.document');
+        expect(resultData.file.mimeType).toBe(
+          'application/vnd.google-apps.document'
+        );
         expect(resultData.file.owners).toHaveLength(1);
       }
     });
@@ -173,7 +182,9 @@ describe('GetFileTool', () => {
         const mcpResult = result.value as MCPToolResult;
         const text = mcpResult.content[0].text;
         const resultData = JSON.parse(text!) as GetFileResult;
-        expect(resultData.file.mimeType).toBe('application/vnd.google-apps.spreadsheet');
+        expect(resultData.file.mimeType).toBe(
+          'application/vnd.google-apps.spreadsheet'
+        );
         expect(resultData.file.name).toBe('Test Spreadsheet');
       }
     });
@@ -200,7 +211,9 @@ describe('GetFileTool', () => {
         const mcpResult = result.value as MCPToolResult;
         const text = mcpResult.content[0].text;
         const resultData = JSON.parse(text!) as GetFileResult;
-        expect(resultData.file.mimeType).toBe('application/vnd.google-apps.presentation');
+        expect(resultData.file.mimeType).toBe(
+          'application/vnd.google-apps.presentation'
+        );
         expect(resultData.file.name).toBe('Test Presentation');
       }
     });
@@ -284,7 +297,9 @@ describe('GetFileTool', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('Authentication validation failed');
+        expect(result.error.message).toContain(
+          'Authentication validation failed'
+        );
         expect(result.error.errorCode).toBe('GOOGLE_DRIVE_AUTH_ERROR');
       }
     });
@@ -458,7 +473,10 @@ describe('GetFileTool', () => {
         fields: [],
       });
 
-      expect(mockDriveService.getFile).toHaveBeenCalledWith('file123', undefined);
+      expect(mockDriveService.getFile).toHaveBeenCalledWith(
+        'file123',
+        undefined
+      );
       expect(result.isOk()).toBe(true);
     });
   });

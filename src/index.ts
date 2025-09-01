@@ -6,6 +6,7 @@ import {
   SheetsServiceModule,
   CalendarServiceModule,
   DriveServiceModule,
+  DocsServiceModule,
 } from './registry/index.js';
 import { loadConfig } from './config/index.js';
 import { createServiceLogger } from './utils/logger.js';
@@ -57,6 +58,13 @@ async function initializeServices(): Promise<void> {
   const calendarRegisterResult = serviceRegistry.registerModule(calendarModule);
   if (calendarRegisterResult.isErr()) {
     throw calendarRegisterResult.error;
+  }
+
+  // Docs サービスモジュールの登録 (Drive サービスに依存、オプション)
+  const docsModule = new DocsServiceModule();
+  const docsRegisterResult = serviceRegistry.registerModule(docsModule);
+  if (docsRegisterResult.isErr()) {
+    throw docsRegisterResult.error;
   }
 
   // 全サービスモジュールの初期化
