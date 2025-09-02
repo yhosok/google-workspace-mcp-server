@@ -59,6 +59,66 @@ npm install
 npm run build
 ```
 
+## Quick Start with npx
+
+For the fastest way to get started without cloning the repository, you can run the server directly from GitHub using npx:
+
+```bash
+npx github:yhosok/google-workspace-mcp-server
+```
+
+### Benefits of Using npx
+
+- **No Repository Cloning**: Run the server without downloading or cloning the repository
+- **Automatic Building**: npx automatically handles TypeScript compilation and dependency installation
+- **Always Latest Version**: Gets the latest version from the main branch every time
+- **Minimal Setup**: Perfect for testing or quick integration without local development setup
+
+### Claude Desktop Configuration with npx
+
+When using npx, your Claude Desktop configuration becomes even simpler since you don't need to specify local file paths:
+
+#### For Service Account Authentication
+
+```json
+{
+  "mcpServers": {
+    "google-workspace": {
+      "command": "npx",
+      "args": ["github:yhosok/google-workspace-mcp-server"],
+      "env": {
+        "GOOGLE_AUTH_MODE": "service-account",
+        "GOOGLE_SERVICE_ACCOUNT_KEY_PATH": "/path/to/your/service-account-key.json",
+        "GOOGLE_READ_ONLY_MODE": "false"
+      }
+    }
+  }
+}
+```
+
+#### For OAuth2 Authentication
+
+```json
+{
+  "mcpServers": {
+    "google-workspace": {
+      "command": "npx",
+      "args": ["github:yhosok/google-workspace-mcp-server"],
+      "env": {
+        "GOOGLE_AUTH_MODE": "oauth2",
+        "GOOGLE_OAUTH_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
+        "GOOGLE_OAUTH_CLIENT_SECRET": "your-client-secret",
+        "GOOGLE_OAUTH_REDIRECT_URI": "http://localhost:3000/oauth2callback",
+        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/documents",
+        "GOOGLE_READ_ONLY_MODE": "false"
+      }
+    }
+  }
+}
+```
+
+> **Note**: The `GOOGLE_READ_ONLY_MODE: "false"` is required to enable write operations (secure by default configuration).
+
 ## Authentication Setup
 
 This server supports two authentication methods:
