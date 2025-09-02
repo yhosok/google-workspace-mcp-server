@@ -90,7 +90,7 @@ describe('BaseDocsTools', () => {
       updateConfig: jest.fn(),
     } as unknown as jest.Mocked<Logger>;
 
-    testTool = new TestDocsTools(mockDocsService, mockAuthService, mockLogger);
+    testTool = new TestDocsTools(mockDocsService, mockAuthService, mockLogger, mockAccessControlService);
 
     // Setup access control service mocks with default behavior
     // @ts-ignore - Mocking access control service methods
@@ -1495,6 +1495,9 @@ describe('BaseDocsTools', () => {
         expect(error.context).toEqual({
           serviceName: 'docs',
           resourceType: 'document',
+          operation: 'write',
+          restriction: 'read-only',
+          allowedValues: ['read'],
         });
       });
     });

@@ -95,7 +95,8 @@ describe('BaseSheetsTools', () => {
     testTool = new TestSheetsTools(
       mockSheetsService,
       mockAuthService,
-      mockLogger
+      mockLogger,
+      mockAccessControlService
     );
 
     // Setup access control service mocks with default behavior
@@ -1583,6 +1584,9 @@ describe('BaseSheetsTools', () => {
         expect(error.context).toEqual({
           serviceName: 'sheets',
           resourceType: 'spreadsheet',
+          operation: 'write',
+          restriction: 'read-only',
+          allowedValues: ['read'],
         });
       });
     });

@@ -12,6 +12,7 @@ import {
 } from '../../errors/index.js';
 import { Logger } from '../../utils/logger.js';
 import { Result, ok, err } from 'neverthrow';
+import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import {
   validateToolInput,
@@ -726,12 +727,16 @@ export abstract class BaseDocsTools<
    * security policies including read-only mode, folder restrictions,
    * service restrictions, and tool-specific access controls.
    *
-   * @param params - The parameters being passed to the tool
+   * Supports two calling patterns:
+   * 1. Legacy: (params: unknown, requestId: string)
+   * 2. New: (request: AccessControlRequest, requestId: string)
+   *
+   * @param paramsOrRequest - Either raw parameters or structured request object
    * @param requestId - The request ID for tracking and logging
    * @returns Result indicating whether access is allowed
    */
   protected async validateAccessControl(
-    params: unknown,
+    paramsOrRequest: unknown | { operation?: string; serviceName?: string; toolName?: string; context?: Record<string, unknown> },
     requestId: string
   ): Promise<Result<void, GoogleWorkspaceError>> {
     // If no access control service is configured, allow the operation
@@ -740,28 +745,65 @@ export abstract class BaseDocsTools<
     }
 
     try {
-      // Determine operation type based on tool name
-      const isWrite = this.isWriteOperation(this.getToolName());
-      const operation = isWrite ? ('write' as const) : ('read' as const);
+      let operation: 'read' | 'write';
+      let serviceName: string;
+      let toolName: string;
+      let context: Record<string, unknown>;
+      let targetFolderId: string | undefined;
 
-      // Extract folder IDs from parameters for folder-based access control
-      const folderIds = this.getRequiredFolderIds(params);
-      const targetFolderId = folderIds.length > 0 ? folderIds[0] : undefined;
+      // Determine if this is the new request object format or legacy params format
+      const isRequestObject = paramsOrRequest && 
+        typeof paramsOrRequest === 'object' && 
+        ('operation' in paramsOrRequest || 'serviceName' in paramsOrRequest || 'toolName' in paramsOrRequest);
+
+      if (isRequestObject) {
+        // New format: structured request object
+        const request = paramsOrRequest as { operation?: string; serviceName?: string; toolName?: string; context?: Record<string, unknown> };
+        
+        operation = request.operation as ('read' | 'write') || 
+          (this.isWriteOperation(request.toolName || this.getToolName()) ? 'write' : 'read');
+        serviceName = request.serviceName || 'docs';
+        toolName = request.toolName || this.getToolName();
+        context = request.context || {};
+        
+        // Extract targetFolderId from context or compute from context
+        const folderIds = this.getRequiredFolderIds(context);
+        targetFolderId = folderIds.length > 0 ? folderIds[0] : undefined;
+      } else {
+        // Legacy format: raw params
+        operation = this.isWriteOperation(this.getToolName()) ? 'write' : 'read';
+        serviceName = 'docs';
+        toolName = this.getToolName();
+        context = this.buildContextFromParams(paramsOrRequest);
+        
+        // Extract folder IDs from parameters for folder-based access control
+        const folderIds = this.getRequiredFolderIds(paramsOrRequest);
+        targetFolderId = folderIds.length > 0 ? folderIds[0] : undefined;
+      }
 
       // Prepare access control request
       const accessControlRequest = {
         operation,
-        serviceName: 'docs',
+        serviceName,
         resourceType: 'document',
-        toolName: this.getToolName(),
+        toolName,
         targetFolderId,
-        requestId,
+        context,
       };
 
       // Validate access using the access control service
       const validationResult = await this.accessControlService.validateAccess(accessControlRequest);
 
       if (validationResult.isErr()) {
+        // Log access control validation failure
+        this.logger.warn('Access control validation failed', {
+          requestId,
+          operation,
+          serviceName,
+          toolName,
+          error: validationResult.error.toJSON?.() || validationResult.error,
+        });
+
         // Convert access control errors to appropriate error types for the tool
         return err(validationResult.error);
       }
@@ -770,19 +812,27 @@ export abstract class BaseDocsTools<
     } catch (error) {
       // Handle unexpected errors during access control validation
       const accessError = new GoogleAccessControlError(
-        error instanceof Error ? error.message : 'Access control validation failed',
+        'Access control validation failed',
         'general',
         'GOOGLE_ACCESS_CONTROL_ERROR',
         500,
         undefined,
-        { requestId, toolName: this.getToolName() },
+        { 
+          requestId, 
+          toolName: typeof paramsOrRequest === 'object' && paramsOrRequest && 'toolName' in paramsOrRequest 
+            ? (paramsOrRequest as any).toolName 
+            : this.getToolName(),
+          originalError: error instanceof Error ? error : undefined 
+        },
         error instanceof Error ? error : undefined
       );
 
-      this.logger.error('Access control validation failed', {
+      this.logger.error('Access control validation error', {
         error: accessError.toJSON(),
         requestId,
-        toolName: this.getToolName(),
+        toolName: typeof paramsOrRequest === 'object' && paramsOrRequest && 'toolName' in paramsOrRequest 
+          ? (paramsOrRequest as any).toolName 
+          : this.getToolName(),
       });
 
       return err(accessError);
@@ -824,6 +874,9 @@ export abstract class BaseDocsTools<
       'edit',
       'write',
       'set',
+      'add',
+      'move',
+      'copy',
     ];
 
     // Check for read patterns first
@@ -847,15 +900,18 @@ export abstract class BaseDocsTools<
    * any folder IDs that should be validated against folder-based access restrictions.
    *
    * **Parameter Analysis:**
-   * - Looks for 'folderId' field in parameters (for create operations)
-   * - Examines nested objects for folder references
-   * - Returns empty array if no folder restrictions apply
+   * - Direct folder ID fields: folderId, parentFolderId, targetFolderId, destinationFolderId
+   * - Array fields: parents
+   * - Nested objects: metadata, options, document, context
+   * - Deep nested exploration (up to 2 levels)
+   * - Returns array of all relevant folder IDs
    *
    * @param params - The tool parameters to analyze
    * @returns Array of folder IDs that require access validation
    */
   protected getRequiredFolderIds(params: unknown): string[] {
     const folderIds: string[] = [];
+    const seen = new Set<string>(); // Avoid duplicates
 
     if (!params || typeof params !== 'object') {
       return folderIds;
@@ -863,24 +919,156 @@ export abstract class BaseDocsTools<
 
     const paramsObj = params as Record<string, unknown>;
 
-    // Check for direct folderId parameter (common in create operations)
-    if (typeof paramsObj.folderId === 'string' && paramsObj.folderId.trim()) {
-      folderIds.push(paramsObj.folderId.trim());
-    }
-
-    // Check for parentFolderId parameter (alternative naming)
-    if (typeof paramsObj.parentFolderId === 'string' && paramsObj.parentFolderId.trim()) {
-      folderIds.push(paramsObj.parentFolderId.trim());
-    }
-
-    // Check for nested folder references in metadata objects
-    if (paramsObj.metadata && typeof paramsObj.metadata === 'object') {
-      const metadata = paramsObj.metadata as Record<string, unknown>;
-      if (typeof metadata.folderId === 'string' && metadata.folderId.trim()) {
-        folderIds.push(metadata.folderId.trim());
+    // Helper function to add folder ID if valid
+    const addFolderId = (value: unknown) => {
+      if (typeof value === 'string' && value.trim() && !seen.has(value.trim())) {
+        seen.add(value.trim());
+        folderIds.push(value.trim());
       }
-    }
+    };
+
+    // Helper function to extract folder IDs from an object
+    const extractFromObject = (obj: Record<string, unknown>, depth = 0) => {
+      if (depth > 2) return; // Prevent infinite recursion
+
+      // Direct folder ID fields
+      addFolderId(obj.folderId);
+      addFolderId(obj.parentFolderId);
+      addFolderId(obj.targetFolderId);
+      addFolderId(obj.destinationFolderId);
+      addFolderId(obj.sourceFolderId);
+
+      // Check for parents array (Drive API format)
+      if (Array.isArray(obj.parents)) {
+        obj.parents.forEach(addFolderId);
+      }
+
+      // Check for nested objects  
+      const nestedKeys = ['options', 'metadata', 'document', 'context', 'request', 'params'];
+      nestedKeys.forEach(key => {
+        if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+          extractFromObject(obj[key] as Record<string, unknown>, depth + 1);
+        }
+      });
+
+      // Check for any other nested objects that might contain folder references
+      Object.entries(obj).forEach(([key, value]) => {
+        if (value && typeof value === 'object' && !Array.isArray(value) && 
+            !nestedKeys.includes(key) && depth < 1) {
+          const valueObj = value as Record<string, unknown>;
+          // Only check objects that might contain folder references
+          if (Object.keys(valueObj).some(k => 
+            k.toLowerCase().includes('folder') || 
+            k.toLowerCase().includes('parent') ||
+            k.toLowerCase().includes('target') ||
+            k.toLowerCase().includes('destination')
+          )) {
+            extractFromObject(valueObj, depth + 1);
+          }
+        }
+      });
+    };
+
+    // Extract folder IDs from the main parameters object
+    extractFromObject(paramsObj);
 
     return folderIds;
+  }
+
+  /**
+   * Executes a tool operation with access control validation.
+   * This method provides a unified entry point for tool execution that includes
+   * access control validation, request tracking, and proper error handling.
+   *
+   * @param params - The parameters being passed to the tool
+   * @param toolName - The name of the tool being executed
+   * @returns Result with tool output or error
+   */
+  protected async executeWithAccessControl(
+    params: TInput,
+    toolName: string
+  ): Promise<Result<TOutput, GoogleWorkspaceError>> {
+    // Generate unique request ID for tracking
+    const requestId = randomUUID();
+
+    try {
+      // Build context from parameters (shallow copy for safety)
+      const context = this.buildContextFromParams(params);
+
+      // Determine operation type based on tool name
+      const operation = this.isWriteOperation(toolName) ? ('write' as const) : ('read' as const);
+
+      // Validate access control if service is available
+      const accessControlResult = await this.validateAccessControl(
+        {
+          operation,
+          serviceName: 'docs',
+          toolName,
+          context,
+        },
+        requestId
+      );
+
+      if (accessControlResult.isErr()) {
+        return err(accessControlResult.error);
+      }
+
+      // Execute the actual tool implementation
+      return await this.executeImpl(params);
+    } catch (error) {
+      // Handle unexpected errors during execution
+      const wrappedError = new GoogleAccessControlError(
+        error instanceof Error ? error.message : 'Execution failed',
+        'general',
+        'GOOGLE_ACCESS_CONTROL_ERROR',
+        500,
+        undefined,
+        { requestId, toolName },
+        error instanceof Error ? error : undefined
+      );
+
+      this.logger.error('Tool execution failed', {
+        error: wrappedError.toJSON(),
+        requestId,
+        toolName,
+      });
+
+      return err(wrappedError);
+    }
+  }
+
+  /**
+   * Abstract method that must be implemented by concrete tool classes.
+   * This method contains the actual tool logic and should be called through
+   * executeWithAccessControl to ensure proper access control validation.
+   *
+   * @param params - The validated input parameters
+   * @returns Result with tool output or error
+   */
+  public abstract executeImpl(params: TInput): Promise<Result<TOutput, GoogleWorkspaceError>>;
+
+  /**
+   * Builds a context object from tool parameters for access control validation.
+   * This method creates a sanitized context object that includes relevant
+   * parameter information while filtering out sensitive data.
+   *
+   * @param params - The tool parameters
+   * @returns Sanitized context object
+   */
+  protected buildContextFromParams(params: unknown): Record<string, unknown> {
+    if (!params || typeof params !== 'object') {
+      return {};
+    }
+
+    // Create a shallow copy to avoid modifying original params
+    const context = { ...params } as Record<string, unknown>;
+
+    // Remove potentially sensitive fields
+    delete context.accessToken;
+    delete context.apiKey;
+    delete context.credentials;
+    delete context.auth;
+
+    return context;
   }
 }

@@ -17,6 +17,7 @@ import {
   GoogleAccessControlToolError,
   GoogleAccessControlServiceError,
   GoogleAccessControlFolderError,
+  GoogleServiceError,
 } from '../../errors/index.js';
 import { validateToolInput } from '../../utils/validation.utils.js';
 import type { ToolMetadata } from '../base/tool-registry.js';
@@ -90,7 +91,7 @@ describe('BaseCalendarTools', () => {
       updateConfig: jest.fn(),
     } as unknown as jest.Mocked<Logger>;
 
-    testTool = new TestCalendarTools(mockCalendarService, mockAuthService, mockLogger);
+    testTool = new TestCalendarTools(mockCalendarService, mockAuthService, mockLogger, mockAccessControlService);
 
     // Setup access control service mocks with default behavior
     // @ts-ignore - Mocking access control service methods
@@ -214,9 +215,10 @@ describe('BaseCalendarTools', () => {
     });
 
     it('should convert GoogleWorkspaceError to GoogleCalendarError', () => {
-      const workspaceError = new GoogleCalendarError(
+      const workspaceError = new GoogleServiceError(
         'Workspace error',
-        'GOOGLE_CALENDAR_SERVICE_ERROR',
+        'workspace-service',
+        'GOOGLE_SERVICE_ERROR',
         500
       );
 
@@ -459,15 +461,7 @@ describe('BaseCalendarTools', () => {
 
         expect(result.isErr()).toBe(true);
         expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlReadOnlyError);
-        expect(mockLogger.warn).toHaveBeenCalledWith(
-          'Access control validation failed',
-          expect.objectContaining({
-            requestId: 'test-request-id',
-            operation: 'write',
-            serviceName: 'calendar',
-            toolName: 'google-workspace__calendar__create-event',
-          })
-        );
+        // Access control denial is normal operation and should not log errors
       });
 
       it('should handle service access control errors', async () => {
@@ -530,7 +524,7 @@ describe('BaseCalendarTools', () => {
         expect(result.isErr()).toBe(true);
         expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlError);
         expect(mockLogger.error).toHaveBeenCalledWith(
-          'Access control validation error',
+          'Access control validation failed',
           expect.objectContaining({
             requestId: 'test-request-id',
             error: expect.any(Object),
@@ -675,17 +669,17 @@ describe('BaseCalendarTools', () => {
           {
             params: {
               calendarId: 'user@example.com',
-              folderId: 'folder-123', // Not applicable to calendar
-              parentFolderId: 'parent-456', // Not applicable to calendar
+              folderId: 'folder-123',
+              parentFolderId: 'parent-456',
             },
-            expected: [],
+            expected: ['folder-123', 'parent-456'],
           },
           {
             params: {
               eventId: 'event789',
-              targetFolderId: 'target-folder', // Not applicable to calendar
+              targetFolderId: 'target-folder',
             },
-            expected: [],
+            expected: ['target-folder'],
           },
         ];
 
@@ -826,7 +820,7 @@ describe('BaseCalendarTools', () => {
         expect(result.isErr()).toBe(true);
         const error = result._unsafeUnwrapErr();
         expect(error).toBeInstanceOf(GoogleAccessControlError);
-        expect(error.message).toContain('Access control validation failed');
+        expect(error.message).toContain('Unexpected error');
       });
 
       it('should preserve error context and stack traces', async () => {
@@ -850,8 +844,11 @@ describe('BaseCalendarTools', () => {
         const error = result._unsafeUnwrapErr();
         expect(error).toBe(originalError); // Should preserve the exact same error instance
         expect(error.context).toEqual({
-          serviceName: 'calendar',
+          allowedValues: ['read'],
+          operation: 'write',
           resourceType: 'calendar_event',
+          restriction: 'read-only',
+          serviceName: 'calendar',
         });
       });
     });

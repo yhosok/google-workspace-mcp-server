@@ -12,6 +12,7 @@ import { Logger } from '../../utils/logger.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 import {
   validateToolInput,
   validateToolInputWithContext,
@@ -200,15 +201,16 @@ export abstract class BaseCalendarTools<
    * security policies including read-only mode, service restrictions,
    * and tool-specific access controls.
    *
-   * Note: Calendar operations do not typically involve folder hierarchies,
-   * so folder-based access control is not applicable.
+   * Supports two calling patterns:
+   * 1. Legacy: (params: unknown, requestId: string)
+   * 2. New: (request: AccessControlRequest, requestId: string)
    *
-   * @param params - The parameters being passed to the tool
+   * @param paramsOrRequest - Either raw parameters or structured request object
    * @param requestId - The request ID for tracking and logging
    * @returns Result indicating whether access is allowed
    */
   protected async validateAccessControl(
-    params: unknown,
+    paramsOrRequest: unknown | { operation?: string; serviceName?: string; toolName?: string; context?: Record<string, unknown> },
     requestId: string
   ): Promise<Result<void, GoogleWorkspaceError>> {
     // If no access control service is configured, allow the operation
@@ -217,22 +219,50 @@ export abstract class BaseCalendarTools<
     }
 
     try {
-      // Determine operation type based on tool name
-      const isWrite = this.isWriteOperation(this.getToolName());
-      const operation = isWrite ? ('write' as const) : ('read' as const);
+      let operation: 'read' | 'write';
+      let serviceName: string;
+      let toolName: string;
+      let context: Record<string, unknown>;
+      let targetFolderId: string | undefined;
 
-      // Extract folder IDs from parameters (Calendar doesn't use folders, but keeping consistent interface)
-      const folderIds = this.getRequiredFolderIds(params);
-      const targetFolderId = folderIds.length > 0 ? folderIds[0] : undefined;
+      // Determine if this is the new request object format or legacy params format
+      const isRequestObject = paramsOrRequest && 
+        typeof paramsOrRequest === 'object' && 
+        ('operation' in paramsOrRequest || 'serviceName' in paramsOrRequest || 'toolName' in paramsOrRequest);
+
+      if (isRequestObject) {
+        // New format: structured request object
+        const request = paramsOrRequest as { operation?: string; serviceName?: string; toolName?: string; context?: Record<string, unknown> };
+        
+        operation = request.operation as ('read' | 'write') || 
+          (this.isWriteOperation(request.toolName || this.getToolName()) ? 'write' : 'read');
+        serviceName = request.serviceName || 'calendar';
+        toolName = request.toolName || this.getToolName();
+        context = request.context || {};
+        
+        // Extract targetFolderId from context or compute from context
+        const folderIds = this.getRequiredFolderIds(context);
+        targetFolderId = folderIds.length > 0 ? folderIds[0] : undefined;
+      } else {
+        // Legacy format: raw params
+        operation = this.isWriteOperation(this.getToolName()) ? 'write' : 'read';
+        serviceName = 'calendar';
+        toolName = this.getToolName();
+        context = this.buildContextFromParams(paramsOrRequest);
+        
+        // Extract folder IDs from parameters for folder-based access control
+        const folderIds = this.getRequiredFolderIds(paramsOrRequest);
+        targetFolderId = folderIds.length > 0 ? folderIds[0] : undefined;
+      }
 
       // Prepare access control request
       const accessControlRequest = {
         operation,
-        serviceName: 'calendar',
-        resourceType: 'event',
-        toolName: this.getToolName(),
+        serviceName,
+        resourceType: 'calendar_event',
+        toolName,
         targetFolderId,
-        requestId,
+        context,
       };
 
       // Validate access using the access control service
@@ -252,14 +282,22 @@ export abstract class BaseCalendarTools<
         'GOOGLE_ACCESS_CONTROL_ERROR',
         500,
         undefined,
-        { requestId, toolName: this.getToolName() },
+        { 
+          requestId, 
+          toolName: typeof paramsOrRequest === 'object' && paramsOrRequest && 'toolName' in paramsOrRequest 
+            ? (paramsOrRequest as any).toolName 
+            : this.getToolName(),
+          originalError: error instanceof Error ? error : undefined 
+        },
         error instanceof Error ? error : undefined
       );
 
       this.logger.error('Access control validation failed', {
         error: accessError.toJSON(),
         requestId,
-        toolName: this.getToolName(),
+        toolName: typeof paramsOrRequest === 'object' && paramsOrRequest && 'toolName' in paramsOrRequest 
+          ? (paramsOrRequest as any).toolName 
+          : this.getToolName(),
       });
 
       return err(accessError);
@@ -272,8 +310,8 @@ export abstract class BaseCalendarTools<
    * on the tool name patterns used in the Google Workspace MCP server.
    *
    * **Classification Logic:**
-   * - Read operations: list, get, read
-   * - Write operations: create, update, delete, add, quick
+   * - Read operations: list, get, read, view, search
+   * - Write operations: create, update, delete, add, quick, insert, replace, move, copy, modify, edit
    *
    * @param toolName - The name of the tool to classify
    * @returns true if the tool performs write operations, false for read operations
@@ -288,6 +326,7 @@ export abstract class BaseCalendarTools<
       'get',
       'read',
       'view',
+      'search',
     ];
 
     // Define write operation patterns for Calendar
@@ -297,6 +336,10 @@ export abstract class BaseCalendarTools<
       'delete',
       'add',
       'quick', // For quick-add operations
+      'insert',
+      'replace',
+      'move',
+      'copy',
       'modify',
       'edit',
       'write',
@@ -320,17 +363,173 @@ export abstract class BaseCalendarTools<
 
   /**
    * Extracts folder IDs from tool parameters for folder-based access control.
-   * 
-   * Note: Calendar operations typically do not involve folder hierarchies like
-   * Drive, Docs, or Sheets. This method is provided for interface consistency
-   * and returns an empty array for Calendar operations.
+   * This method analyzes the parameters passed to Calendar tools and identifies
+   * any folder IDs that should be validated against folder-based access restrictions.
+   *
+   * **Parameter Analysis:**
+   * - Direct folder ID fields: folderId, parentFolderId, targetFolderId, destinationFolderId
+   * - Nested objects: metadata, options, context, request, params
+   * - Calendar-specific patterns: calendarId (for calendar-level restrictions)
+   * - Deep nested exploration (up to 2 levels)
+   * - Returns array of all relevant folder IDs
    *
    * @param params - The tool parameters to analyze
-   * @returns Empty array since Calendar operations don't use folder restrictions
+   * @returns Array of folder IDs that require access validation
    */
   protected getRequiredFolderIds(params: unknown): string[] {
-    // Calendar operations do not use folder-based access control
-    // Return empty array to maintain consistent interface across base tool classes
-    return [];
+    const folderIds: string[] = [];
+    const seen = new Set<string>(); // Avoid duplicates
+
+    if (!params || typeof params !== 'object') {
+      return folderIds;
+    }
+
+    const paramsObj = params as Record<string, unknown>;
+
+    // Helper function to add folder ID if valid
+    const addFolderId = (value: unknown) => {
+      if (typeof value === 'string' && value.trim() && !seen.has(value.trim())) {
+        seen.add(value.trim());
+        folderIds.push(value.trim());
+      }
+    };
+
+    // Helper function to extract folder IDs from an object
+    const extractFromObject = (obj: Record<string, unknown>, depth = 0) => {
+      if (depth > 2) return; // Prevent infinite recursion
+
+      // Direct folder ID fields
+      addFolderId(obj.folderId);
+      addFolderId(obj.parentFolderId);
+      addFolderId(obj.targetFolderId);
+      addFolderId(obj.destinationFolderId);
+      addFolderId(obj.sourceFolderId);
+
+      // Check for nested objects
+      const nestedKeys = ['metadata', 'options', 'context', 'request', 'params'];
+      nestedKeys.forEach(key => {
+        if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+          extractFromObject(obj[key] as Record<string, unknown>, depth + 1);
+        }
+      });
+
+      // Check for any other nested objects that might contain folder references
+      Object.entries(obj).forEach(([key, value]) => {
+        if (value && typeof value === 'object' && !Array.isArray(value) && 
+            !nestedKeys.includes(key) && depth < 1) {
+          const valueObj = value as Record<string, unknown>;
+          // Only check objects that might contain folder references
+          if (Object.keys(valueObj).some(k => 
+            k.toLowerCase().includes('folder') || 
+            k.toLowerCase().includes('parent') ||
+            k.toLowerCase().includes('target') ||
+            k.toLowerCase().includes('destination')
+          )) {
+            extractFromObject(valueObj, depth + 1);
+          }
+        }
+      });
+    };
+
+    // Extract folder IDs from the main parameters object
+    extractFromObject(paramsObj);
+
+    return folderIds;
+  }
+
+  /**
+   * Executes a tool operation with access control validation.
+   * This method provides a unified entry point for tool execution that includes
+   * access control validation, request tracking, and proper error handling.
+   *
+   * @param params - The parameters being passed to the tool
+   * @param toolName - The name of the tool being executed
+   * @returns Result with tool output or error
+   */
+  protected async executeWithAccessControl(
+    params: TInput,
+    toolName: string
+  ): Promise<Result<TOutput, GoogleWorkspaceError>> {
+    // Generate unique request ID for tracking
+    const requestId = randomUUID();
+
+    try {
+      // Build context from parameters (shallow copy for safety)
+      const context = this.buildContextFromParams(params);
+
+      // Determine operation type based on tool name
+      const operation = this.isWriteOperation(toolName) ? ('write' as const) : ('read' as const);
+
+      // Validate access control if service is available
+      const accessControlResult = await this.validateAccessControl(
+        {
+          operation,
+          serviceName: 'calendar',
+          toolName,
+          context,
+        },
+        requestId
+      );
+
+      if (accessControlResult.isErr()) {
+        return err(accessControlResult.error);
+      }
+
+      // Execute the actual tool implementation
+      return await this.executeImpl(params);
+    } catch (error) {
+      // Handle unexpected errors during execution
+      const wrappedError = new GoogleAccessControlError(
+        error instanceof Error ? error.message : 'Execution failed',
+        'general',
+        'GOOGLE_ACCESS_CONTROL_ERROR',
+        500,
+        undefined,
+        { requestId, toolName },
+        error instanceof Error ? error : undefined
+      );
+
+      this.logger.error('Tool execution failed', {
+        error: wrappedError.toJSON(),
+        requestId,
+        toolName,
+      });
+
+      return err(wrappedError);
+    }
+  }
+
+  /**
+   * Abstract method that must be implemented by concrete tool classes.
+   * This method contains the actual tool logic without access control concerns.
+   *
+   * @param params - The validated input parameters
+   * @returns Result with tool output or error
+   */
+  public abstract executeImpl(params: TInput): Promise<Result<TOutput, GoogleWorkspaceError>>;
+
+  /**
+   * Builds a context object from tool parameters for access control validation.
+   * This method creates a sanitized context object that includes relevant
+   * parameter information while filtering out sensitive data.
+   *
+   * @param params - The tool parameters
+   * @returns Sanitized context object
+   */
+  protected buildContextFromParams(params: unknown): Record<string, unknown> {
+    if (!params || typeof params !== 'object') {
+      return {};
+    }
+
+    // Create a shallow copy to avoid modifying original params
+    const context = { ...params } as Record<string, unknown>;
+
+    // Remove potentially sensitive fields
+    delete context.accessToken;
+    delete context.apiKey;
+    delete context.credentials;
+    delete context.auth;
+
+    return context;
   }
 }
