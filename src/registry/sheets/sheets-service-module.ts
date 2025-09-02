@@ -7,6 +7,7 @@ import type {
 import type { AuthService } from '../../services/auth.service.js';
 import { SheetsService } from '../../services/sheets.service.js';
 import { DriveService } from '../../services/drive.service.js';
+import { AccessControlService } from '../../services/access-control.service.js';
 import { SheetsResources } from '../../resources/sheets-resources.js';
 import {
   SheetsListTool,
@@ -23,6 +24,7 @@ import {
   GoogleServiceError,
 } from '../../errors/index.js';
 import { Logger, createServiceLogger } from '../../utils/logger.js';
+import type { EnvironmentConfig } from '../../types/index.js';
 
 /**
  * Service module for Google Sheets integration
@@ -35,6 +37,7 @@ export class SheetsServiceModule implements ServiceModule {
 
   private sheetsService?: SheetsService;
   private driveService?: DriveService;
+  private accessControlService?: AccessControlService;
   private sheetsResources?: SheetsResources;
   private tools: ToolRegistry[] = [];
   private logger: Logger;
@@ -42,7 +45,10 @@ export class SheetsServiceModule implements ServiceModule {
   private initializationStartTime?: number;
   private initializationTime?: number;
 
-  constructor(logger?: Logger) {
+  constructor(
+    private readonly config?: EnvironmentConfig,
+    logger?: Logger
+  ) {
     this.logger = logger || createServiceLogger('sheets-service-module');
   }
 
@@ -76,6 +82,29 @@ export class SheetsServiceModule implements ServiceModule {
         this.driveService = undefined;
       }
 
+      // Initialize AccessControlService if configuration is provided
+      if (this.config) {
+        const authClient = await authService.getAuthClient();
+        if (authClient.isOk()) {
+          this.accessControlService = new AccessControlService(
+            this.config,
+            authClient.value,
+            this.logger
+          );
+          
+          const accessControlInitResult = await this.accessControlService.initialize();
+          if (accessControlInitResult.isErr()) {
+            this.logger.warn('Failed to initialize AccessControlService', {
+              error: accessControlInitResult.error.toJSON(),
+            });
+            // Continue without AccessControlService - this maintains backward compatibility
+            this.accessControlService = undefined;
+          }
+        } else {
+          this.logger.warn('Failed to get auth client for AccessControlService');
+        }
+      }
+
       // Initialize Sheets service (with optional DriveService)
       this.sheetsService = new SheetsService(authService, this.driveService);
       const initResult = await this.sheetsService.initialize();
@@ -101,14 +130,14 @@ export class SheetsServiceModule implements ServiceModule {
         this.sheetsService
       );
 
-      // Create tool instances
+      // Create tool instances with optional AccessControlService
       this.tools = [
-        new SheetsListTool(this.sheetsService, authService),
-        new SheetsReadTool(this.sheetsService, authService),
-        new SheetsWriteTool(this.sheetsService, authService),
-        new SheetsAppendTool(this.sheetsService, authService),
-        new SheetsAddSheetTool(this.sheetsService, authService),
-        new SheetsCreateSpreadsheetTool(this.sheetsService, authService),
+        new SheetsListTool(this.sheetsService, authService, undefined, this.accessControlService),
+        new SheetsReadTool(this.sheetsService, authService, undefined, this.accessControlService),
+        new SheetsWriteTool(this.sheetsService, authService, undefined, this.accessControlService),
+        new SheetsAppendTool(this.sheetsService, authService, undefined, this.accessControlService),
+        new SheetsAddSheetTool(this.sheetsService, authService, undefined, this.accessControlService),
+        new SheetsCreateSpreadsheetTool(this.sheetsService, authService, undefined, this.accessControlService),
       ];
 
       this.initialized = true;
@@ -117,6 +146,7 @@ export class SheetsServiceModule implements ServiceModule {
       this.logger.info('Sheets service module initialized successfully', {
         initializationTime: this.initializationTime,
         toolsCreated: this.tools.length,
+        accessControlEnabled: !!this.accessControlService,
       });
 
       return ok(undefined);
@@ -334,6 +364,7 @@ export class SheetsServiceModule implements ServiceModule {
       // Reset services
       this.sheetsService = undefined;
       this.driveService = undefined;
+      this.accessControlService = undefined;
       this.sheetsResources = undefined;
 
       // Reset state
@@ -383,6 +414,7 @@ export class SheetsServiceModule implements ServiceModule {
         toolsRegistered: this.tools.length,
         resourcesRegistered: 2, // spreadsheet-schema and spreadsheet-data
         initializationTime: this.initializationTime,
+        accessControlEnabled: !!this.accessControlService,
       },
     };
   }
@@ -406,5 +438,12 @@ export class SheetsServiceModule implements ServiceModule {
    */
   public getTools(): ToolRegistry[] {
     return [...this.tools];
+  }
+
+  /**
+   * Get the AccessControlService instance (for testing purposes)
+   */
+  public getAccessControlService(): AccessControlService | undefined {
+    return this.accessControlService;
   }
 }

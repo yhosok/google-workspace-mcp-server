@@ -75,6 +75,19 @@ describe('Drive Integration Tests', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    jest.clearAllTimers();
+  });
+
+  afterAll(() => {
+    // Comprehensive cleanup to prevent Jest worker hanging
+    jest.clearAllTimers();
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+    
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+    }
   });
 
   it('should integrate successfully with ServiceRegistry', async () => {
@@ -732,21 +745,24 @@ describe('Drive Integration Tests', () => {
       // Verify service dependencies
       expect(MockedDriveService).toHaveBeenCalledWith(mockAuthService);
 
-      // Verify tool instantiation - tools receive driveService, authService, and logger
+      // Verify tool instantiation - tools receive driveService, authService, logger, and accessControlService
       expect(MockedListFilesTool).toHaveBeenCalledWith(
         expect.any(Object), // driveService
         expect.any(Object), // authService
-        expect.any(Object) // logger
+        expect.any(Object), // logger
+        undefined // accessControlService
       );
       expect(MockedGetFileTool).toHaveBeenCalledWith(
         expect.any(Object), // driveService
         expect.any(Object), // authService
-        expect.any(Object) // logger
+        expect.any(Object), // logger
+        undefined // accessControlService
       );
       expect(MockedGetFileContentTool).toHaveBeenCalledWith(
         expect.any(Object), // driveService
         expect.any(Object), // authService
-        expect.any(Object) // logger
+        expect.any(Object), // logger
+        undefined // accessControlService
       );
 
       // Verify health monitoring

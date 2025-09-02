@@ -7,6 +7,7 @@ import type {
 } from '../base/tool-registry.js';
 import type { SheetsService } from '../../services/sheets.service.js';
 import type { AuthService } from '../../services/auth.service.js';
+import type { AccessControlService } from '../../services/access-control.service.js';
 import type { SheetsAppendResult, MCPToolResult } from '../../types/index.js';
 import {
   GoogleWorkspaceError,
@@ -30,9 +31,10 @@ export class SheetsAppendTool extends BaseSheetsTools<
   constructor(
     sheetsService: SheetsService,
     authService: AuthService,
-    logger?: Logger
+    logger?: Logger,
+    accessControlService?: AccessControlService
   ) {
-    super(sheetsService, authService, logger);
+    super(sheetsService, authService, logger, accessControlService);
   }
 
   public getToolName(): string {
@@ -78,6 +80,12 @@ export class SheetsAppendTool extends BaseSheetsTools<
     const authResult = await this.validateAuthentication(requestId);
     if (authResult.isErr()) {
       return err(authResult.error);
+    }
+
+    // Validate access control for write operations
+    const accessResult = await this.validateAccessControl(validatedParams, requestId);
+    if (accessResult.isErr()) {
+      return err(accessResult.error);
     }
 
     try {

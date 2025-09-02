@@ -20,6 +20,7 @@ import type {
 } from '../service-module.interface.js';
 import type { AuthService } from '../../services/auth.service.js';
 import { CalendarService } from '../../services/calendar.service.js';
+import { AccessControlService } from '../../services/access-control.service.js';
 import {
   ListCalendarsTool,
   ListEventsTool,
@@ -35,6 +36,7 @@ import {
   GoogleServiceError,
 } from '../../errors/index.js';
 import { Logger, createServiceLogger } from '../../utils/logger.js';
+import type { EnvironmentConfig } from '../../types/index.js';
 
 /**
  * Service module for Google Calendar integration
@@ -46,13 +48,17 @@ export class CalendarServiceModule implements ServiceModule {
   public readonly version = '1.0.0';
 
   private calendarService?: CalendarService;
+  private accessControlService?: AccessControlService;
   private tools: ToolRegistry[] = [];
   private logger: Logger;
   private initialized = false;
   private initializationStartTime?: number;
   private initializationTime?: number;
 
-  constructor(logger?: Logger) {
+  constructor(
+    private readonly config?: EnvironmentConfig,
+    logger?: Logger
+  ) {
     this.logger = logger || createServiceLogger('calendar-service-module');
   }
 
@@ -70,6 +76,29 @@ export class CalendarServiceModule implements ServiceModule {
 
     try {
       this.logger.info('Initializing Calendar service module');
+
+      // Initialize AccessControlService if configuration is provided
+      if (this.config) {
+        const authClient = await authService.getAuthClient();
+        if (authClient.isOk()) {
+          this.accessControlService = new AccessControlService(
+            this.config,
+            authClient.value,
+            this.logger
+          );
+          
+          const accessControlInitResult = await this.accessControlService.initialize();
+          if (accessControlInitResult.isErr()) {
+            this.logger.warn('Failed to initialize AccessControlService', {
+              error: accessControlInitResult.error.toJSON(),
+            });
+            // Continue without AccessControlService - this maintains backward compatibility
+            this.accessControlService = undefined;
+          }
+        } else {
+          this.logger.warn('Failed to get auth client for AccessControlService');
+        }
+      }
 
       // Initialize Calendar service
       this.calendarService = new CalendarService(authService);
@@ -90,14 +119,14 @@ export class CalendarServiceModule implements ServiceModule {
         );
       }
 
-      // Create tool instances
+      // Create tool instances with optional AccessControlService
       this.tools = [
-        new ListCalendarsTool(this.calendarService, authService),
-        new ListEventsTool(this.calendarService, authService),
-        new GetEventTool(this.calendarService, authService),
-        new CreateEventTool(this.calendarService, authService),
-        new QuickAddTool(this.calendarService, authService),
-        new DeleteEventTool(this.calendarService, authService),
+        new ListCalendarsTool(this.calendarService, authService, undefined, this.accessControlService),
+        new ListEventsTool(this.calendarService, authService, undefined, this.accessControlService),
+        new GetEventTool(this.calendarService, authService, undefined, this.accessControlService),
+        new CreateEventTool(this.calendarService, authService, undefined, this.accessControlService),
+        new QuickAddTool(this.calendarService, authService, undefined, this.accessControlService),
+        new DeleteEventTool(this.calendarService, authService, undefined, this.accessControlService),
       ];
 
       this.initialized = true;
@@ -106,6 +135,7 @@ export class CalendarServiceModule implements ServiceModule {
       this.logger.info('Calendar service module initialized successfully', {
         initializationTime: this.initializationTime,
         toolsCreated: this.tools.length,
+        accessControlEnabled: !!this.accessControlService,
       });
 
       return ok(undefined);
@@ -271,6 +301,7 @@ export class CalendarServiceModule implements ServiceModule {
 
       // Reset services
       this.calendarService = undefined;
+      this.accessControlService = undefined;
 
       // Reset state
       this.initialized = false;
@@ -321,6 +352,7 @@ export class CalendarServiceModule implements ServiceModule {
         toolsRegistered: this.tools.length,
         resourcesRegistered: 0, // No resources implemented yet
         initializationTime: this.initializationTime,
+        accessControlEnabled: !!this.accessControlService,
       },
     };
   }
@@ -337,5 +369,12 @@ export class CalendarServiceModule implements ServiceModule {
    */
   public getTools(): ToolRegistry[] {
     return [...this.tools];
+  }
+
+  /**
+   * Get the AccessControlService instance (for testing purposes)
+   */
+  public getAccessControlService(): AccessControlService | undefined {
+    return this.accessControlService;
   }
 }

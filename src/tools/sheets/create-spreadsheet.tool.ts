@@ -14,6 +14,7 @@ import type {
 import type { GoogleWorkspaceError } from '../../errors/index.js';
 import type { SheetsService } from '../../services/sheets.service.js';
 import type { AuthService } from '../../services/auth.service.js';
+import type { AccessControlService } from '../../services/access-control.service.js';
 
 export interface SheetsCreateSpreadsheetParams {
   title: string;
@@ -27,9 +28,10 @@ export class SheetsCreateSpreadsheetTool extends BaseSheetsTools<
   constructor(
     sheetsService: SheetsService,
     authService: AuthService,
-    logger?: Logger
+    logger?: Logger,
+    accessControlService?: AccessControlService
   ) {
-    super(sheetsService, authService, logger);
+    super(sheetsService, authService, logger, accessControlService);
   }
 
   public getToolName(): string {
@@ -56,6 +58,12 @@ export class SheetsCreateSpreadsheetTool extends BaseSheetsTools<
     const authResult = await this.validateAuthentication(requestId);
     if (authResult.isErr()) {
       return err(authResult.error);
+    }
+
+    // Validate access control for write operations
+    const accessResult = await this.validateAccessControl(params, requestId);
+    if (accessResult.isErr()) {
+      return err(accessResult.error);
     }
 
     // Parameter validation using unified schema approach

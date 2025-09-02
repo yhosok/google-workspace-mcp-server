@@ -7,6 +7,7 @@ import type {
 import { SchemaFactory } from '../base/tool-schema.js';
 import type { SheetsService } from '../../services/sheets.service.js';
 import type { AuthService } from '../../services/auth.service.js';
+import type { AccessControlService } from '../../services/access-control.service.js';
 import type { SheetsListResult, MCPToolResult } from '../../types/index.js';
 import {
   GoogleWorkspaceError,
@@ -22,9 +23,10 @@ export class SheetsListTool extends BaseSheetsTools<{}, MCPToolResult> {
   constructor(
     sheetsService: SheetsService,
     authService: AuthService,
-    logger?: Logger
+    logger?: Logger,
+    accessControlService?: AccessControlService
   ) {
-    super(sheetsService, authService, logger);
+    super(sheetsService, authService, logger, accessControlService);
   }
 
   public getToolName(): string {

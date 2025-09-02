@@ -80,6 +80,7 @@ describe('Service Registry Integration Tests', () => {
 
   afterEach(async () => {
     jest.clearAllMocks();
+    jest.clearAllTimers();
     // Reset SheetsService mock to default success behavior
     const sheetsServiceModule = await import('../services/sheets.service.js');
     const { SheetsService } = sheetsServiceModule;
@@ -93,6 +94,18 @@ describe('Service Registry Integration Tests', () => {
           getServiceVersion: jest.fn().mockReturnValue('v4'),
         }) as unknown as InstanceType<typeof SheetsService>
     );
+  });
+
+  afterAll(() => {
+    // Comprehensive cleanup to prevent Jest worker hanging
+    jest.clearAllTimers();
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+    
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+    }
   });
 
   describe('End-to-End Service Module Lifecycle', () => {

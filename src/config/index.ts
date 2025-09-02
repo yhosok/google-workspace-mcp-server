@@ -20,6 +20,12 @@ const envSchema = z
     GOOGLE_OAUTH_SCOPES: z.string().optional(),
     GOOGLE_OAUTH_PORT: z.string().optional(),
 
+    // Access Control Configuration
+    GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER: z.string().optional(),
+    GOOGLE_ALLOWED_WRITE_SERVICES: z.string().optional(),
+    GOOGLE_ALLOWED_WRITE_TOOLS: z.string().optional(),
+    GOOGLE_READ_ONLY_MODE: z.string().optional(),
+
     // Retry Configuration
     GOOGLE_RETRY_MAX_ATTEMPTS: z.string().optional(),
     GOOGLE_RETRY_BASE_DELAY: z.string().optional(),
@@ -48,6 +54,25 @@ const envSchema = z
     GOOGLE_OAUTH_PORT: parseIntegerEnvVar(
       data.GOOGLE_OAUTH_PORT,
       'GOOGLE_OAUTH_PORT'
+    ),
+
+    // Access Control Configuration
+    GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER: parseBooleanEnvVar(
+      data.GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER,
+      'GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER'
+    ),
+    GOOGLE_ALLOWED_WRITE_SERVICES: parseStringArrayEnvVar(
+      data.GOOGLE_ALLOWED_WRITE_SERVICES,
+      'GOOGLE_ALLOWED_WRITE_SERVICES'
+    ),
+    GOOGLE_ALLOWED_WRITE_TOOLS: parseStringArrayEnvVar(
+      data.GOOGLE_ALLOWED_WRITE_TOOLS,
+      'GOOGLE_ALLOWED_WRITE_TOOLS'
+    ),
+    GOOGLE_READ_ONLY_MODE: parseBooleanEnvVarWithDefault(
+      data.GOOGLE_READ_ONLY_MODE,
+      'GOOGLE_READ_ONLY_MODE',
+      true
     ),
 
     // Retry Configuration
@@ -86,6 +111,7 @@ const envSchema = z
     // Final validation of parsed values
     validateRetryConfig(data);
     validateAuthConfig(data);
+    validateAccessControlConfig(data);
     return true;
   });
 
@@ -147,6 +173,78 @@ function parseRetryCodesEnvVar(
   });
 
   return codes;
+}
+
+/**
+ * Helper function to parse comma-separated string arrays.
+ * @param value - The environment variable value (comma-separated strings)
+ * @param name - The environment variable name for error reporting
+ * @returns Array of trimmed strings or undefined
+ */
+function parseStringArrayEnvVar(
+  value: string | undefined,
+  name: string
+): string[] | undefined {
+  if (!value) return undefined;
+
+  // Check for whitespace-only string before processing
+  if (value.trim() === '') {
+    return undefined;
+  }
+
+  const items = value.split(',').map(item => {
+    const trimmed = item.trim();
+    if (!trimmed) {
+      throw new Error(`${name} contains empty value`);
+    }
+    return trimmed;
+  });
+
+  return items;
+}
+
+/**
+ * Helper function to parse boolean environment variables.
+ * @param value - The environment variable value
+ * @param name - The environment variable name for error reporting
+ * @returns Parsed boolean or undefined
+ */
+function parseBooleanEnvVar(
+  value: string | undefined,
+  name: string
+): boolean | undefined {
+  if (!value) return undefined;
+
+  const lowerValue = value.toLowerCase();
+  if (lowerValue === 'true' || lowerValue === '1') return true;
+  if (lowerValue === 'false' || lowerValue === '0') return false;
+
+  throw new Error(
+    `${name} must be 'true', 'false', '1', or '0', got: ${value}`
+  );
+}
+
+/**
+ * Helper function to parse boolean environment variables with a default value.
+ * @param value - The environment variable value
+ * @param name - The environment variable name for error reporting
+ * @param defaultValue - The default value when the environment variable is not set
+ * @returns Parsed boolean or default value
+ */
+function parseBooleanEnvVarWithDefault(
+  value: string | undefined,
+  name: string,
+  defaultValue: boolean
+): boolean {
+  if (!value) return defaultValue;
+
+  const lowerValue = value.toLowerCase();
+  if (lowerValue === 'true' || lowerValue === '1') return true;
+  if (lowerValue === 'false' || lowerValue === '0') return false;
+
+  throw new Error(
+    `${name} must be 'true', 'false', '1', or '0', got: ${value}`
+  );
 }
 
 /**
@@ -272,6 +370,91 @@ function validateAuthConfig(data: EnvironmentConfig): void {
     throw new Error(
       'At least one authentication method must be configured. ' +
         'Provide either GOOGLE_SERVICE_ACCOUNT_KEY_PATH or both GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET.'
+    );
+  }
+}
+
+/**
+ * Validates access control configuration values.
+ * @param data - The parsed environment configuration
+ */
+function validateAccessControlConfig(data: EnvironmentConfig): void {
+  const {
+    GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER,
+    GOOGLE_ALLOWED_WRITE_SERVICES,
+    GOOGLE_ALLOWED_WRITE_TOOLS,
+    GOOGLE_READ_ONLY_MODE,
+    GOOGLE_DRIVE_FOLDER_ID,
+  } = data;
+
+  // Validate service names if provided
+  if (GOOGLE_ALLOWED_WRITE_SERVICES) {
+    const validServices = ['sheets', 'docs', 'calendar', 'drive'];
+    const invalidServices = GOOGLE_ALLOWED_WRITE_SERVICES.filter(
+      service => !validServices.includes(service.toLowerCase())
+    );
+    if (invalidServices.length > 0) {
+      throw new Error(
+        `GOOGLE_ALLOWED_WRITE_SERVICES contains invalid services: ${invalidServices.join(', ')}. Valid services are: ${validServices.join(', ')}`
+      );
+    }
+  }
+
+  // Validate tool name format if provided
+  if (GOOGLE_ALLOWED_WRITE_TOOLS) {
+    // Support multiple tool naming patterns used in the codebase:
+    // 1. google-workspace__service__action (docs)
+    // 2. google-workspace__service-action (calendar, drive)
+    // 3. service-action (sheets - legacy pattern)
+    const validServices = ['sheets', 'docs', 'calendar', 'drive'];
+
+    const toolNamePatterns = [
+      /^google-workspace__[a-z]+__[a-z-]+$/, // Pattern 1: google-workspace__docs__create
+      /^google-workspace__[a-z]+-[a-z-]+$/, // Pattern 2: google-workspace__calendar-list
+      /^[a-z]+-[a-z-]+$/, // Pattern 3: sheets-write
+    ];
+
+    const invalidTools = GOOGLE_ALLOWED_WRITE_TOOLS.filter(tool => {
+      // First check if it matches any of the basic patterns
+      if (!toolNamePatterns.some(pattern => pattern.test(tool))) {
+        return true;
+      }
+
+      // Additional validation: for sheets pattern, ensure it's a known service
+      if (/^[a-z]+-[a-z-]+$/.test(tool)) {
+        const [service] = tool.split('-');
+        return !validServices.includes(service);
+      }
+
+      return false;
+    });
+
+    if (invalidTools.length > 0) {
+      throw new Error(
+        `GOOGLE_ALLOWED_WRITE_TOOLS contains invalid tool names: ${invalidTools.join(', ')}. Tool names must follow valid patterns: 'google-workspace__[service-name]__[tool-name]', 'google-workspace__[service-name]-[tool-name]', or '[service-name]-[tool-name]'`
+      );
+    }
+  }
+
+  // Warn if folder restrictions are enabled without a folder ID
+  if (
+    GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER === false &&
+    (!GOOGLE_DRIVE_FOLDER_ID || GOOGLE_DRIVE_FOLDER_ID.trim() === '')
+  ) {
+    console.warn(
+      'Warning: GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER is false but GOOGLE_DRIVE_FOLDER_ID is not set. All write operations will be blocked unless allowed through other access control settings.'
+    );
+  }
+
+  // Validate conflicting settings
+  if (
+    GOOGLE_READ_ONLY_MODE === true &&
+    (GOOGLE_ALLOWED_WRITE_SERVICES?.length ||
+      GOOGLE_ALLOWED_WRITE_TOOLS?.length ||
+      GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER === true)
+  ) {
+    console.warn(
+      'Warning: GOOGLE_READ_ONLY_MODE is enabled but other write permissions are configured. Read-only mode will override all write permissions.'
     );
   }
 }

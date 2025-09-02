@@ -99,6 +99,19 @@ describe('Docs Integration Tests', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    jest.clearAllTimers();
+  });
+
+  afterAll(() => {
+    // Comprehensive cleanup to prevent Jest worker hanging
+    jest.clearAllTimers();
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+    
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+    }
   });
 
   it('should integrate successfully with ServiceRegistry', async () => {

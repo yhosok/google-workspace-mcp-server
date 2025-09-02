@@ -20,6 +20,7 @@ import type {
 } from '../service-module.interface.js';
 import type { AuthService } from '../../services/auth.service.js';
 import { DriveService } from '../../services/drive.service.js';
+import { AccessControlService } from '../../services/access-control.service.js';
 import {
   ListFilesTool,
   GetFileTool,
@@ -32,6 +33,7 @@ import {
   GoogleServiceError,
 } from '../../errors/index.js';
 import { Logger, createServiceLogger } from '../../utils/logger.js';
+import type { EnvironmentConfig } from '../../types/index.js';
 
 /**
  * Service module for Google Drive integration
@@ -43,13 +45,17 @@ export class DriveServiceModule implements ServiceModule {
   public readonly version = '1.0.0';
 
   private driveService?: DriveService;
+  private accessControlService?: AccessControlService;
   private tools: ToolRegistry[] = [];
   private logger: Logger;
   private initialized = false;
   private initializationStartTime?: number;
   private initializationTime?: number;
 
-  constructor(logger?: Logger) {
+  constructor(
+    private readonly config?: EnvironmentConfig,
+    logger?: Logger
+  ) {
     this.logger = logger || createServiceLogger('drive-service-module');
   }
 
@@ -67,6 +73,29 @@ export class DriveServiceModule implements ServiceModule {
 
     try {
       this.logger.info('Initializing Drive service module');
+
+      // Initialize AccessControlService if configuration is provided
+      if (this.config) {
+        const authClient = await authService.getAuthClient();
+        if (authClient.isOk()) {
+          this.accessControlService = new AccessControlService(
+            this.config,
+            authClient.value,
+            this.logger
+          );
+          
+          const accessControlInitResult = await this.accessControlService.initialize();
+          if (accessControlInitResult.isErr()) {
+            this.logger.warn('Failed to initialize AccessControlService', {
+              error: accessControlInitResult.error.toJSON(),
+            });
+            // Continue without AccessControlService - this maintains backward compatibility
+            this.accessControlService = undefined;
+          }
+        } else {
+          this.logger.warn('Failed to get auth client for AccessControlService');
+        }
+      }
 
       // Initialize Drive service
       this.driveService = new DriveService(authService);
@@ -87,11 +116,11 @@ export class DriveServiceModule implements ServiceModule {
         );
       }
 
-      // Create tool instances
+      // Create tool instances with optional AccessControlService
       this.tools = [
-        new ListFilesTool(this.driveService, authService, this.logger),
-        new GetFileTool(this.driveService, authService, this.logger),
-        new GetFileContentTool(this.driveService, authService, this.logger),
+        new ListFilesTool(this.driveService, authService, this.logger, this.accessControlService),
+        new GetFileTool(this.driveService, authService, this.logger, this.accessControlService),
+        new GetFileContentTool(this.driveService, authService, this.logger, this.accessControlService),
       ];
 
       this.initialized = true;
@@ -100,6 +129,7 @@ export class DriveServiceModule implements ServiceModule {
       this.logger.info('Drive service module initialized successfully', {
         initializationTime: this.initializationTime,
         toolsCreated: this.tools.length,
+        accessControlEnabled: !!this.accessControlService,
       });
 
       return ok(undefined);
@@ -266,6 +296,7 @@ export class DriveServiceModule implements ServiceModule {
 
       // Reset services
       this.driveService = undefined;
+      this.accessControlService = undefined;
 
       // Reset state
       this.initialized = false;
@@ -314,6 +345,7 @@ export class DriveServiceModule implements ServiceModule {
         toolsRegistered: this.tools.length,
         resourcesRegistered: 0, // No resources implemented yet
         initializationTime: this.initializationTime,
+        accessControlEnabled: !!this.accessControlService,
       },
     };
   }
@@ -330,5 +362,12 @@ export class DriveServiceModule implements ServiceModule {
    */
   public getTools(): ToolRegistry[] {
     return [...this.tools];
+  }
+
+  /**
+   * Get the AccessControlService instance (for testing purposes)
+   */
+  public getAccessControlService(): AccessControlService | undefined {
+    return this.accessControlService;
   }
 }
