@@ -1,11 +1,10 @@
-import type { Config } from 'jest';
-import { createDefaultPreset } from 'ts-jest';
+const { createDefaultPreset } = require('ts-jest');
 
 const presetConfig = createDefaultPreset({
   tsconfig: 'tsconfig.test.json',
 });
 
-const config: Config = {
+const config = {
   ...presetConfig,
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
@@ -47,4 +46,4 @@ const config: Config = {
   ]
 };
 
-export default config;
+module.exports = config;

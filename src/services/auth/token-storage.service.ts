@@ -71,15 +71,47 @@ export class TokenStorageService implements TokenStorage {
    * @static
    */
   public static async createDefaultDependencies(): Promise<TokenStorageDependencies> {
-    // Use dynamic imports for real modules in production
-    const [keytar, fs, crypto] = await Promise.all([
-      import('keytar'),
-      import('fs'),
-      import('crypto'),
-    ]);
+    // Allow disabling keytar explicitly (e.g. in CI) or falling back if native lib missing
+    const disableKeytar = process.env.DISABLE_KEYTAR === '1';
+
+  let keytarMod: unknown = null;
+    if (!disableKeytar) {
+      try {
+        // Attempt dynamic import; will throw if native dependency (libsecret) missing
+        keytarMod = await import('keytar');
+      } catch (e) {
+        // Fallback: we'll supply a stub that makes keytar operations no-ops so file storage is used
+        // Only log once to avoid noisy test output
+        // eslint-disable-next-line no-console
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(
+          '[token-storage] keytar import failed, falling back to file-based encrypted storage:',
+          msg
+        );
+      }
+    }
+
+    // Real modules for fs / crypto (these should always be available in Node runtime)
+    const [fs, crypto] = await Promise.all([import('fs'), import('crypto')]);
+
+    const stubKeytar: KeytarDependency = {
+      async setPassword() {
+        // Simulate failure so saveTokens will attempt file fallback
+        throw new Error('keytar disabled or unavailable');
+      },
+      async getPassword() {
+        return null; // No stored password
+      },
+      async deletePassword() {
+        return true;
+      },
+      async findCredentials() {
+        return [];
+      },
+    };
 
     return {
-      keytar: keytar as KeytarDependency,
+      keytar: (keytarMod as KeytarDependency) || stubKeytar,
       fs: fs as FileSystemDependency,
       crypto: crypto as CryptoDependency,
     };
@@ -276,10 +308,7 @@ export class TokenStorageService implements TokenStorage {
 
       if (validatedCredentials === null) {
         // Structure corruption detected
-        const corruptionType = this.classifyKeytarCorruption(
-          null,
-          serializedCredentials
-        );
+        const corruptionType = this.classifyKeytarCorruption(null);
         const timestamp = Date.now();
         await this.handleKeytarCorruption(
           this.SERVICE_NAME,
@@ -305,10 +334,7 @@ export class TokenStorageService implements TokenStorage {
       }
 
       // JSON parsing error - corruption detected
-      const corruptionType = this.classifyKeytarCorruption(
-        error as Error,
-        serializedCredentials
-      );
+      const corruptionType = this.classifyKeytarCorruption(error as Error);
       const timestamp = Date.now();
       await this.handleKeytarCorruption(
         this.SERVICE_NAME,
@@ -403,10 +429,7 @@ export class TokenStorageService implements TokenStorage {
       this.clearString(encryptedData);
 
       // Decryption failed - likely corruption
-      const corruptionType = this.classifyFileCorruption(
-        error as Error,
-        encryptedData
-      );
+  const corruptionType = this.classifyFileCorruption(error as Error);
       if (corruptionType) {
         const timestamp = Date.now();
         await this.handleFileCorruption(
@@ -438,7 +461,7 @@ export class TokenStorageService implements TokenStorage {
 
       if (validatedCredentials === null) {
         // Structure corruption detected
-        const corruptionType = this.classifyFileCorruption(null, decryptedData);
+  const corruptionType = this.classifyFileCorruption(null);
         const timestamp = Date.now();
         await this.handleFileCorruption(
           this.TOKEN_FILE_PATH,
@@ -465,10 +488,7 @@ export class TokenStorageService implements TokenStorage {
       }
 
       // JSON parsing error - corruption detected
-      const corruptionType = this.classifyFileCorruption(
-        error as Error,
-        decryptedData
-      );
+  const corruptionType = this.classifyFileCorruption(error as Error);
       const timestamp = Date.now();
       await this.handleFileCorruption(
         this.TOKEN_FILE_PATH,
@@ -567,40 +587,48 @@ export class TokenStorageService implements TokenStorage {
    * @private
    */
   private validateAndReturnCredentials(
-    credentials: any
+    credentials: unknown
   ): OAuth2StoredCredentials | null {
     try {
       // Basic validation of required fields
       if (!credentials || typeof credentials !== 'object') {
         return null;
       }
-
-      if (!credentials.tokens || typeof credentials.tokens !== 'object') {
-        return null;
-      }
+      const obj = credentials as Record<string, unknown>;
 
       if (
-        !credentials.tokens.access_token ||
-        typeof credentials.tokens.access_token !== 'string'
+        !('tokens' in obj) ||
+        typeof obj.tokens !== 'object' ||
+        obj.tokens === null
+      ) {
+        return null;
+      }
+      const tokens = obj.tokens as Record<string, unknown>;
+
+      if (
+        !('access_token' in tokens) ||
+        typeof tokens.access_token !== 'string'
       ) {
         return null;
       }
 
       if (
-        !credentials.clientConfig ||
-        typeof credentials.clientConfig !== 'object'
+        !('clientConfig' in obj) ||
+        typeof obj.clientConfig !== 'object' ||
+        obj.clientConfig === null
       ) {
         return null;
       }
+      const clientConfig = obj.clientConfig as Record<string, unknown>;
 
       if (
-        !credentials.clientConfig.clientId ||
-        typeof credentials.clientConfig.clientId !== 'string'
+        !('clientId' in clientConfig) ||
+        typeof clientConfig.clientId !== 'string'
       ) {
         return null;
       }
 
-      if (!credentials.storedAt || typeof credentials.storedAt !== 'number') {
+      if (!('storedAt' in obj) || typeof obj.storedAt !== 'number') {
         return null;
       }
 
@@ -720,8 +748,7 @@ export class TokenStorageService implements TokenStorage {
    * ```
    */
   private classifyFileCorruption(
-    error: Error | null,
-    data?: string
+    error: Error | null
   ): 'ENCRYPTION_CORRUPTION' | 'JSON_CORRUPTION' | 'STRUCTURE_CORRUPTION' {
     // Fast path: Check error type first (most specific to least specific)
     if (error) {
@@ -779,8 +806,7 @@ export class TokenStorageService implements TokenStorage {
    * ```
    */
   private classifyKeytarCorruption(
-    error: Error | null,
-    data?: string
+    error: Error | null
   ): 'JSON_CORRUPTION' | 'STRUCTURE_CORRUPTION' {
     // Fast path: Early return for JSON errors (most common corruption type)
     if (error?.constructor === SyntaxError) {
@@ -833,7 +859,7 @@ export class TokenStorageService implements TokenStorage {
     error: Error | null
   ): Promise<void> {
     // Lazy timestamp generation - only create when actually logging
-    const createTimestamp = () => Date.now();
+  const createTimestamp = (): number => Date.now();
 
     // Pre-compute common error message to avoid repeated null checks
     const errorMessage = error?.message || 'Structure validation failed';
@@ -923,7 +949,7 @@ export class TokenStorageService implements TokenStorage {
     corruptionType: 'JSON_CORRUPTION' | 'STRUCTURE_CORRUPTION'
   ): Promise<void> {
     // Lazy timestamp generation - only create when actually logging
-    const createTimestamp = () => Date.now();
+  const createTimestamp = (): number => Date.now();
 
     // Pre-build base log object to avoid duplication
     const baseLogData = {
@@ -974,43 +1000,51 @@ export class TokenStorageService implements TokenStorage {
    * @returns Array of missing field paths
    * @private
    */
-  private getMissingFields(credentials: any): string[] {
+  private getMissingFields(credentials: unknown): string[] {
     const missing: string[] = [];
 
     if (!credentials || typeof credentials !== 'object') {
       return ['credentials'];
     }
+    const obj = credentials as Record<string, unknown>;
 
-    if (!credentials.tokens || typeof credentials.tokens !== 'object') {
+    if (
+      !('tokens' in obj) ||
+      typeof obj.tokens !== 'object' ||
+      obj.tokens === null
+    ) {
       missing.push('tokens');
       // If tokens is missing entirely, we can't check sub-fields
       missing.push('tokens.access_token');
     } else {
+      const tokens = obj.tokens as Record<string, unknown>;
       if (
-        !credentials.tokens.access_token ||
-        typeof credentials.tokens.access_token !== 'string'
+        !('access_token' in tokens) ||
+        typeof tokens.access_token !== 'string'
       ) {
         missing.push('tokens.access_token');
       }
     }
 
     if (
-      !credentials.clientConfig ||
-      typeof credentials.clientConfig !== 'object'
+      !('clientConfig' in obj) ||
+      typeof obj.clientConfig !== 'object' ||
+      obj.clientConfig === null
     ) {
       missing.push('clientConfig');
       // If clientConfig is missing entirely, we can't check sub-fields
       missing.push('clientConfig.clientId');
     } else {
+      const clientConfig = obj.clientConfig as Record<string, unknown>;
       if (
-        !credentials.clientConfig.clientId ||
-        typeof credentials.clientConfig.clientId !== 'string'
+        !('clientId' in clientConfig) ||
+        typeof clientConfig.clientId !== 'string'
       ) {
         missing.push('clientConfig.clientId');
       }
     }
 
-    if (!credentials.storedAt || typeof credentials.storedAt !== 'number') {
+    if (!('storedAt' in obj) || typeof obj.storedAt !== 'number') {
       missing.push('storedAt');
     }
 

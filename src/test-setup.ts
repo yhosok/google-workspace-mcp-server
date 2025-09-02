@@ -17,6 +17,9 @@ process.env.DEBUG = 'false';
 process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH = '/mock/service-account.json';
 process.env.GOOGLE_DRIVE_FOLDER_ID = 'mock-folder-id';
 
+// Disable keytar in test environment to avoid native dependency (libsecret) issues in CI
+process.env.DISABLE_KEYTAR = '1';
+
 // Set fast retry configuration for tests (but preserve default timeout values)
 process.env.GOOGLE_RETRY_MAX_ATTEMPTS = '2';
 process.env.GOOGLE_RETRY_BASE_DELAY = '10';
@@ -39,20 +42,11 @@ logger.updateConfig({
   // outputFn: () => {} // Uncomment this line to completely silence all logs
 });
 
-// Store original console methods to suppress console output during tests
-const originalConsole = {
-  debug: console.debug,
-  info: console.info,
-  warn: console.warn,
-  error: console.error,
-  log: console.log,
-};
-
-// Suppress console output during tests (except for errors)
+// Suppress console output during tests (except for errors/log)
 // This prevents Jest from showing console output unless it's an actual error
-console.debug = () => {};
-console.info = () => {};
-console.warn = () => {};
+console.debug = (): void => {};
+console.info = (): void => {};
+console.warn = (): void => {};
 // Keep console.error and console.log for actual test failures and important messages
 // console.error = () => {};
 // console.log = () => {};
