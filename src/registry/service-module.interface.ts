@@ -65,6 +65,7 @@ export interface ServiceModuleHealthStatus {
     toolsRegistered: number;
     resourcesRegistered: number;
     initializationTime?: number;
+    accessControlEnabled?: boolean;
   };
 }
 

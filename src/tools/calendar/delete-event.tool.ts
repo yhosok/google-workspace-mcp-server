@@ -100,13 +100,21 @@ export class DeleteEventTool extends BaseCalendarTools<
     args: DeleteEventInput,
     context?: ToolExecutionContext
   ): Promise<Result<CalendarDeleteEventResult, GoogleWorkspaceError>> {
+    const requestId = context?.requestId || this.generateRequestId();
+    
     this.logger.info('Executing delete event tool', {
       calendarId: args.calendarId,
       eventId: args.eventId,
       sendUpdates: args.sendUpdates,
+      requestId,
     });
 
     try {
+      // Validate access control for write operations
+      const accessResult = await this.validateAccessControl(args, requestId);
+      if (accessResult.isErr()) {
+        return err(accessResult.error);
+      }
       // Validate calendar ID
       const calendarIdResult = this.validateCalendarId(args.calendarId);
       if (calendarIdResult.isErr()) {

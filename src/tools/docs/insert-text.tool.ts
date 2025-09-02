@@ -230,6 +230,12 @@ export class InsertTextTool extends BaseDocsTools<
         return err(authResult.error);
       }
 
+      // Validate access control for write operations
+      const accessResult = await this.validateAccessControl(validatedParams, requestId);
+      if (accessResult.isErr()) {
+        return err(accessResult.error);
+      }
+
       // Document ID validation using BaseDocsTools method - trim whitespace
       const trimmedDocumentId = validatedParams.documentId.trim();
       const docIdResult = this.documentIdValidation(trimmedDocumentId);

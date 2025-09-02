@@ -14,6 +14,12 @@ export interface EnvironmentConfig {
   GOOGLE_OAUTH_SCOPES?: string;
   GOOGLE_OAUTH_PORT?: number;
 
+  // Access Control Configuration
+  GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER?: boolean;
+  GOOGLE_ALLOWED_WRITE_SERVICES?: string[];
+  GOOGLE_ALLOWED_WRITE_TOOLS?: string[];
+  GOOGLE_READ_ONLY_MODE?: boolean;
+
   // Retry Configuration
   GOOGLE_RETRY_MAX_ATTEMPTS?: number;
   GOOGLE_RETRY_BASE_DELAY?: number;
@@ -512,4 +518,21 @@ export interface DocsReplaceTextResult {
   replaceText: string;
   occurrencesChanged: number;
   matchCase: boolean;
+}
+
+// Access Control related types
+export interface AccessControlContext {
+  operation: 'read' | 'write';
+  toolName: string;
+  serviceName: string;
+  folderIds: string[];
+  params: Record<string, unknown>;
+}
+
+export interface AccessControlConfig {
+  allowWritesOutsideFolder: boolean;
+  allowedWriteServices: string[];
+  allowedWriteTools: string[];
+  readOnlyMode: boolean;
+  driveFolderId?: string;
 }

@@ -1,12 +1,14 @@
 import { ToolRegistry } from '../base/tool-registry.js';
 import type { AuthService } from '../../services/auth.service.js';
 import type { DriveService } from '../../services/drive.service.js';
+import type { AccessControlService } from '../../services/access-control.service.js';
 import {
   GoogleDriveError,
   GoogleDriveNotFoundError,
   GoogleDrivePermissionError,
   GoogleAuthError,
   GoogleWorkspaceError,
+  GoogleAccessControlError,
 } from '../../errors/index.js';
 import { Logger } from '../../utils/logger.js';
 import { Result, ok, err } from 'neverthrow';
@@ -90,7 +92,8 @@ export abstract class BaseDriveTool<
   constructor(
     protected driveService: DriveService,
     protected authService: AuthService,
-    logger?: Logger
+    logger?: Logger,
+    protected accessControlService?: AccessControlService
   ) {
     super(logger);
   }
@@ -370,7 +373,7 @@ export abstract class BaseDriveTool<
    * });
    * ```
    */
-  protected static createCommonSchemas() {
+  public static createCommonSchemas() {
     return {
       fileId: z
         .string({
@@ -440,5 +443,196 @@ export abstract class BaseDriveTool<
         .max(1024 * 1024 * 1024, 'Maximum file size too large (max 1GB)')
         .optional(),
     };
+  }
+
+  /**
+   * Validates access control for the current operation.
+   * This method integrates with the AccessControlService to enforce
+   * security policies including read-only mode, folder restrictions,
+   * service restrictions, and tool-specific access controls.
+   *
+   * @param params - The parameters being passed to the tool
+   * @param requestId - The request ID for tracking and logging
+   * @returns Result indicating whether access is allowed
+   */
+  protected async validateAccessControl(
+    params: unknown,
+    requestId: string
+  ): Promise<Result<void, GoogleWorkspaceError>> {
+    // If no access control service is configured, allow the operation
+    if (!this.accessControlService) {
+      return ok(undefined);
+    }
+
+    try {
+      // Determine operation type based on tool name
+      const isWrite = this.isWriteOperation(this.getToolName());
+      const operation = isWrite ? ('write' as const) : ('read' as const);
+
+      // Extract folder IDs from parameters for folder-based access control
+      const folderIds = this.getRequiredFolderIds(params);
+      const targetFolderId = folderIds.length > 0 ? folderIds[0] : undefined;
+
+      // Prepare access control request
+      const accessControlRequest = {
+        operation,
+        serviceName: 'drive',
+        resourceType: 'file',
+        toolName: this.getToolName(),
+        targetFolderId,
+        requestId,
+      };
+
+      // Validate access using the access control service
+      const validationResult = await this.accessControlService.validateAccess(accessControlRequest);
+
+      if (validationResult.isErr()) {
+        // Convert access control errors to appropriate error types for the tool
+        return err(validationResult.error);
+      }
+
+      return ok(undefined);
+    } catch (error) {
+      // Handle unexpected errors during access control validation
+      const accessError = new GoogleAccessControlError(
+        error instanceof Error ? error.message : 'Access control validation failed',
+        'general',
+        'GOOGLE_ACCESS_CONTROL_ERROR',
+        500,
+        undefined,
+        { requestId, toolName: this.getToolName() },
+        error instanceof Error ? error : undefined
+      );
+
+      this.logger.error('Access control validation failed', {
+        error: accessError.toJSON(),
+        requestId,
+        toolName: this.getToolName(),
+      });
+
+      return err(accessError);
+    }
+  }
+
+  /**
+   * Determines whether the given tool name represents a write operation.
+   * This method classifies Drive operations as either read or write based
+   * on the tool name patterns used in the Google Workspace MCP server.
+   *
+   * **Classification Logic:**
+   * - Read operations: list, get, read, download, content
+   * - Write operations: create, update, upload, delete, move, copy
+   *
+   * @param toolName - The name of the tool to classify
+   * @returns true if the tool performs write operations, false for read operations
+   */
+  protected isWriteOperation(toolName: string): boolean {
+    // Normalize tool name for consistent comparison
+    const normalizedName = toolName.toLowerCase();
+
+    // Define read operation patterns for Drive
+    const readPatterns = [
+      'list',
+      'get',
+      'read',
+      'download',
+      'content',
+      'view',
+      'search',
+    ];
+
+    // Define write operation patterns for Drive
+    const writePatterns = [
+      'create',
+      'update',
+      'upload',
+      'delete',
+      'move',
+      'copy',
+      'modify',
+      'edit',
+      'write',
+      'set',
+      'add',
+    ];
+
+    // Check for read patterns first
+    if (readPatterns.some(pattern => normalizedName.includes(pattern))) {
+      return false;
+    }
+
+    // Check for write patterns
+    if (writePatterns.some(pattern => normalizedName.includes(pattern))) {
+      return true;
+    }
+
+    // Default behavior for unknown patterns - treat as read operation for safety
+    // This ensures that access control errs on the side of allowing rather than blocking
+    return false;
+  }
+
+  /**
+   * Extracts folder IDs from tool parameters for folder-based access control.
+   * This method analyzes the parameters passed to Drive tools and identifies
+   * any folder IDs that should be validated against folder-based access restrictions.
+   *
+   * **Parameter Analysis:**
+   * - Looks for 'folderId' field in parameters
+   * - Looks for 'parentFolderId' field in parameters  
+   * - Examines file metadata for folder references
+   * - Returns array of all relevant folder IDs
+   *
+   * @param params - The tool parameters to analyze
+   * @returns Array of folder IDs that require access validation
+   */
+  protected getRequiredFolderIds(params: unknown): string[] {
+    const folderIds: string[] = [];
+
+    if (!params || typeof params !== 'object') {
+      return folderIds;
+    }
+
+    const paramsObj = params as Record<string, unknown>;
+
+    // Check for direct folderId parameter (common in list operations)
+    if (typeof paramsObj.folderId === 'string' && paramsObj.folderId.trim()) {
+      folderIds.push(paramsObj.folderId.trim());
+    }
+
+    // Check for parentFolderId parameter (common in create/move operations)
+    if (typeof paramsObj.parentFolderId === 'string' && paramsObj.parentFolderId.trim()) {
+      folderIds.push(paramsObj.parentFolderId.trim());
+    }
+
+    // Check for parents array (Drive API format)
+    if (Array.isArray(paramsObj.parents)) {
+      paramsObj.parents.forEach(parent => {
+        if (typeof parent === 'string' && parent.trim()) {
+          folderIds.push(parent.trim());
+        }
+      });
+    }
+
+    // Check for nested folder references in metadata objects
+    if (paramsObj.metadata && typeof paramsObj.metadata === 'object') {
+      const metadata = paramsObj.metadata as Record<string, unknown>;
+      if (typeof metadata.folderId === 'string' && metadata.folderId.trim()) {
+        folderIds.push(metadata.folderId.trim());
+      }
+    }
+
+    // Check for file object with parent folder information
+    if (paramsObj.file && typeof paramsObj.file === 'object') {
+      const file = paramsObj.file as Record<string, unknown>;
+      if (Array.isArray(file.parents)) {
+        file.parents.forEach(parent => {
+          if (typeof parent === 'string' && parent.trim()) {
+            folderIds.push(parent.trim());
+          }
+        });
+      }
+    }
+
+    return folderIds;
   }
 }

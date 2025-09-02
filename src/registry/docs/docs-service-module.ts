@@ -26,11 +26,13 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ToolRegistry } from '../../tools/base/tool-registry.js';
 import { DocsService } from '../../services/docs.service.js';
 import { DriveService } from '../../services/drive.service.js';
+import { AccessControlService } from '../../services/access-control.service.js';
 import {
   GoogleServiceError,
   GoogleWorkspaceError,
 } from '../../errors/index.js';
 import { createServiceLogger, type Logger } from '../../utils/logger.js';
+import type { EnvironmentConfig } from '../../types/index.js';
 
 // Import all Docs tools
 import {
@@ -64,13 +66,17 @@ export class DocsServiceModule implements ServiceModule {
 
   private docsService?: DocsService;
   private driveService?: DriveService;
+  private accessControlService?: AccessControlService;
   private tools: ToolRegistry[] = [];
   private logger: Logger;
   private initialized = false;
   private initializationStartTime?: number;
   private initializationTime?: number;
 
-  constructor(logger?: Logger) {
+  constructor(
+    private readonly config?: EnvironmentConfig,
+    logger?: Logger
+  ) {
     this.logger = logger || createServiceLogger('docs-service-module');
   }
 
@@ -101,6 +107,29 @@ export class DocsServiceModule implements ServiceModule {
         this.driveService = undefined;
       }
 
+      // Initialize AccessControlService if configuration is provided
+      if (this.config) {
+        const authClient = await authService.getAuthClient();
+        if (authClient.isOk()) {
+          this.accessControlService = new AccessControlService(
+            this.config,
+            authClient.value,
+            this.logger
+          );
+          
+          const accessControlInitResult = await this.accessControlService.initialize();
+          if (accessControlInitResult.isErr()) {
+            this.logger.warn('Failed to initialize AccessControlService', {
+              error: accessControlInitResult.error.toJSON(),
+            });
+            // Continue without AccessControlService - this maintains backward compatibility
+            this.accessControlService = undefined;
+          }
+        } else {
+          this.logger.warn('Failed to get auth client for AccessControlService');
+        }
+      }
+
       // Initialize Docs service (with optional DriveService)
       this.docsService = new DocsService(authService, this.driveService);
       const initResult = await this.docsService.initialize();
@@ -120,13 +149,13 @@ export class DocsServiceModule implements ServiceModule {
         );
       }
 
-      // Create tool instances
+      // Create tool instances with optional AccessControlService
       this.tools = [
-        new CreateDocumentTool(this.docsService, authService),
-        new GetDocumentTool(this.docsService, authService),
-        new UpdateDocumentTool(this.docsService, authService),
-        new InsertTextTool(this.docsService, authService),
-        new ReplaceTextTool(this.docsService, authService),
+        new CreateDocumentTool(this.docsService, authService, undefined, this.accessControlService),
+        new GetDocumentTool(this.docsService, authService, undefined, this.accessControlService),
+        new UpdateDocumentTool(this.docsService, authService, undefined, this.accessControlService),
+        new InsertTextTool(this.docsService, authService, undefined, this.accessControlService),
+        new ReplaceTextTool(this.docsService, authService, undefined, this.accessControlService),
       ];
 
       this.initialized = true;
@@ -136,6 +165,7 @@ export class DocsServiceModule implements ServiceModule {
         initializationTime: this.initializationTime,
         toolsCreated: this.tools.length,
         driveServiceAvailable: !!this.driveService,
+        accessControlEnabled: !!this.accessControlService,
       });
 
       return ok(undefined);
@@ -303,6 +333,7 @@ export class DocsServiceModule implements ServiceModule {
       // Reset services
       this.docsService = undefined;
       this.driveService = undefined;
+      this.accessControlService = undefined;
 
       // Reset state
       this.initialized = false;
@@ -351,6 +382,7 @@ export class DocsServiceModule implements ServiceModule {
         toolsRegistered: this.tools.length,
         resourcesRegistered: 0, // No resources implemented yet
         initializationTime: this.initializationTime,
+        accessControlEnabled: !!this.accessControlService,
       },
     };
   }
@@ -374,5 +406,12 @@ export class DocsServiceModule implements ServiceModule {
    */
   public getTools(): ToolRegistry[] {
     return [...this.tools];
+  }
+
+  /**
+   * Get the AccessControlService instance (for testing purposes)
+   */
+  public getAccessControlService(): AccessControlService | undefined {
+    return this.accessControlService;
   }
 }

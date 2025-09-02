@@ -1074,6 +1074,13 @@ export const driveOk = <T>(value: T): GoogleDriveResult<T> => new Ok(value);
 export const driveErr = (error: GoogleDriveError): GoogleDriveResult<never> =>
   new Err(error);
 
+export const accessControlOk = <T>(
+  value: T
+): Result<T, GoogleAccessControlError> => new Ok(value);
+export const accessControlErr = (
+  error: GoogleAccessControlError
+): Result<never, GoogleAccessControlError> => new Err(error);
+
 /**
  * Error factory functions for common error scenarios
  *
@@ -2171,5 +2178,148 @@ export class GoogleErrorFactory {
       enrichedContext,
       cause
     );
+  }
+}
+
+/**
+ * Access Control Errors
+ *
+ * These errors are thrown when access control restrictions prevent operations
+ * from being executed. They provide detailed context about which restriction
+ * triggered the denial and guidance for resolution.
+ */
+export class GoogleAccessControlError extends GoogleWorkspaceError {
+  public readonly restriction:
+    | 'folder'
+    | 'tool'
+    | 'service'
+    | 'read-only'
+    | 'general';
+  public readonly allowedValues?: string[];
+
+  constructor(
+    message: string,
+    restriction: 'folder' | 'tool' | 'service' | 'read-only' | 'general',
+    code: string = 'GOOGLE_ACCESS_CONTROL_ERROR',
+    statusCode: number = 403,
+    allowedValues?: string[],
+    context?: Record<string, unknown>,
+    cause?: Error
+  ) {
+    super(
+      message,
+      code,
+      statusCode,
+      { restriction, allowedValues, ...context },
+      cause
+    );
+    this.restriction = restriction;
+    this.allowedValues = allowedValues;
+  }
+
+  public isRetryable(): boolean {
+    return false; // Access control errors require configuration changes
+  }
+
+  public override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      restriction: this.restriction,
+      allowedValues: this.allowedValues,
+    };
+  }
+}
+
+/**
+ * Folder-based access control error
+ */
+export class GoogleAccessControlFolderError extends GoogleAccessControlError {
+  public readonly targetFolderId: string;
+  public readonly allowedFolderId?: string;
+
+  constructor(
+    targetFolderId: string,
+    allowedFolderId?: string,
+    context?: Record<string, unknown>
+  ) {
+    const message = allowedFolderId
+      ? `Write operation blocked: target folder '${targetFolderId}' is outside allowed folder '${allowedFolderId}'`
+      : `Write operation blocked: folder-based access control is enabled but no target folder specified`;
+
+    super(
+      message,
+      'folder',
+      'GOOGLE_ACCESS_CONTROL_FOLDER_RESTRICTED',
+      403,
+      allowedFolderId ? [allowedFolderId] : undefined,
+      { targetFolderId, allowedFolderId, ...context }
+    );
+    this.targetFolderId = targetFolderId;
+    this.allowedFolderId = allowedFolderId;
+  }
+}
+
+/**
+ * Tool-based access control error
+ */
+export class GoogleAccessControlToolError extends GoogleAccessControlError {
+  public readonly toolName: string;
+
+  constructor(
+    toolName: string,
+    allowedTools: string[],
+    context?: Record<string, unknown>
+  ) {
+    super(
+      `Write operation blocked: tool '${toolName}' is not in the allowed tools list`,
+      'tool',
+      'GOOGLE_ACCESS_CONTROL_TOOL_RESTRICTED',
+      403,
+      allowedTools,
+      { toolName, ...context }
+    );
+    this.toolName = toolName;
+  }
+}
+
+/**
+ * Service-based access control error
+ */
+export class GoogleAccessControlServiceError extends GoogleAccessControlError {
+  public readonly serviceName: string;
+
+  constructor(
+    serviceName: string,
+    allowedServices: string[],
+    context?: Record<string, unknown>
+  ) {
+    super(
+      `Write operation blocked: service '${serviceName}' is not in the allowed services list`,
+      'service',
+      'GOOGLE_ACCESS_CONTROL_SERVICE_RESTRICTED',
+      403,
+      allowedServices,
+      { serviceName, ...context }
+    );
+    this.serviceName = serviceName;
+  }
+}
+
+/**
+ * Read-only mode access control error
+ */
+export class GoogleAccessControlReadOnlyError extends GoogleAccessControlError {
+  public readonly operation: string;
+
+  constructor(operation: string, context?: Record<string, unknown>) {
+    super(
+      `Write operation '${operation}' blocked: server is in read-only mode`,
+      'read-only',
+      'GOOGLE_ACCESS_CONTROL_READ_ONLY_MODE',
+      403,
+      ['read'],
+      { operation, ...context }
+    );
+    this.operation = operation;
   }
 }

@@ -106,12 +106,20 @@ export class QuickAddTool extends BaseCalendarTools<
     args: QuickAddInput,
     context?: ToolExecutionContext
   ): Promise<Result<CalendarQuickAddResult, GoogleWorkspaceError>> {
+    const requestId = context?.requestId || this.generateRequestId();
+    
     this.logger.info('Executing quick add tool', {
       calendarId: args.calendarId,
       text: args.text,
+      requestId,
     });
 
     try {
+      // Validate access control for write operations
+      const accessResult = await this.validateAccessControl(args, requestId);
+      if (accessResult.isErr()) {
+        return err(accessResult.error);
+      }
       // Validate calendar ID
       const calendarIdResult = this.validateCalendarId(args.calendarId);
       if (calendarIdResult.isErr()) {

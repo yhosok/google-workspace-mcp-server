@@ -7,6 +7,7 @@ import type {
 } from '../base/tool-registry.js';
 import type { SheetsService } from '../../services/sheets.service.js';
 import type { AuthService } from '../../services/auth.service.js';
+import type { AccessControlService } from '../../services/access-control.service.js';
 import type { SheetsReadResult, MCPToolResult } from '../../types/index.js';
 import {
   GoogleWorkspaceError,
@@ -29,9 +30,10 @@ export class SheetsReadTool extends BaseSheetsTools<
   constructor(
     sheetsService: SheetsService,
     authService: AuthService,
-    logger?: Logger
+    logger?: Logger,
+    accessControlService?: AccessControlService
   ) {
-    super(sheetsService, authService, logger);
+    super(sheetsService, authService, logger, accessControlService);
   }
 
   public getToolName(): string {

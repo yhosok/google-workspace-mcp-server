@@ -40,28 +40,28 @@ async function initializeServices(): Promise<void> {
   serviceRegistry = new ServiceRegistry();
 
   // Drive サービスモジュールの登録 (Sheets の依存関係として先に登録)
-  const driveModule = new DriveServiceModule();
+  const driveModule = new DriveServiceModule(config);
   const driveRegisterResult = serviceRegistry.registerModule(driveModule);
   if (driveRegisterResult.isErr()) {
     throw driveRegisterResult.error;
   }
 
   // Sheets サービスモジュールの登録
-  const sheetsModule = new SheetsServiceModule();
+  const sheetsModule = new SheetsServiceModule(config);
   const registerResult = serviceRegistry.registerModule(sheetsModule);
   if (registerResult.isErr()) {
     throw registerResult.error;
   }
 
   // Calendar サービスモジュールの登録
-  const calendarModule = new CalendarServiceModule();
+  const calendarModule = new CalendarServiceModule(config);
   const calendarRegisterResult = serviceRegistry.registerModule(calendarModule);
   if (calendarRegisterResult.isErr()) {
     throw calendarRegisterResult.error;
   }
 
   // Docs サービスモジュールの登録 (Drive サービスに依存、オプション)
-  const docsModule = new DocsServiceModule();
+  const docsModule = new DocsServiceModule(config);
   const docsRegisterResult = serviceRegistry.registerModule(docsModule);
   if (docsRegisterResult.isErr()) {
     throw docsRegisterResult.error;
