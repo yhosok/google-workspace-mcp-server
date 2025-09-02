@@ -20,6 +20,7 @@ This MCP server implements the [Model Context Protocol](https://modelcontextprot
 - **Folder-Based Organization**: Optional GOOGLE_DRIVE_FOLDER_ID for organized file management
 - **Extensible Architecture**: Plugin-based design for easy addition of new Google services
 - **Type-Safe Implementation**: Built with TypeScript for reliability and maintainability
+- **Access Control System**: Flexible permission management for write operations with folder, service, and tool-level restrictions
 - **Comprehensive Testing**: Over 785 unit and integration tests with 100% pass rate
 - **Production-Ready Error Handling**: Comprehensive error classification and recovery
 
@@ -175,6 +176,8 @@ When you first run the server with OAuth2:
 
 Create a `.env` file in the project root (use `.env.example` as template).
 
+> **🛡️ SECURE BY DEFAULT**: The server defaults to read-only mode (`GOOGLE_READ_ONLY_MODE=true`) for enhanced security. You must explicitly set `GOOGLE_READ_ONLY_MODE=false` to enable write operations. This secure-by-default configuration ensures maximum data protection.
+
 ### Service Account Configuration
 
 For Service Account authentication:
@@ -222,6 +225,68 @@ GOOGLE_REQUEST_TIMEOUT=30000
 GOOGLE_TOTAL_TIMEOUT=120000
 ```
 
+### Access Control Configuration
+
+The server supports comprehensive access control to restrict write operations for enhanced security and organization. The server defaults to read-only mode (`GOOGLE_READ_ONLY_MODE=true`) for maximum security. Users must explicitly opt-in to write operations.
+
+```env
+# Folder-based write restrictions
+# When GOOGLE_DRIVE_FOLDER_ID is set, restrict writes to that folder only
+GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER=false  # Default: true (unrestricted)
+
+# Service-level write permissions (comma-separated)
+# Only allow write operations for specified services
+GOOGLE_ALLOWED_WRITE_SERVICES=sheets,docs  # Allow: sheets, docs, calendar, drive
+
+# Tool-specific write permissions (comma-separated)
+# Only allow specific write tools to execute
+GOOGLE_ALLOWED_WRITE_TOOLS=google-workspace__sheets-write,google-workspace__sheets-append
+
+# Global read-only mode (SECURE BY DEFAULT)
+# Must be explicitly set to false to enable write operations
+GOOGLE_READ_ONLY_MODE=true  # Default: true (secure by default - read-only)
+```
+
+#### Access Control Modes
+
+**Folder-based Restrictions:**
+```env
+# Restrict all file modifications to the specified folder
+GOOGLE_DRIVE_FOLDER_ID=your-folder-id
+GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER=false
+```
+
+**Service-level Restrictions:**
+```env
+# Only allow Sheets and Docs write operations
+GOOGLE_ALLOWED_WRITE_SERVICES=sheets,docs
+```
+
+**Tool-specific Restrictions:**
+```env
+# Only allow specific write operations
+GOOGLE_ALLOWED_WRITE_TOOLS=google-workspace__sheets-write,google-workspace__docs-create-document
+```
+
+**Global Read-only Mode (Default Behavior):**
+```env
+# Default secure behavior - all write operations disabled
+GOOGLE_READ_ONLY_MODE=true  # Default configuration for maximum security
+```
+
+**Enabling Write Operations:**
+```env
+# Explicitly enable write operations
+GOOGLE_READ_ONLY_MODE=false
+```
+
+**Unrestricted Write Access:**
+```env
+# Disable read-only mode to enable write operations
+GOOGLE_READ_ONLY_MODE=false
+# Additional write controls can then be applied as needed
+```
+
 ## Usage
 
 ### Starting the Server
@@ -250,12 +315,15 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
       "args": ["/path/to/google-workspace-mcp-server/dist/index.js"],
       "env": {
         "GOOGLE_AUTH_MODE": "service-account",
-        "GOOGLE_SERVICE_ACCOUNT_KEY_PATH": "/path/to/your/service-account-key.json"
+        "GOOGLE_SERVICE_ACCOUNT_KEY_PATH": "/path/to/your/service-account-key.json",
+        "GOOGLE_READ_ONLY_MODE": "false"
       }
     }
   }
 }
 ```
+
+> **Note**: The `GOOGLE_READ_ONLY_MODE: "false"` is required to enable write operations (secure by default configuration).
 
 #### For OAuth2 Authentication
 
@@ -272,12 +340,15 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
         "GOOGLE_OAUTH_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
         "GOOGLE_OAUTH_CLIENT_SECRET": "your-client-secret",
         "GOOGLE_OAUTH_REDIRECT_URI": "http://localhost:3000/oauth2callback",
-        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file"
+        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file",
+        "GOOGLE_READ_ONLY_MODE": "false"
       }
     }
   }
 }
 ```
+
+> **Note**: The `GOOGLE_READ_ONLY_MODE: "false"` is required to enable write operations (secure by default configuration).
 
 ## Available Tools
 
@@ -377,7 +448,7 @@ The server supports optional folder placement for new spreadsheets through the `
 
 - **Organization**: Keep spreadsheets organized in specific folders
 - **Performance**: Direct folder creation instead of create-then-move
-- **Backward Compatibility**: Existing users experience no changes
+- **Optional Configuration**: Users without folder configuration use the default behavior (root placement)
 - **Flexibility**: Per-environment folder configuration
 
 ### Usage Examples
@@ -747,6 +818,26 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **"Browser doesn't open automatically"**
 - Copy the authorization URL from the console and open manually
 - Check if `open` command is available on your system
+
+#### Access Control Issues
+
+**"Operation blocked by access control"**
+- Check your access control configuration settings
+- Verify that the required service is allowed in `GOOGLE_ALLOWED_WRITE_SERVICES`
+- Ensure the specific tool is permitted in `GOOGLE_ALLOWED_WRITE_TOOLS`
+- Confirm you have explicitly enabled write operations (`GOOGLE_READ_ONLY_MODE=false`) - the server defaults to read-only for security
+
+**"Folder access denied"**
+- When `GOOGLE_DRIVE_FOLDER_ID` is set with `GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER=false`
+- Ensure you're trying to modify files within the allowed folder
+- Verify the folder ID is correct and the service account has access to it
+- Check that the file you're trying to modify is actually in the specified folder
+
+**"Write operation not permitted"**
+- Verify `GOOGLE_READ_ONLY_MODE` is explicitly set to `false` (default is `true` for security)
+- Check that the service (sheets, docs, calendar, drive) is included in `GOOGLE_ALLOWED_WRITE_SERVICES`
+- Ensure the specific tool name is listed in `GOOGLE_ALLOWED_WRITE_TOOLS` if using tool-level restrictions
+- Confirm your authentication has the necessary scopes for write operations
 - Verify no firewall is blocking localhost connections
 
 **"Refresh token expired"**

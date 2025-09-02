@@ -640,8 +640,9 @@ export class AccessControlService extends GoogleService {
       return googleOk(undefined);
     }
 
-    // If read-only mode is not enabled, allow operation
-    if (this.config.GOOGLE_READ_ONLY_MODE !== true) {
+    // If read-only mode is explicitly disabled, allow operation
+    // Note: undefined now defaults to true (secure by default)
+    if (this.config.GOOGLE_READ_ONLY_MODE === false) {
       return googleOk(undefined);
     }
 
@@ -659,7 +660,7 @@ export class AccessControlService extends GoogleService {
    */
   public getAccessControlSummary(): AccessControlSummary {
     const summary: AccessControlSummary = {
-      readOnlyMode: this.config.GOOGLE_READ_ONLY_MODE === true,
+      readOnlyMode: this.config.GOOGLE_READ_ONLY_MODE !== false, // Default to true if undefined
       hasRestrictions: false,
     };
 

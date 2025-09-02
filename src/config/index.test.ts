@@ -573,12 +573,12 @@ describe('Config Loading', () => {
         );
       });
 
-      it('should be undefined when not provided', () => {
+      it('should default to true when not provided (secure by default)', () => {
         delete process.env.GOOGLE_READ_ONLY_MODE;
 
         const config = loadConfig();
 
-        expect(config.GOOGLE_READ_ONLY_MODE).toBeUndefined();
+        expect(config.GOOGLE_READ_ONLY_MODE).toBe(true);
       });
     });
 
@@ -637,6 +637,7 @@ describe('Config Loading', () => {
 
       it('should not warn when folder restrictions are disabled', () => {
         process.env.GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER = 'true';
+        process.env.GOOGLE_READ_ONLY_MODE = 'false'; // Must explicitly disable read-only mode
         delete process.env.GOOGLE_DRIVE_FOLDER_ID;
 
         loadConfig();
@@ -837,7 +838,7 @@ describe('Config Loading', () => {
       expect(config.GOOGLE_RETRY_MAX_ATTEMPTS).toBeUndefined();
     });
 
-    it('should leave access control fields as undefined when not provided', () => {
+    it('should leave optional access control fields as undefined when not provided', () => {
       process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH =
         '/path/to/service-account.json';
       delete process.env.GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER;
@@ -850,7 +851,8 @@ describe('Config Loading', () => {
       expect(config.GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER).toBeUndefined();
       expect(config.GOOGLE_ALLOWED_WRITE_SERVICES).toBeUndefined();
       expect(config.GOOGLE_ALLOWED_WRITE_TOOLS).toBeUndefined();
-      expect(config.GOOGLE_READ_ONLY_MODE).toBeUndefined();
+      // GOOGLE_READ_ONLY_MODE now has a secure default of true
+      expect(config.GOOGLE_READ_ONLY_MODE).toBe(true);
     });
   });
 });

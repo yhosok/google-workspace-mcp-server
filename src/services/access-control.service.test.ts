@@ -549,8 +549,21 @@ describe('AccessControlService', () => {
         }
       });
 
-      it('should allow all operations when read-only mode is not configured', async () => {
+      it('should block all operations when read-only mode is not configured (secure default)', async () => {
         mockConfig.GOOGLE_READ_ONLY_MODE = undefined;
+
+        const service = new AccessControlService(mockConfig);
+        const result = await service.validateReadOnlyMode({
+          operation: 'write',
+          serviceName: 'sheets',
+          resourceType: 'spreadsheet',
+        });
+
+        expect(result.isOk()).toBe(false); // Now defaults to blocking writes
+      });
+
+      it('should allow all operations when read-only mode is explicitly disabled', async () => {
+        mockConfig.GOOGLE_READ_ONLY_MODE = false;
 
         const service = new AccessControlService(mockConfig);
         const result = await service.validateReadOnlyMode({
@@ -655,9 +668,9 @@ describe('AccessControlService', () => {
       it('should handle partial configuration gracefully', async () => {
         // Only some restrictions configured
         mockConfig.GOOGLE_ALLOWED_WRITE_SERVICES = ['sheets'];
-        // Other restrictions undefined
+        // Other restrictions undefined or explicitly set to allow writes
         mockConfig.GOOGLE_ALLOWED_WRITE_TOOLS = undefined;
-        mockConfig.GOOGLE_READ_ONLY_MODE = undefined;
+        mockConfig.GOOGLE_READ_ONLY_MODE = false; // Must explicitly disable read-only mode
 
         const service = new AccessControlService(mockConfig);
 
@@ -739,6 +752,7 @@ describe('AccessControlService', () => {
       mockConfig.GOOGLE_DRIVE_FOLDER_ID = '';
       mockConfig.GOOGLE_ALLOWED_WRITE_SERVICES = [];
       mockConfig.GOOGLE_ALLOWED_WRITE_TOOLS = [];
+      mockConfig.GOOGLE_READ_ONLY_MODE = false; // Must explicitly disable read-only mode
 
       const service = new AccessControlService(mockConfig);
       const result = await service.validateAccess({

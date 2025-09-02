@@ -69,9 +69,10 @@ const envSchema = z
       data.GOOGLE_ALLOWED_WRITE_TOOLS,
       'GOOGLE_ALLOWED_WRITE_TOOLS'
     ),
-    GOOGLE_READ_ONLY_MODE: parseBooleanEnvVar(
+    GOOGLE_READ_ONLY_MODE: parseBooleanEnvVarWithDefault(
       data.GOOGLE_READ_ONLY_MODE,
-      'GOOGLE_READ_ONLY_MODE'
+      'GOOGLE_READ_ONLY_MODE',
+      true
     ),
 
     // Retry Configuration
@@ -213,6 +214,29 @@ function parseBooleanEnvVar(
   name: string
 ): boolean | undefined {
   if (!value) return undefined;
+
+  const lowerValue = value.toLowerCase();
+  if (lowerValue === 'true' || lowerValue === '1') return true;
+  if (lowerValue === 'false' || lowerValue === '0') return false;
+
+  throw new Error(
+    `${name} must be 'true', 'false', '1', or '0', got: ${value}`
+  );
+}
+
+/**
+ * Helper function to parse boolean environment variables with a default value.
+ * @param value - The environment variable value
+ * @param name - The environment variable name for error reporting
+ * @param defaultValue - The default value when the environment variable is not set
+ * @returns Parsed boolean or default value
+ */
+function parseBooleanEnvVarWithDefault(
+  value: string | undefined,
+  name: string,
+  defaultValue: boolean
+): boolean {
+  if (!value) return defaultValue;
 
   const lowerValue = value.toLowerCase();
   if (lowerValue === 'true' || lowerValue === '1') return true;
