@@ -36,7 +36,7 @@ describe('SheetsAppendTool', () => {
 
   describe('getToolName', () => {
     test('should return correct tool name', () => {
-      expect(tool.getToolName()).toBe('sheets-append');
+      expect(tool.getToolName()).toBe('google-workspace__sheets__append-rows');
     });
   });
 

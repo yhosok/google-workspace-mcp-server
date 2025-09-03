@@ -38,11 +38,11 @@ export class SheetsWriteTool extends BaseSheetsTools<
   }
 
   public getToolName(): string {
-    return 'sheets-write';
+    return 'google-workspace__sheets__write-range';
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('sheets-write');
+    return SchemaFactory.createToolMetadata('google-workspace__sheets__write-range');
   }
 
   public async executeImpl(
@@ -60,7 +60,7 @@ export class SheetsWriteTool extends BaseSheetsTools<
 
     // Parameter validation
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema('sheets-write'),
+      SchemaFactory.createToolInputSchema('google-workspace__sheets__write-range'),
       params,
       { operation: 'write-sheets', requestId }
     );
@@ -134,7 +134,7 @@ export class SheetsWriteTool extends BaseSheetsTools<
         error instanceof Error ? error : new Error(String(error)),
         validatedParams.spreadsheetId,
         validatedParams.range,
-        { operation: 'sheets-write', requestId }
+        { operation: 'sheets-write-range', requestId }
       );
 
       this.logger.error('Unexpected error in sheetsWrite', {

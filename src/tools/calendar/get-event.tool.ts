@@ -66,7 +66,7 @@ export class GetEventTool extends BaseCalendarTools<
   CalendarEventResult
 > {
   public getToolName(): string {
-    return 'google-workspace__calendar-get-event';
+    return 'google-workspace__calendar__get';
   }
 
   public getToolMetadata(): ToolMetadata {

@@ -42,10 +42,10 @@ export const CALENDAR_TOOLS = {
 
 // Tool names for registration
 export const CALENDAR_TOOL_NAMES = {
-  LIST_CALENDARS: 'google-workspace__calendar-list',
-  LIST_EVENTS: 'google-workspace__calendar-list-events',
-  GET_EVENT: 'google-workspace__calendar-get-event',
-  CREATE_EVENT: 'google-workspace__calendar-create-event',
-  QUICK_ADD: 'google-workspace__calendar-quick-add',
-  DELETE_EVENT: 'google-workspace__calendar-delete-event',
+  LIST_CALENDARS: 'google-workspace__calendar__list-calendars',
+  LIST_EVENTS: 'google-workspace__calendar__list',
+  GET_EVENT: 'google-workspace__calendar__get',
+  CREATE_EVENT: 'google-workspace__calendar__create',
+  QUICK_ADD: 'google-workspace__calendar__quick-add',
+  DELETE_EVENT: 'google-workspace__calendar__delete',
 } as const;

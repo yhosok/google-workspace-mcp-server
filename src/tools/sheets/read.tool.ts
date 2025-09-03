@@ -37,11 +37,11 @@ export class SheetsReadTool extends BaseSheetsTools<
   }
 
   public getToolName(): string {
-    return 'sheets-read';
+    return 'google-workspace__sheets__read-range';
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('sheets-read');
+    return SchemaFactory.createToolMetadata('google-workspace__sheets__read-range');
   }
 
   public async executeImpl(
@@ -58,7 +58,7 @@ export class SheetsReadTool extends BaseSheetsTools<
 
     // Parameter validation
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema('sheets-read'),
+      SchemaFactory.createToolInputSchema('google-workspace__sheets__read-range'),
       params,
       { operation: 'read-sheets', requestId }
     );
@@ -124,7 +124,7 @@ export class SheetsReadTool extends BaseSheetsTools<
         error instanceof Error ? error : new Error(String(error)),
         validatedParams.spreadsheetId,
         validatedParams.range,
-        { operation: 'sheets-read', requestId }
+        { operation: 'sheets-read-range', requestId }
       );
 
       this.logger.error('Unexpected error in sheetsRead', {

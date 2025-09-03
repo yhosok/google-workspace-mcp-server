@@ -106,7 +106,7 @@ export class ListFilesTool extends BaseDriveTool<
   MCPToolResult
 > {
   public getToolName(): string {
-    return 'google-workspace__drive-list';
+    return 'google-workspace__drive__list-files';
   }
 
   public getToolMetadata(): ToolMetadata {

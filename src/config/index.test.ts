@@ -424,25 +424,25 @@ describe('Config Loading', () => {
     describe('GOOGLE_ALLOWED_WRITE_TOOLS', () => {
       it('should parse comma-separated tool names', () => {
         process.env.GOOGLE_ALLOWED_WRITE_TOOLS =
-          'google-workspace__docs__create,google-workspace__calendar-list';
+          'google-workspace__docs__create,google-workspace__calendar__list-calendars';
 
         const config = loadConfig();
 
         expect(config.GOOGLE_ALLOWED_WRITE_TOOLS).toEqual([
           'google-workspace__docs__create',
-          'google-workspace__calendar-list',
+          'google-workspace__calendar__list-calendars',
         ]);
       });
 
       it('should trim whitespace from tool names', () => {
         process.env.GOOGLE_ALLOWED_WRITE_TOOLS =
-          ' google-workspace__docs__create , google-workspace__calendar-list ';
+          ' google-workspace__docs__create , google-workspace__calendar__list-calendars ';
 
         const config = loadConfig();
 
         expect(config.GOOGLE_ALLOWED_WRITE_TOOLS).toEqual([
           'google-workspace__docs__create',
-          'google-workspace__calendar-list',
+          'google-workspace__calendar__list-calendars',
         ]);
       });
 
@@ -459,7 +459,7 @@ describe('Config Loading', () => {
 
       it('should throw error for empty values in comma-separated list', () => {
         process.env.GOOGLE_ALLOWED_WRITE_TOOLS =
-          'google-workspace__docs__create,,google-workspace__calendar-list';
+          'google-workspace__docs__create,,google-workspace__calendar__list-calendars';
 
         expect(() => loadConfig()).toThrow(
           'GOOGLE_ALLOWED_WRITE_TOOLS contains empty value'
@@ -468,14 +468,14 @@ describe('Config Loading', () => {
 
       it('should validate tool name format - valid names with different patterns', () => {
         process.env.GOOGLE_ALLOWED_WRITE_TOOLS =
-          'google-workspace__docs__create,google-workspace__calendar-list,sheets-write';
+          'google-workspace__docs__create,google-workspace__calendar__list-calendars,google-workspace__sheets__write-range';
 
         const config = loadConfig();
 
         expect(config.GOOGLE_ALLOWED_WRITE_TOOLS).toEqual([
           'google-workspace__docs__create',
-          'google-workspace__calendar-list',
-          'sheets-write',
+          'google-workspace__calendar__list-calendars',
+          'google-workspace__sheets__write-range',
         ]);
       });
 
@@ -484,7 +484,7 @@ describe('Config Loading', () => {
           'invalid-tool,google-workspace__docs__create';
 
         expect(() => loadConfig()).toThrow(
-          "GOOGLE_ALLOWED_WRITE_TOOLS contains invalid tool names: invalid-tool. Tool names must follow valid patterns: 'google-workspace__[service-name]__[tool-name]', 'google-workspace__[service-name]-[tool-name]', or '[service-name]-[tool-name]'"
+          "GOOGLE_ALLOWED_WRITE_TOOLS contains invalid tool names: invalid-tool. Tool names must follow valid patterns: 'google-workspace__[service-name]__[tool-name]' or 'google-workspace__[service-name]-[tool-name]'"
         );
       });
 
@@ -493,7 +493,7 @@ describe('Config Loading', () => {
           'google-workspace__docs__write!';
 
         expect(() => loadConfig()).toThrow(
-          "GOOGLE_ALLOWED_WRITE_TOOLS contains invalid tool names: google-workspace__docs__write!. Tool names must follow valid patterns: 'google-workspace__[service-name]__[tool-name]', 'google-workspace__[service-name]-[tool-name]', or '[service-name]-[tool-name]'"
+          "GOOGLE_ALLOWED_WRITE_TOOLS contains invalid tool names: google-workspace__docs__write!. Tool names must follow valid patterns: 'google-workspace__[service-name]__[tool-name]' or 'google-workspace__[service-name]-[tool-name]'"
         );
       });
 
@@ -502,7 +502,7 @@ describe('Config Loading', () => {
           'google-workspace__DOCS__write';
 
         expect(() => loadConfig()).toThrow(
-          "GOOGLE_ALLOWED_WRITE_TOOLS contains invalid tool names: google-workspace__DOCS__write. Tool names must follow valid patterns: 'google-workspace__[service-name]__[tool-name]', 'google-workspace__[service-name]-[tool-name]', or '[service-name]-[tool-name]'"
+          "GOOGLE_ALLOWED_WRITE_TOOLS contains invalid tool names: google-workspace__DOCS__write. Tool names must follow valid patterns: 'google-workspace__[service-name]__[tool-name]' or 'google-workspace__[service-name]-[tool-name]'"
         );
       });
 
@@ -511,7 +511,7 @@ describe('Config Loading', () => {
           'totally-invalid,google-workspace__docs__create,also-bad!';
 
         expect(() => loadConfig()).toThrow(
-          "GOOGLE_ALLOWED_WRITE_TOOLS contains invalid tool names: totally-invalid, also-bad!. Tool names must follow valid patterns: 'google-workspace__[service-name]__[tool-name]', 'google-workspace__[service-name]-[tool-name]', or '[service-name]-[tool-name]'"
+          "GOOGLE_ALLOWED_WRITE_TOOLS contains invalid tool names: totally-invalid, also-bad!. Tool names must follow valid patterns: 'google-workspace__[service-name]__[tool-name]' or 'google-workspace__[service-name]-[tool-name]'"
         );
       });
 
@@ -658,7 +658,8 @@ describe('Config Loading', () => {
 
       it('should warn when read-only mode conflicts with write permissions - tools', () => {
         process.env.GOOGLE_READ_ONLY_MODE = 'true';
-        process.env.GOOGLE_ALLOWED_WRITE_TOOLS = 'sheets-write';
+        process.env.GOOGLE_ALLOWED_WRITE_TOOLS =
+          'google-workspace__sheets__write-range';
 
         loadConfig();
 
@@ -707,7 +708,8 @@ describe('Config Loading', () => {
       it('should not warn when read-only mode is disabled', () => {
         process.env.GOOGLE_READ_ONLY_MODE = 'false';
         process.env.GOOGLE_ALLOWED_WRITE_SERVICES = 'sheets,docs';
-        process.env.GOOGLE_ALLOWED_WRITE_TOOLS = 'sheets-write';
+        process.env.GOOGLE_ALLOWED_WRITE_TOOLS =
+          'google-workspace__sheets__write-range';
         process.env.GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER = 'true';
 
         loadConfig();
@@ -722,7 +724,7 @@ describe('Config Loading', () => {
         process.env.GOOGLE_ALLOWED_WRITE_SERVICES =
           'sheets,docs,calendar,drive';
         process.env.GOOGLE_ALLOWED_WRITE_TOOLS =
-          'google-workspace__docs__create,sheets-write';
+          'google-workspace__docs__create,google-workspace__sheets__write-range';
         process.env.GOOGLE_READ_ONLY_MODE = 'false';
         process.env.GOOGLE_DRIVE_FOLDER_ID = 'test-folder-id';
 
@@ -737,7 +739,7 @@ describe('Config Loading', () => {
         ]);
         expect(config.GOOGLE_ALLOWED_WRITE_TOOLS).toEqual([
           'google-workspace__docs__create',
-          'sheets-write',
+          'google-workspace__sheets__write-range',
         ]);
         expect(config.GOOGLE_READ_ONLY_MODE).toBe(false);
         expect(config.GOOGLE_DRIVE_FOLDER_ID).toBe('test-folder-id');
@@ -746,7 +748,8 @@ describe('Config Loading', () => {
       it('should handle all access control options together - restrictive', () => {
         process.env.GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER = 'false';
         process.env.GOOGLE_ALLOWED_WRITE_SERVICES = 'sheets';
-        process.env.GOOGLE_ALLOWED_WRITE_TOOLS = 'sheets-read';
+        process.env.GOOGLE_ALLOWED_WRITE_TOOLS =
+          'google-workspace__sheets__read-range';
         process.env.GOOGLE_READ_ONLY_MODE = 'true';
         process.env.GOOGLE_DRIVE_FOLDER_ID = 'restricted-folder';
 
@@ -754,7 +757,9 @@ describe('Config Loading', () => {
 
         expect(config.GOOGLE_ALLOW_WRITES_OUTSIDE_FOLDER).toBe(false);
         expect(config.GOOGLE_ALLOWED_WRITE_SERVICES).toEqual(['sheets']);
-        expect(config.GOOGLE_ALLOWED_WRITE_TOOLS).toEqual(['sheets-read']);
+        expect(config.GOOGLE_ALLOWED_WRITE_TOOLS).toEqual([
+          'google-workspace__sheets__read-range',
+        ]);
         expect(config.GOOGLE_READ_ONLY_MODE).toBe(true);
         expect(config.GOOGLE_DRIVE_FOLDER_ID).toBe('restricted-folder');
       });
@@ -799,16 +804,19 @@ describe('Config Loading', () => {
         process.env.GOOGLE_ALLOWED_WRITE_TOOLS = 'google-workspace__';
 
         expect(() => loadConfig()).toThrow(
-          "GOOGLE_ALLOWED_WRITE_TOOLS contains invalid tool names: google-workspace__. Tool names must follow valid patterns: 'google-workspace__[service-name]__[tool-name]', 'google-workspace__[service-name]-[tool-name]', or '[service-name]-[tool-name]'"
+          "GOOGLE_ALLOWED_WRITE_TOOLS contains invalid tool names: google-workspace__. Tool names must follow valid patterns: 'google-workspace__[service-name]__[tool-name]' or 'google-workspace__[service-name]-[tool-name]'"
         );
       });
 
-      it('should handle valid service names in legacy format', () => {
-        process.env.GOOGLE_ALLOWED_WRITE_TOOLS = 'docs-create';
+      it('should handle valid PDR naming convention', () => {
+        process.env.GOOGLE_ALLOWED_WRITE_TOOLS =
+          'google-workspace__docs__create';
 
         const config = loadConfig();
 
-        expect(config.GOOGLE_ALLOWED_WRITE_TOOLS).toEqual(['docs-create']);
+        expect(config.GOOGLE_ALLOWED_WRITE_TOOLS).toEqual([
+          'google-workspace__docs__create',
+        ]);
       });
     });
   });

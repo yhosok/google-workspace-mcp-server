@@ -84,7 +84,7 @@ export class DeleteEventTool extends BaseCalendarTools<
   CalendarDeleteEventResult
 > {
   public getToolName(): string {
-    return 'google-workspace__calendar-delete-event';
+    return 'google-workspace__calendar__delete';
   }
 
   public getToolMetadata(): ToolMetadata {

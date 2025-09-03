@@ -61,7 +61,7 @@ describe('GetFileContentTool', () => {
 
   describe('getToolName', () => {
     test('should return correct tool name', () => {
-      expect(tool.getToolName()).toBe('google-workspace__drive-get-content');
+      expect(tool.getToolName()).toBe('google-workspace__drive__get-file-content');
     });
   });
 

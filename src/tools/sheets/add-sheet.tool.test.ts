@@ -38,7 +38,7 @@ describe('SheetsAddSheetTool', () => {
 
   describe('getToolName', () => {
     test('should return correct tool name', () => {
-      expect(tool.getToolName()).toBe('sheets-add-sheet');
+      expect(tool.getToolName()).toBe('google-workspace__sheets__add-sheet');
     });
   });
 

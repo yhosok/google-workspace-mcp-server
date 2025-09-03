@@ -35,11 +35,11 @@ export class SheetsCreateSpreadsheetTool extends BaseSheetsTools<
   }
 
   public getToolName(): string {
-    return 'sheets-create';
+    return 'google-workspace__sheets__create-spreadsheet';
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('sheets-create');
+    return SchemaFactory.createToolMetadata('google-workspace__sheets__create-spreadsheet');
   }
 
   public async executeImpl(
@@ -68,9 +68,9 @@ export class SheetsCreateSpreadsheetTool extends BaseSheetsTools<
 
     // Parameter validation using unified schema approach
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema('sheets-create'),
+      SchemaFactory.createToolInputSchema('google-workspace__sheets__create-spreadsheet'),
       params,
-      { operation: 'sheets-create', requestId }
+      { operation: 'sheets-create-spreadsheet', requestId }
     );
 
     if (validationResult.isErr()) {
@@ -127,7 +127,7 @@ export class SheetsCreateSpreadsheetTool extends BaseSheetsTools<
         error instanceof Error ? error : new Error(String(error)),
         undefined,
         undefined,
-        { operation: 'sheets-create', requestId }
+        { operation: 'sheets-create-spreadsheet', requestId }
       );
 
       this.logger.error('Unexpected error in create spreadsheet operation', {

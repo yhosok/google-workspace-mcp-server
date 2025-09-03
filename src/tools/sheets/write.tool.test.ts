@@ -36,7 +36,7 @@ describe('SheetsWriteTool', () => {
 
   describe('getToolName', () => {
     test('should return correct tool name', () => {
-      expect(tool.getToolName()).toBe('sheets-write');
+      expect(tool.getToolName()).toBe('google-workspace__sheets__write-range');
     });
   });
 

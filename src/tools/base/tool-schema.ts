@@ -9,12 +9,13 @@ const schemaCache = new Map<string, z.ZodType>();
  * Supported tool types for schema generation
  */
 export type SupportedTool =
-  | 'sheets-list'
-  | 'sheets-read'
-  | 'sheets-write'
-  | 'sheets-append'
-  | 'sheets-add-sheet'
-  | 'sheets-create';
+  // PDR-style naming for sheets tools
+  | 'google-workspace__sheets__list-spreadsheets'
+  | 'google-workspace__sheets__read-range'
+  | 'google-workspace__sheets__write-range'
+  | 'google-workspace__sheets__append-rows'
+  | 'google-workspace__sheets__add-sheet'
+  | 'google-workspace__sheets__create-spreadsheet';
 
 /**
  * Factory class for creating standardized Zod schemas for Google Workspace MCP tools
@@ -116,18 +117,18 @@ export class SchemaFactory {
     let schema: z.ZodObject<Record<string, z.ZodType>>;
 
     switch (tool) {
-      case 'sheets-list':
+      case 'google-workspace__sheets__list-spreadsheets':
         schema = z.object({});
         break;
 
-      case 'sheets-read':
+      case 'google-workspace__sheets__read-range':
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           range: SchemaFactory.createRangeSchema(),
         });
         break;
 
-      case 'sheets-write':
+      case 'google-workspace__sheets__write-range':
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           range: SchemaFactory.createRangeSchema(),
@@ -135,7 +136,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'sheets-append':
+      case 'google-workspace__sheets__append-rows':
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           range: SchemaFactory.createRangeSchema(),
@@ -143,7 +144,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'sheets-add-sheet':
+      case 'google-workspace__sheets__add-sheet':
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           title: z
@@ -162,7 +163,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'sheets-create':
+      case 'google-workspace__sheets__create-spreadsheet':
         schema = z.object({
           title: z
             .string()
@@ -194,7 +195,7 @@ export class SchemaFactory {
     tool: SupportedTool
   ): z.ZodObject<Record<string, z.ZodType>> {
     switch (tool) {
-      case 'sheets-list':
+      case 'google-workspace__sheets__list-spreadsheets':
         return z.object({
           spreadsheets: z.array(
             z.object({
@@ -206,21 +207,21 @@ export class SchemaFactory {
           ),
         });
 
-      case 'sheets-read':
+      case 'google-workspace__sheets__read-range':
         return z.object({
           range: z.string(),
           values: z.array(z.array(z.string())),
           majorDimension: z.enum(['ROWS', 'COLUMNS']),
         });
 
-      case 'sheets-write':
+      case 'google-workspace__sheets__write-range':
         return z.object({
           updatedCells: z.number(),
           updatedRows: z.number(),
           updatedColumns: z.number(),
         });
 
-      case 'sheets-append':
+      case 'google-workspace__sheets__append-rows':
         return z.object({
           updates: z.object({
             updatedRows: z.number(),
@@ -228,7 +229,7 @@ export class SchemaFactory {
           }),
         });
 
-      case 'sheets-add-sheet':
+      case 'google-workspace__sheets__add-sheet':
         return z.object({
           sheetId: z.number(),
           title: z.string(),
@@ -236,7 +237,7 @@ export class SchemaFactory {
           spreadsheetId: z.string(),
         });
 
-      case 'sheets-create':
+      case 'google-workspace__sheets__create-spreadsheet':
         return z.object({
           spreadsheetId: z.string(),
           spreadsheetUrl: z.string(),
@@ -289,27 +290,27 @@ export class SchemaFactory {
     const inputSchema = SchemaFactory.createToolInputSchema(tool);
 
     const metadata = {
-      'sheets-list': {
+      'google-workspace__sheets__list-spreadsheets': {
         title: 'List Spreadsheets',
         description: 'List all spreadsheets in the configured Drive folder',
       },
-      'sheets-read': {
+      'google-workspace__sheets__read-range': {
         title: 'Read Spreadsheet Range',
         description: 'Read data from a specific spreadsheet range',
       },
-      'sheets-write': {
+      'google-workspace__sheets__write-range': {
         title: 'Write to Spreadsheet Range',
         description: 'Write data to a specific spreadsheet range',
       },
-      'sheets-append': {
+      'google-workspace__sheets__append-rows': {
         title: 'Append to Spreadsheet',
         description: 'Append data to a spreadsheet',
       },
-      'sheets-add-sheet': {
+      'google-workspace__sheets__add-sheet': {
         title: 'Add Sheet to Spreadsheet',
         description: 'Add a new sheet (tab) to an existing spreadsheet',
       },
-      'sheets-create': {
+      'google-workspace__sheets__create-spreadsheet': {
         title: 'Create New Spreadsheet',
         description:
           'Create a new spreadsheet. If GOOGLE_DRIVE_FOLDER_ID is configured, the spreadsheet will be created in that folder; otherwise it will be created in the default location',

@@ -300,7 +300,7 @@ GOOGLE_ALLOWED_WRITE_SERVICES=sheets,docs  # Allow: sheets, docs, calendar, driv
 
 # Tool-specific write permissions (comma-separated)
 # Only allow specific write tools to execute
-GOOGLE_ALLOWED_WRITE_TOOLS=google-workspace__sheets-write,google-workspace__sheets-append
+GOOGLE_ALLOWED_WRITE_TOOLS=google-workspace__sheets__write-range,google-workspace__sheets__append-rows
 
 # Global read-only mode (SECURE BY DEFAULT)
 # Must be explicitly set to false to enable write operations
@@ -325,7 +325,7 @@ GOOGLE_ALLOWED_WRITE_SERVICES=sheets,docs
 **Tool-specific Restrictions:**
 ```env
 # Only allow specific write operations
-GOOGLE_ALLOWED_WRITE_TOOLS=google-workspace__sheets-write,google-workspace__docs-create-document
+GOOGLE_ALLOWED_WRITE_TOOLS=google-workspace__sheets__write-range,google-workspace__docs__create
 ```
 
 **Global Read-only Mode (Default Behavior):**
@@ -414,7 +414,7 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
 
 ### Sheets Tools
 
-#### `sheets-list`
+#### `google-workspace__sheets__list-spreadsheets`
 Lists all spreadsheets accessible to the service account.
 
 **Example usage in Claude:**
@@ -422,7 +422,7 @@ Lists all spreadsheets accessible to the service account.
 "Can you list all the Google Sheets I have access to?"
 ```
 
-#### `sheets-read`
+#### `google-workspace__sheets__read-range`
 Reads data from a specific range in a spreadsheet.
 
 **Parameters:**
@@ -434,7 +434,7 @@ Reads data from a specific range in a spreadsheet.
 "Read data from cells A1 to D10 in the first sheet of spreadsheet [spreadsheet-id]"
 ```
 
-#### `sheets-write`
+#### `google-workspace__sheets__write-range`
 Writes data to a specific range in a spreadsheet.
 
 **Parameters:**
@@ -450,7 +450,7 @@ Writes data to a specific range in a spreadsheet.
 - Jane, 25"
 ```
 
-#### `sheets-append`
+#### `google-workspace__sheets__append-rows`
 Appends data to the end of a sheet.
 
 **Parameters:**
@@ -463,7 +463,7 @@ Appends data to the end of a sheet.
 "Add a new row with data [Product X, $50, In Stock] to my inventory spreadsheet"
 ```
 
-#### `sheets-add-sheet`
+#### `google-workspace__sheets__add-sheet`
 Adds a new sheet (tab) to an existing spreadsheet.
 
 **Parameters:**
@@ -476,7 +476,7 @@ Adds a new sheet (tab) to an existing spreadsheet.
 "Add a new sheet called 'Q1 Results' to my spreadsheet"
 ```
 
-#### `sheets-create`
+#### `google-workspace__sheets__create-spreadsheet`
 Creates a new spreadsheet with optional initial sheets.
 
 **Parameters:**
@@ -527,7 +527,7 @@ GOOGLE_DRIVE_FOLDER_ID=1A2B3C4D5E6F7G8H9I0J
 
 ### Calendar Tools
 
-#### `google-workspace__calendar-list`
+#### `google-workspace__calendar__list-calendars`
 Lists all calendars accessible to the service account.
 
 **Example usage in Claude:**
@@ -535,7 +535,7 @@ Lists all calendars accessible to the service account.
 "Show me all the calendars I have access to"
 ```
 
-#### `google-workspace__calendar-list-events`
+#### `google-workspace__calendar__list`
 Lists events from a specific calendar with optional filtering.
 
 **Parameters:**
@@ -554,7 +554,7 @@ Lists events from a specific calendar with optional filtering.
 "Show me upcoming meetings in calendar [calendar-id] with 'project' in the title"
 ```
 
-#### `google-workspace__calendar-get-event`
+#### `google-workspace__calendar__get`
 Retrieves detailed information about a specific calendar event.
 
 **Parameters:**
@@ -566,7 +566,7 @@ Retrieves detailed information about a specific calendar event.
 "Get details for event [event-id] in my calendar"
 ```
 
-#### `google-workspace__calendar-create-event`
+#### `google-workspace__calendar__create`
 Creates a new calendar event with comprehensive options for attendees, reminders, and recurrence.
 
 **Parameters:**
@@ -588,7 +588,7 @@ Creates a new calendar event with comprehensive options for attendees, reminders
 "Schedule a recurring weekly meeting 'Weekly Review' every Monday at 2 PM in Conference Room A"
 ```
 
-#### `google-workspace__calendar-quick-add`
+#### `google-workspace__calendar__quick-add`
 Creates a calendar event using natural language text with intelligent parsing of dates, times, and locations.
 
 **Parameters:**
@@ -601,7 +601,7 @@ Creates a calendar event using natural language text with intelligent parsing of
 "Quick add 'Doctor appointment Friday 3 PM' to my calendar"
 ```
 
-#### `google-workspace__calendar-delete-event`
+#### `google-workspace__calendar__delete`
 Deletes a calendar event with optional attendee notifications.
 
 **Parameters:**
@@ -616,7 +616,7 @@ Deletes a calendar event with optional attendee notifications.
 
 ### Drive Tools
 
-#### `google-workspace__drive-list`
+#### `google-workspace__drive__list-files`
 Lists files in Google Drive with optional filtering and search capabilities.
 
 **Parameters:**
@@ -634,7 +634,7 @@ Lists files in Google Drive with optional filtering and search capabilities.
 "List files in folder [folder-id]"
 ```
 
-#### `google-workspace__drive-get`
+#### `google-workspace__drive__get-file`
 Retrieves comprehensive metadata for a specific Google Drive file.
 
 **Parameters:**
@@ -647,7 +647,7 @@ Retrieves comprehensive metadata for a specific Google Drive file.
 "Show me metadata for this document including who has access"
 ```
 
-#### `google-workspace__drive-get-content`
+#### `google-workspace__drive__get-file-content`
 Downloads and retrieves the content of a Google Drive file, with automatic export for Google Workspace files.
 
 **Parameters:**

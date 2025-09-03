@@ -314,7 +314,7 @@ describe('AccessControlService', () => {
       it('should handle various tool naming patterns correctly', async () => {
         mockConfig.GOOGLE_ALLOWED_WRITE_TOOLS = [
           'google-workspace__docs__create', // Pattern 1
-          'google-workspace__calendar-list', // Pattern 2
+          'google-workspace__calendar__list-calendars', // Pattern 2
           'sheets-write', // Pattern 3
         ];
 
@@ -329,7 +329,7 @@ describe('AccessControlService', () => {
           }),
           service.validateToolAccess({
             operation: 'write',
-            toolName: 'google-workspace__calendar-list',
+            toolName: 'google-workspace__calendar__list-calendars',
             serviceName: 'calendar',
           }),
           service.validateToolAccess({
@@ -359,12 +359,14 @@ describe('AccessControlService', () => {
 
       it('should correctly parse google-workspace__service-action pattern', () => {
         const service = new AccessControlService(mockConfig);
-        const result = service.parseToolName('google-workspace__calendar-list');
+        const result = service.parseToolName(
+          'google-workspace__calendar__list-calendars'
+        );
 
         expect(result).toEqual({
           service: 'calendar',
-          action: 'list',
-          pattern: 'google-workspace__service-action',
+          action: 'list-calendars',
+          pattern: 'google-workspace__service__action',
         });
       });
 

@@ -69,7 +69,7 @@ describe('ListFilesTool', () => {
 
   describe('getToolName', () => {
     test('should return correct tool name', () => {
-      expect(tool.getToolName()).toBe('google-workspace__drive-list');
+      expect(tool.getToolName()).toBe('google-workspace__drive__list-files');
     });
   });
 

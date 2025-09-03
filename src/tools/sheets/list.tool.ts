@@ -30,11 +30,11 @@ export class SheetsListTool extends BaseSheetsTools<{}, MCPToolResult> {
   }
 
   public getToolName(): string {
-    return 'sheets-list';
+    return 'google-workspace__sheets__list-spreadsheets';
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('sheets-list');
+    return SchemaFactory.createToolMetadata('google-workspace__sheets__list-spreadsheets');
   }
 
   public async executeImpl(
@@ -91,7 +91,7 @@ export class SheetsListTool extends BaseSheetsTools<{}, MCPToolResult> {
         error instanceof Error ? error : new Error(String(error)),
         undefined,
         undefined,
-        { operation: 'sheets-list', requestId }
+        { operation: 'sheets-list-spreadsheets', requestId }
       );
 
       this.logger.error('Unexpected error in sheetsList', {

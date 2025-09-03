@@ -97,7 +97,7 @@ export class GetFileContentTool extends BaseDriveTool<
   MCPToolResult
 > {
   public getToolName(): string {
-    return 'google-workspace__drive-get-content';
+    return 'google-workspace__drive__get-file-content';
   }
 
   public getToolMetadata(): ToolMetadata {

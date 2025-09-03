@@ -556,7 +556,7 @@ describe('ValidationUtils', () => {
       ]);
 
       const contextData = {
-        operation: 'sheets-read',
+        operation: 'google-workspace__sheets__read-range',
         requestId: 'req-123',
       };
 
@@ -586,12 +586,12 @@ describe('ValidationUtils', () => {
   describe('Integration with SchemaFactory', () => {
     it('should work with SchemaFactory generated schemas', async () => {
       const supportedTools: SupportedTool[] = [
-        'sheets-list',
-        'sheets-read',
-        'sheets-write',
-        'sheets-append',
-        'sheets-add-sheet',
-        'sheets-create',
+        'google-workspace__sheets__list-spreadsheets',
+        'google-workspace__sheets__read-range',
+        'google-workspace__sheets__write-range',
+        'google-workspace__sheets__append-rows',
+        'google-workspace__sheets__add-sheet',
+        'google-workspace__sheets__create-spreadsheet',
       ];
 
       for (const tool of supportedTools) {
@@ -600,7 +600,7 @@ describe('ValidationUtils', () => {
         // Test with empty data (should fail for most tools except sheets-list)
         const result = validateToolInput(schema, {});
 
-        if (tool === 'sheets-list') {
+        if (tool === 'google-workspace__sheets__list-spreadsheets') {
           expect(result.isOk()).toBe(true);
         } else {
           expect(result.isErr()).toBe(true);
@@ -611,8 +611,10 @@ describe('ValidationUtils', () => {
       }
     });
 
-    it('should work with valid SchemaFactory data for sheets-read', async () => {
-      const schema = SchemaFactory.createToolInputSchema('sheets-read');
+    it('should work with valid SchemaFactory data for google-workspace__sheets__read-range', async () => {
+      const schema = SchemaFactory.createToolInputSchema(
+        'google-workspace__sheets__read-range'
+      );
       const validData = {
         spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
         range: 'Sheet1!A1:B10',
@@ -627,7 +629,9 @@ describe('ValidationUtils', () => {
     });
 
     it('should handle SchemaFactory validation errors appropriately', async () => {
-      const schema = SchemaFactory.createToolInputSchema('sheets-write');
+      const schema = SchemaFactory.createToolInputSchema(
+        'google-workspace__sheets__write-range'
+      );
       const invalidData = {
         spreadsheetId: '', // Empty string
         range: 'A1:B10',
@@ -895,7 +899,7 @@ describe('Integration scenarios', () => {
   it('should handle complete validation workflow for sheets operations', async () => {
     const scenarios = [
       {
-        tool: 'sheets-read' as SupportedTool,
+        tool: 'google-workspace__sheets__read-range' as SupportedTool,
         validData: {
           spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
           range: 'Sheet1!A1:B10',
@@ -906,7 +910,7 @@ describe('Integration scenarios', () => {
         },
       },
       {
-        tool: 'sheets-write' as SupportedTool,
+        tool: 'google-workspace__sheets__write-range' as SupportedTool,
         validData: {
           spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
           range: 'Sheet1!A1:B10',
@@ -946,7 +950,9 @@ describe('Integration scenarios', () => {
     // This test demonstrates how the validation utils eliminate the need
     // for separate input validation and schema validation
 
-    const schema = SchemaFactory.createToolInputSchema('sheets-append');
+    const schema = SchemaFactory.createToolInputSchema(
+      'google-workspace__sheets__append-rows'
+    );
     const inputData = {
       spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
       range: 'Sheet1!A1',

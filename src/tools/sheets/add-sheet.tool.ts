@@ -39,11 +39,11 @@ export class SheetsAddSheetTool extends BaseSheetsTools<
   }
 
   public getToolName(): string {
-    return 'sheets-add-sheet';
+    return 'google-workspace__sheets__add-sheet';
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('sheets-add-sheet');
+    return SchemaFactory.createToolMetadata('google-workspace__sheets__add-sheet');
   }
 
   public async executeImpl(
@@ -61,7 +61,7 @@ export class SheetsAddSheetTool extends BaseSheetsTools<
 
     // Validate parameters using schema validation
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema('sheets-add-sheet'),
+      SchemaFactory.createToolInputSchema('google-workspace__sheets__add-sheet'),
       params,
       { operation: 'add-sheet' }
     );

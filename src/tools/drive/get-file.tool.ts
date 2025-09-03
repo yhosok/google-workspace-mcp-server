@@ -91,7 +91,7 @@ interface GetFileResult {
  */
 export class GetFileTool extends BaseDriveTool<GetFileInput, MCPToolResult> {
   public getToolName(): string {
-    return 'google-workspace__drive-get';
+    return 'google-workspace__drive__get-file';
   }
 
   public getToolMetadata(): ToolMetadata {

@@ -338,7 +338,7 @@ export abstract class BaseSheetsTools<
    * on the tool name patterns used in the Google Workspace MCP server.
    *
    * **Classification Logic:**
-   * - Read operations: list, get, read (e.g., 'sheets-list', 'sheets-read')
+   * - Read operations: list, get, read (e.g., 'google-workspace__sheets__list-spreadsheets', 'google-workspace__sheets__read-range')
    * - Write operations: create, update, append, write, clear, delete
    *
    * @param toolName - The name of the tool to classify

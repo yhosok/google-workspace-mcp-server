@@ -90,7 +90,7 @@ export class QuickAddTool extends BaseCalendarTools<
   CalendarQuickAddResult
 > {
   public getToolName(): string {
-    return 'google-workspace__calendar-quick-add';
+    return 'google-workspace__calendar__quick-add';
   }
 
   public getToolMetadata(): ToolMetadata {

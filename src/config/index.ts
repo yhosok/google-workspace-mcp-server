@@ -402,16 +402,13 @@ function validateAccessControlConfig(data: EnvironmentConfig): void {
 
   // Validate tool name format if provided
   if (GOOGLE_ALLOWED_WRITE_TOOLS) {
-    // Support multiple tool naming patterns used in the codebase:
-    // 1. google-workspace__service__action (docs)
+    // Support PDR tool naming patterns:
+    // 1. google-workspace__service__action (docs, sheets)
     // 2. google-workspace__service-action (calendar, drive)
-    // 3. service-action (sheets - legacy pattern)
     const validServices = ['sheets', 'docs', 'calendar', 'drive'];
 
     const toolNamePatterns = [
-      /^google-workspace__[a-z]+__[a-z-]+$/, // Pattern 1: google-workspace__docs__create
-      /^google-workspace__[a-z]+-[a-z-]+$/, // Pattern 2: google-workspace__calendar-list
-      /^[a-z]+-[a-z-]+$/, // Pattern 3: sheets-write
+      /^google-workspace__[a-z]+__[a-z-]+$/, // Pattern: google-workspace__service__tool-name
     ];
 
     const invalidTools = GOOGLE_ALLOWED_WRITE_TOOLS.filter(tool => {
@@ -431,7 +428,7 @@ function validateAccessControlConfig(data: EnvironmentConfig): void {
 
     if (invalidTools.length > 0) {
       throw new Error(
-        `GOOGLE_ALLOWED_WRITE_TOOLS contains invalid tool names: ${invalidTools.join(', ')}. Tool names must follow valid patterns: 'google-workspace__[service-name]__[tool-name]', 'google-workspace__[service-name]-[tool-name]', or '[service-name]-[tool-name]'`
+        `GOOGLE_ALLOWED_WRITE_TOOLS contains invalid tool names: ${invalidTools.join(', ')}. Tool names must follow valid patterns: 'google-workspace__[service-name]__[tool-name]' or 'google-workspace__[service-name]-[tool-name]'`
       );
     }
   }

@@ -38,11 +38,11 @@ export class SheetsAppendTool extends BaseSheetsTools<
   }
 
   public getToolName(): string {
-    return 'sheets-append';
+    return 'google-workspace__sheets__append-rows';
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('sheets-append');
+    return SchemaFactory.createToolMetadata('google-workspace__sheets__append-rows');
   }
 
   public async executeImpl(
@@ -60,7 +60,7 @@ export class SheetsAppendTool extends BaseSheetsTools<
 
     // Parameter validation
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema('sheets-append'),
+      SchemaFactory.createToolInputSchema('google-workspace__sheets__append-rows'),
       params,
       { operation: 'append-sheets', requestId, useSpecificMessages: true }
     );
@@ -140,7 +140,7 @@ export class SheetsAppendTool extends BaseSheetsTools<
         error instanceof Error ? error : new Error(String(error)),
         validatedParams.spreadsheetId,
         validatedParams.range,
-        { operation: 'sheets-append', requestId }
+        { operation: 'sheets-append-rows', requestId }
       );
 
       this.logger.error('Unexpected error in sheetsAppend', {
