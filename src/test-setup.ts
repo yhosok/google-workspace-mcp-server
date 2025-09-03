@@ -59,3 +59,10 @@ console.warn = (): void => {};
 
 // Set test timeout to handle any remaining async operations
 jest.setTimeout(30000); // 30 seconds timeout for tests
+
+// Optional GC after each test when explicitly enabled (set FORCE_GC=1)
+afterEach(() => {
+  if (process.env.FORCE_GC === '1' && global.gc) {
+    global.gc();
+  }
+});

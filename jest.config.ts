@@ -19,9 +19,19 @@ const config = {
   },
   extensionsToTreatAsEsm: ['.ts'],
   setupFilesAfterEnv: ['<rootDir>/src/test-setup.ts'],
+  // Light-weight ts-jest settings (Step 2 optimization)
+  globals: {
+    'ts-jest': {
+      diagnostics: false,       // Skip type diagnostics for speed in tests
+      isolatedModules: true,    // Faster, per-file transpilation
+      useESM: true,
+      tsconfig: 'tsconfig.test.json'
+    }
+  },
   
   // Performance optimizations
-  maxWorkers: '75%',           // CPU並列度向上 - 75%のワーカーでバランス良く並列化
+  coverageProvider: 'v8',      // Use V8's built-in coverage for better performance
+  maxWorkers: '75%',           // Default local parallelism (CI may override via CLI)
   testTimeout: 10000,          // タイムアウト10秒（デフォルト5秒から適度に延長）
   cache: true,                 // キャッシュ有効化で再実行時の高速化
   watchman: false,             // watchman無効で高速化（CI環境で特に有効）
