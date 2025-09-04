@@ -9,6 +9,7 @@ import {
   GoogleAccessControlError,
 } from '../../errors/index.js';
 import { Logger } from '../../utils/logger.js';
+import { getRequiredFolderIds } from '../../utils/folder-extraction.utils.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
 import { z } from 'zod';
@@ -377,64 +378,7 @@ export abstract class BaseCalendarTools<
    * @returns Array of folder IDs that require access validation
    */
   protected getRequiredFolderIds(params: unknown): string[] {
-    const folderIds: string[] = [];
-    const seen = new Set<string>(); // Avoid duplicates
-
-    if (!params || typeof params !== 'object') {
-      return folderIds;
-    }
-
-    const paramsObj = params as Record<string, unknown>;
-
-    // Helper function to add folder ID if valid
-    const addFolderId = (value: unknown) => {
-      if (typeof value === 'string' && value.trim() && !seen.has(value.trim())) {
-        seen.add(value.trim());
-        folderIds.push(value.trim());
-      }
-    };
-
-    // Helper function to extract folder IDs from an object
-    const extractFromObject = (obj: Record<string, unknown>, depth = 0) => {
-      if (depth > 2) return; // Prevent infinite recursion
-
-      // Direct folder ID fields
-      addFolderId(obj.folderId);
-      addFolderId(obj.parentFolderId);
-      addFolderId(obj.targetFolderId);
-      addFolderId(obj.destinationFolderId);
-      addFolderId(obj.sourceFolderId);
-
-      // Check for nested objects
-      const nestedKeys = ['metadata', 'options', 'context', 'request', 'params'];
-      nestedKeys.forEach(key => {
-        if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
-          extractFromObject(obj[key] as Record<string, unknown>, depth + 1);
-        }
-      });
-
-      // Check for any other nested objects that might contain folder references
-      Object.entries(obj).forEach(([key, value]) => {
-        if (value && typeof value === 'object' && !Array.isArray(value) && 
-            !nestedKeys.includes(key) && depth < 1) {
-          const valueObj = value as Record<string, unknown>;
-          // Only check objects that might contain folder references
-          if (Object.keys(valueObj).some(k => 
-            k.toLowerCase().includes('folder') || 
-            k.toLowerCase().includes('parent') ||
-            k.toLowerCase().includes('target') ||
-            k.toLowerCase().includes('destination')
-          )) {
-            extractFromObject(valueObj, depth + 1);
-          }
-        }
-      });
-    };
-
-    // Extract folder IDs from the main parameters object
-    extractFromObject(paramsObj);
-
-    return folderIds;
+    return getRequiredFolderIds(params);
   }
 
   /**

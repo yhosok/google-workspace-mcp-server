@@ -10,9 +10,11 @@ import { Result, Err, Ok } from 'neverthrow';
 // Export new normalized error interfaces and utilities
 export * from './normalized-error.js';
 export * from './error-extractor.js';
+export * from './retry-after.utils.js';
 
 // Import the extractGoogleApiError function for use in GoogleErrorFactory
-import { extractGoogleApiError, GaxiosErrorLike } from './normalized-error.js';
+import { extractGoogleApiError } from './normalized-error.js';
+import { extractRetryAfterFromContext } from './retry-after.utils.js';
 
 /**
  * Base error class for all Google Workspace related errors
@@ -1256,20 +1258,6 @@ export class GoogleErrorFactory {
       return errorInstance;
     };
 
-    // Helper function to extract retry-after from headers
-    const extractRetryAfter = (): number | undefined => {
-      if (context?.originalGaxiosError) {
-        const gaxiosError = context.originalGaxiosError as GaxiosErrorLike;
-        const retryAfterHeader = gaxiosError?.response?.headers?.[
-          'retry-after'
-        ] as string | undefined;
-        if (retryAfterHeader) {
-          return parseInt(retryAfterHeader, 10) * 1000;
-        }
-      }
-      return undefined;
-    };
-
     // Priority 1: Use structured reason field for classification
     if (normalizedError.reason) {
       switch (normalizedError.reason) {
@@ -1289,7 +1277,7 @@ export class GoogleErrorFactory {
 
         case 'rateLimitExceeded':
           return new GoogleSheetsRateLimitError(
-            extractRetryAfter(),
+            extractRetryAfterFromContext(context),
             enrichedContext
           );
 
@@ -1353,7 +1341,7 @@ export class GoogleErrorFactory {
           return new GoogleSheetsQuotaExceededError(enrichedContext);
         }
         return new GoogleSheetsRateLimitError(
-          extractRetryAfter(),
+          extractRetryAfterFromContext(context),
           enrichedContext
         );
 
@@ -1483,20 +1471,6 @@ export class GoogleErrorFactory {
       return errorInstance;
     };
 
-    // Helper function to extract retry-after from headers
-    const extractRetryAfter = (): number | undefined => {
-      if (context?.originalGaxiosError) {
-        const gaxiosError = context.originalGaxiosError as GaxiosErrorLike;
-        const retryAfterHeader = gaxiosError?.response?.headers?.[
-          'retry-after'
-        ] as string | undefined;
-        if (retryAfterHeader) {
-          return parseInt(retryAfterHeader, 10) * 1000;
-        }
-      }
-      return undefined;
-    };
-
     // Priority 1: Use structured reason field for classification
     if (normalizedError.reason) {
       switch (normalizedError.reason) {
@@ -1529,7 +1503,7 @@ export class GoogleErrorFactory {
 
         case 'rateLimitExceeded':
           return new GoogleCalendarRateLimitError(
-            extractRetryAfter(),
+            extractRetryAfterFromContext(context),
             enrichedContext
           );
 
@@ -1600,7 +1574,7 @@ export class GoogleErrorFactory {
           return new GoogleCalendarQuotaExceededError(enrichedContext);
         }
         return new GoogleCalendarRateLimitError(
-          extractRetryAfter(),
+          extractRetryAfterFromContext(context),
           enrichedContext
         );
 
@@ -1760,20 +1734,6 @@ export class GoogleErrorFactory {
       return errorInstance;
     };
 
-    // Helper function to extract retry-after from headers
-    const extractRetryAfter = (): number | undefined => {
-      if (context?.originalGaxiosError) {
-        const gaxiosError = context.originalGaxiosError as GaxiosErrorLike;
-        const retryAfterHeader = gaxiosError?.response?.headers?.[
-          'retry-after'
-        ] as string | undefined;
-        if (retryAfterHeader) {
-          return parseInt(retryAfterHeader, 10) * 1000;
-        }
-      }
-      return undefined;
-    };
-
     // Priority 1: Use structured reason field for classification
     if (normalizedError.reason) {
       switch (normalizedError.reason) {
@@ -1792,7 +1752,7 @@ export class GoogleErrorFactory {
 
         case 'rateLimitExceeded':
           return new GoogleDriveRateLimitError(
-            extractRetryAfter(),
+            extractRetryAfterFromContext(context),
             enrichedContext
           );
 
@@ -1875,7 +1835,7 @@ export class GoogleErrorFactory {
           return new GoogleDriveQuotaExceededError(enrichedContext);
         }
         return new GoogleDriveRateLimitError(
-          extractRetryAfter(),
+          extractRetryAfterFromContext(context),
           enrichedContext
         );
 
@@ -1998,20 +1958,6 @@ export class GoogleErrorFactory {
       return errorInstance;
     };
 
-    // Helper function to extract retry-after from headers
-    const extractRetryAfter = (): number | undefined => {
-      if (context?.originalGaxiosError) {
-        const gaxiosError = context.originalGaxiosError as GaxiosErrorLike;
-        const retryAfterHeader = gaxiosError?.response?.headers?.[
-          'retry-after'
-        ] as string | undefined;
-        if (retryAfterHeader) {
-          return parseInt(retryAfterHeader, 10) * 1000;
-        }
-      }
-      return undefined;
-    };
-
     // Priority 1: Use structured reason field for classification
     if (normalizedError.reason) {
       switch (normalizedError.reason) {
@@ -2030,7 +1976,7 @@ export class GoogleErrorFactory {
 
         case 'rateLimitExceeded':
           return new GoogleDocsRateLimitError(
-            extractRetryAfter(),
+            extractRetryAfterFromContext(context),
             enrichedContext
           );
 
@@ -2081,7 +2027,7 @@ export class GoogleErrorFactory {
           return new GoogleDocsQuotaExceededError(enrichedContext);
         }
         return new GoogleDocsRateLimitError(
-          extractRetryAfter(),
+          extractRetryAfterFromContext(context),
           enrichedContext
         );
 

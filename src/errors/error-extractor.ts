@@ -5,6 +5,10 @@
  * information from errors, particularly focusing on Google API error structures.
  * These utilities work with both GaxiosError objects and generic Error types.
  *
+ * The classification functions (isAuthenticationError, isRateLimitError,
+ * isNotFoundError) have been refactored to use a generic, configurable pattern
+ * while maintaining 100% backward compatibility.
+ *
  * @fileoverview Google API Error Extraction Utilities
  */
 
@@ -15,6 +19,11 @@ import {
   isGoogleApiErrorResponse,
   extractGoogleApiError,
 } from './normalized-error.js';
+import {
+  detectAuthenticationError,
+  detectRateLimitError,
+  detectNotFoundError,
+} from './error-detection.utils.js';
 
 /**
  * Extracts HTTP status code from various error sources
@@ -66,7 +75,7 @@ export function extractHttpStatus(error: unknown): number {
   }
 
   // Priority 5: Parse from message
-  if (gaxiosError.message) {
+  if (gaxiosError.message && typeof gaxiosError.message === 'string') {
     const statusMatch = gaxiosError.message.match(/\b(\d{3})\b/);
     if (statusMatch) {
       const parsedStatus = parseInt(statusMatch[1], 10);
@@ -274,53 +283,7 @@ export function extractRetryAfter(error: unknown): number | undefined {
  * @returns True if the error appears to be authentication-related
  */
 export function isAuthenticationError(error: unknown): boolean {
-  const httpStatus = extractHttpStatus(error);
-  const reason = extractReason(error);
-  const grpcStatus = extractGrpcStatus(error);
-
-  // Check HTTP status codes
-  if (httpStatus === 401 || httpStatus === 403) {
-    return true;
-  }
-
-  // Check gRPC status codes
-  if (grpcStatus === 'PERMISSION_DENIED' || grpcStatus === 'UNAUTHENTICATED') {
-    return true;
-  }
-
-  // Check error reason
-  if (
-    reason &&
-    (reason.includes('auth') ||
-      reason === 'forbidden' ||
-      reason === 'unauthorized')
-  ) {
-    return true;
-  }
-
-  // Check error message for authentication-related keywords
-  if (
-    error &&
-    typeof error === 'object' &&
-    'message' in error &&
-    typeof (error as { message: unknown }).message === 'string'
-  ) {
-    const message = (error as { message: string }).message.toLowerCase();
-    const authKeywords = [
-      'authentication',
-      'authorization',
-      'credential',
-      'token',
-      'permission',
-      'forbidden',
-      'unauthorized',
-      'access denied',
-    ];
-
-    return authKeywords.some(keyword => message.includes(keyword));
-  }
-
-  return false;
+  return detectAuthenticationError(error);
 }
 
 /**
@@ -330,50 +293,7 @@ export function isAuthenticationError(error: unknown): boolean {
  * @returns True if the error appears to be rate limiting related
  */
 export function isRateLimitError(error: unknown): boolean {
-  const httpStatus = extractHttpStatus(error);
-  const reason = extractReason(error);
-  const grpcStatus = extractGrpcStatus(error);
-
-  // Check HTTP status code
-  if (httpStatus === 429) {
-    return true;
-  }
-
-  // Check gRPC status code
-  if (grpcStatus === 'RESOURCE_EXHAUSTED') {
-    return true;
-  }
-
-  // Check error reason
-  const rateLimitReasons = [
-    'rateLimitExceeded',
-    'quotaExceeded',
-    'dailyLimitExceeded',
-  ];
-  if (reason && rateLimitReasons.includes(reason)) {
-    return true;
-  }
-
-  // Check error message
-  if (
-    error &&
-    typeof error === 'object' &&
-    'message' in error &&
-    typeof (error as { message: unknown }).message === 'string'
-  ) {
-    const message = (error as { message: string }).message.toLowerCase();
-    const rateLimitKeywords = [
-      'rate limit',
-      'quota exceeded',
-      'too many requests',
-      'daily limit',
-      'api limit',
-    ];
-
-    return rateLimitKeywords.some(keyword => message.includes(keyword));
-  }
-
-  return false;
+  return detectRateLimitError(error);
 }
 
 /**
@@ -383,37 +303,7 @@ export function isRateLimitError(error: unknown): boolean {
  * @returns True if the error appears to be a not found error
  */
 export function isNotFoundError(error: unknown): boolean {
-  const httpStatus = extractHttpStatus(error);
-  const reason = extractReason(error);
-  const grpcStatus = extractGrpcStatus(error);
-
-  // Check HTTP status code
-  if (httpStatus === 404) {
-    return true;
-  }
-
-  // Check gRPC status code
-  if (grpcStatus === 'NOT_FOUND') {
-    return true;
-  }
-
-  // Check error reason
-  if (reason === 'notFound') {
-    return true;
-  }
-
-  // Check error message
-  if (
-    error &&
-    typeof error === 'object' &&
-    'message' in error &&
-    typeof (error as { message: unknown }).message === 'string'
-  ) {
-    const message = (error as { message: string }).message.toLowerCase();
-    return message.includes('not found');
-  }
-
-  return false;
+  return detectNotFoundError(error);
 }
 
 /**
