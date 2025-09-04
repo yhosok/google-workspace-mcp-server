@@ -893,6 +893,136 @@ export class DocsService extends GoogleService {
   }
 
   /**
+   * Retrieves a Google Docs document as Markdown content.
+   *
+   * This method exports a Google Docs document directly to Markdown format using
+   * the DriveService integration. It leverages Google Drive's native export
+   * functionality to convert the document content to Markdown while preserving
+   * formatting elements like headings, lists, links, and text styling.
+   *
+   * **DriveService Integration**: Uses DriveService.getFileContent() with
+   * exportFormat: 'markdown' to export the document. DriveService is required
+   * for this operation and must be provided during DocsService construction.
+   *
+   * **Supported Markdown Elements**:
+   * - Headers (# ## ###)
+   * - Bold and italic text (** **)
+   * - Lists (bulleted and numbered)
+   * - Links [text](url)
+   * - Code blocks and inline code
+   * - Blockquotes (>)
+   * - Tables (if present in document)
+   *
+   * @param documentId The ID of the Google Docs document to export as Markdown
+   * @returns Promise resolving to Markdown content string or error
+   *
+   * @example
+   * ```typescript
+   * // Export document as Markdown
+   * const result = await service.getDocumentAsMarkdown('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+   *
+   * if (result.isOk()) {
+   *   console.log('Markdown content:', result.value);
+   *   // Contains formatted markdown: # Title\n\n**Bold text**\n\n- List item
+   * }
+   * ```
+   */
+  public async getDocumentAsMarkdown(
+    documentId: string
+  ): Promise<GoogleDocsResult<string>> {
+    // Input validation
+    if (
+      !documentId ||
+      typeof documentId !== 'string' ||
+      documentId.trim() === ''
+    ) {
+      return docsErr(
+        new GoogleDocsError(
+          'documentId cannot be empty',
+          'GOOGLE_DOCS_INVALID_REQUEST',
+          400,
+          undefined,
+          { reason: 'Document ID parameter is required' }
+        )
+      );
+    }
+
+    // Check DriveService availability
+    if (!this.driveService) {
+      return docsErr(
+        new GoogleDocsError(
+          'DriveService is required for markdown export',
+          'GOOGLE_DOCS_DRIVE_SERVICE_NOT_AVAILABLE',
+          500,
+          documentId,
+          {
+            reason: 'DriveService must be provided during service construction',
+          }
+        )
+      );
+    }
+
+    const context = this.createContext('getDocumentAsMarkdown', {
+      documentId,
+    });
+
+    return this.executeAsyncWithRetry(async () => {
+      // Check initialization status first
+      if (!this.isInitialized || !this.docsApi) {
+        throw new GoogleDocsError(
+          'Docs API not initialized',
+          'GOOGLE_DOCS_NOT_INITIALIZED',
+          500,
+          documentId
+        );
+      }
+
+      await this.ensureInitialized();
+
+      // Use DriveService to export document as Markdown
+      const driveResult = await this.driveService!.getFileContent(
+        documentId.trim(),
+        {
+          exportFormat: 'markdown',
+        }
+      );
+
+      if (driveResult.isErr()) {
+        // If the DriveService already returned a GoogleDocsError, preserve it as-is
+        // Otherwise, convert DriveService error to DocsError for consistency
+        if (driveResult.error instanceof GoogleDocsError) {
+          throw driveResult.error;
+        } else {
+          throw this.convertToDocsError(driveResult.error, documentId);
+        }
+      }
+
+      const fileContent = driveResult.value;
+
+      // Validate that we received content
+      if (typeof fileContent.content !== 'string') {
+        throw new GoogleDocsError(
+          'Failed to export document as markdown - invalid content format',
+          'GOOGLE_DOCS_MARKDOWN_EXPORT_ERROR',
+          500,
+          documentId,
+          { reason: 'Expected string content from markdown export' }
+        );
+      }
+
+      this.logger.info('Successfully exported document as markdown', {
+        documentId,
+        contentSize: fileContent.size,
+        mimeType: fileContent.mimeType,
+        exportFormat: fileContent.exportFormat,
+        requestId: context.requestId,
+      });
+
+      return fileContent.content;
+    }, context).andThen(result => docsOk(result));
+  }
+
+  /**
    * Retrieves current service statistics and status information.
    *
    * Provides diagnostic information about the service state including:
@@ -965,6 +1095,10 @@ export class DocsService extends GoogleService {
     error: Error,
     context: { data?: { documentId?: string } }
   ): GoogleDocsError | null {
+    // If it's already a GoogleDocsError, preserve it as-is
+    if (error instanceof GoogleDocsError) {
+      return error;
+    }
     return this.convertToDocsError(error, context.data?.documentId);
   }
 

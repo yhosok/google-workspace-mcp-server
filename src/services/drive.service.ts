@@ -902,6 +902,7 @@ export class DriveService extends GoogleService {
           txt: 'text/plain',
           html: 'text/html',
           epub: 'application/epub+zip',
+          markdown: 'text/markdown',
         },
         'application/vnd.google-apps.spreadsheet': {
           xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -950,7 +951,11 @@ export class DriveService extends GoogleService {
         });
 
         content = exportResponse.data as string | Buffer;
-        resultMimeType = exportMimeType;
+        // Use MIME type from response headers if available, fallback to mapping
+        resultMimeType =
+          (exportResponse.headers &&
+            (exportResponse.headers['content-type'] as string)) ||
+          exportMimeType;
         isExported = true;
         exportFormat = requestedFormat;
 

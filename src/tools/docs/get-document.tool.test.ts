@@ -61,6 +61,7 @@ describe('GetDocumentTool', () => {
       initialize: jest.fn(),
       createDocument: jest.fn(),
       getDocument: jest.fn(),
+      getDocumentAsMarkdown: jest.fn(),
       updateDocument: jest.fn(),
       batchUpdate: jest.fn(),
       insertText: jest.fn(),
@@ -82,7 +83,7 @@ describe('GetDocumentTool', () => {
       const metadata = tool.getToolMetadata();
       expect(metadata.title).toBe('Get Google Document');
       expect(metadata.description).toBe(
-        'Retrieves a Google Document with its metadata and optional content'
+        'Retrieves a Google Document with its metadata and optional content. Supports markdown (default) and JSON output formats.'
       );
       expect(metadata.inputSchema).toBeDefined();
     });
@@ -96,65 +97,39 @@ describe('GetDocumentTool', () => {
       const metadata = tool.getToolMetadata();
       expect(metadata.inputSchema.includeContent).toBeDefined();
     });
+
+    test('should have optional format field in schema', () => {
+      const metadata = tool.getToolMetadata();
+      expect(metadata.inputSchema.format).toBeDefined();
+    });
   });
 
   describe('executeImpl', () => {
-    test('should get document with metadata only (default)', async () => {
-      const mockDocument: DocsDocumentInfo = {
-        documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-        title: 'Test Document',
-        revisionId: 'ALm37BVQwJlMJhSF2Iz2JR5VHyJB1Jyyz1b7l0vWj-7O',
-        createdTime: '2023-01-01T10:00:00Z',
-        modifiedTime: '2023-01-01T10:30:00Z',
-        documentUrl:
-          'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
-        body: {
-          content: [
-            {
-              paragraph: {
-                elements: [
-                  {
-                    textRun: {
-                      content: 'Hello World\n',
-                    },
-                  },
-                ],
-              },
-            },
-          ],
-        },
-      };
+    test('should get document as markdown (default)', async () => {
+      const mockMarkdownContent = `# Test Document
 
-      mockDocsService.getDocument.mockResolvedValue(ok(mockDocument));
+Hello World`;
+
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(ok(mockMarkdownContent));
 
       const result = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
       });
 
-      expect(mockDocsService.getDocument).toHaveBeenCalledWith(
-        '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-        false
+      expect(mockDocsService.getDocumentAsMarkdown).toHaveBeenCalledWith(
+        '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
       );
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         const mcpResult = result.value as MCPToolResult;
-        const text = mcpResult.content[0].text;
-        expect(text).toBeDefined();
-        const resultData = JSON.parse(text!) as GetDocumentResult;
-        expect(resultData.document.documentId).toBe(
-          '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
-        );
-        expect(resultData.document.title).toBe('Test Document');
-        expect(resultData.document.revisionId).toBe(
-          'ALm37BVQwJlMJhSF2Iz2JR5VHyJB1Jyyz1b7l0vWj-7O'
-        );
-        expect(resultData.document.documentUrl).toBe(
-          'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit'
-        );
+        expect(mcpResult.content[0].type).toBe('text');
+        expect(mcpResult.content[0].text).toBe(mockMarkdownContent);
+        // Should not call getDocument when format is markdown (default)
+        expect(mockDocsService.getDocument).not.toHaveBeenCalled();
       }
     });
 
-    test('should get document with content when requested', async () => {
+    test('should get document with content when requested in JSON format', async () => {
       const mockDocument: DocsDocumentInfo = {
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
         title: 'Document with Content',
@@ -203,6 +178,7 @@ describe('GetDocumentTool', () => {
       const result = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
         includeContent: true,
+        format: 'json',
       });
 
       expect(mockDocsService.getDocument).toHaveBeenCalledWith(
@@ -220,7 +196,7 @@ describe('GetDocumentTool', () => {
       }
     });
 
-    test('should exclude content when explicitly disabled', async () => {
+    test('should exclude content when explicitly disabled in JSON format', async () => {
       const mockDocument: DocsDocumentInfo = {
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
         title: 'Document without Content',
@@ -237,6 +213,7 @@ describe('GetDocumentTool', () => {
       const result = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
         includeContent: false,
+        format: 'json',
       });
 
       expect(mockDocsService.getDocument).toHaveBeenCalledWith(
@@ -246,7 +223,7 @@ describe('GetDocumentTool', () => {
       expect(result.isOk()).toBe(true);
     });
 
-    test('should handle empty document', async () => {
+    test('should handle empty document in JSON format', async () => {
       const mockDocument: DocsDocumentInfo = {
         documentId: 'empty-doc-123',
         title: 'Empty Document',
@@ -276,6 +253,7 @@ describe('GetDocumentTool', () => {
       const result = await tool.executeImpl({
         documentId: 'empty-doc-123',
         includeContent: true,
+        format: 'json',
       });
 
       expect(result.isOk()).toBe(true);
@@ -288,7 +266,7 @@ describe('GetDocumentTool', () => {
       }
     });
 
-    test('should handle document with complex formatting', async () => {
+    test('should handle document with complex formatting in JSON format', async () => {
       const mockDocument: DocsDocumentInfo = {
         documentId: 'complex-doc-456',
         title: 'Complex Formatted Document',
@@ -365,6 +343,7 @@ describe('GetDocumentTool', () => {
       const result = await tool.executeImpl({
         documentId: 'complex-doc-456',
         includeContent: true,
+        format: 'json',
       });
 
       expect(result.isOk()).toBe(true);
@@ -407,6 +386,7 @@ describe('GetDocumentTool', () => {
 
       const result = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+        format: 'json',
       });
 
       expect(result.isErr()).toBe(true);
@@ -429,6 +409,7 @@ describe('GetDocumentTool', () => {
 
       const result = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+        format: 'json',
       });
 
       expect(result.isErr()).toBe(true);
@@ -448,6 +429,7 @@ describe('GetDocumentTool', () => {
 
       const result = await tool.executeImpl({
         documentId: 'invalid-doc-id',
+        format: 'json',
       });
 
       expect(result.isErr()).toBe(true);
@@ -469,6 +451,7 @@ describe('GetDocumentTool', () => {
 
       const result = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+        format: 'json',
       });
 
       expect(result.isErr()).toBe(true);
@@ -527,6 +510,7 @@ describe('GetDocumentTool', () => {
 
         const result = await tool.executeImpl({
           documentId: invalidId,
+          format: 'json',
         });
 
         expect(result.isErr()).toBe(true);
@@ -543,6 +527,7 @@ describe('GetDocumentTool', () => {
 
       const result = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+        format: 'json',
       });
 
       expect(result.isErr()).toBe(true);
@@ -569,6 +554,7 @@ describe('GetDocumentTool', () => {
 
       const result = await tool.executeImpl({
         documentId: documentId,
+        format: 'json',
       });
 
       expect(mockDocsService.getDocument).toHaveBeenCalledWith(
@@ -594,6 +580,7 @@ describe('GetDocumentTool', () => {
       const result1 = await tool.executeImpl({
         documentId: 'bool-test-doc',
         includeContent: true,
+        format: 'json',
       });
 
       expect(mockDocsService.getDocument).toHaveBeenCalledWith(
@@ -606,6 +593,7 @@ describe('GetDocumentTool', () => {
       const result2 = await tool.executeImpl({
         documentId: 'bool-test-doc',
         includeContent: false,
+        format: 'json',
       });
 
       expect(mockDocsService.getDocument).toHaveBeenCalledWith(
@@ -617,6 +605,7 @@ describe('GetDocumentTool', () => {
       // Test with undefined (should default to false)
       const result3 = await tool.executeImpl({
         documentId: 'bool-test-doc',
+        format: 'json',
       });
 
       expect(mockDocsService.getDocument).toHaveBeenCalledWith(
@@ -682,6 +671,7 @@ describe('GetDocumentTool', () => {
       const result = await tool.executeImpl({
         documentId: 'structured-doc-789',
         includeContent: true,
+        format: 'json',
       });
 
       expect(result.isOk()).toBe(true);
@@ -728,6 +718,7 @@ describe('GetDocumentTool', () => {
       const result = await tool.executeImpl({
         documentId: 'large-doc-999',
         includeContent: true,
+        format: 'json',
       });
 
       expect(result.isOk()).toBe(true);
@@ -752,6 +743,7 @@ describe('GetDocumentTool', () => {
 
       const result = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+        format: 'json',
       });
 
       expect(result.isErr()).toBe(true);
@@ -771,6 +763,7 @@ describe('GetDocumentTool', () => {
 
       const result = await tool.executeImpl({
         documentId: 'incomplete-doc',
+        format: 'json',
       });
 
       // Should handle gracefully even with incomplete data
@@ -786,6 +779,7 @@ describe('GetDocumentTool', () => {
 
       const result = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+        format: 'json',
       });
 
       expect(result.isErr()).toBe(true);
@@ -805,6 +799,7 @@ describe('GetDocumentTool', () => {
 
       const result = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+        format: 'json',
       });
 
       expect(result.isErr()).toBe(true);
@@ -825,6 +820,7 @@ describe('GetDocumentTool', () => {
 
       const result = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+        format: 'json',
       });
 
       expect(result.isErr()).toBe(true);
@@ -832,6 +828,342 @@ describe('GetDocumentTool', () => {
         expect(result.error.statusCode).toBe(429);
         expect(result.error.message).toContain('Rate limit');
       }
+    });
+  });
+
+  describe('format parameter support', () => {
+    test('should default to markdown format when no format specified', async () => {
+      const mockMarkdownContent = `# Test Document
+
+This is a **bold** text and *italic* text.
+
+## Section 2
+
+- Item 1
+- Item 2
+- Item 3`;
+
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(ok(mockMarkdownContent));
+
+      const result = await tool.executeImpl({
+        documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+      });
+
+      expect(mockDocsService.getDocumentAsMarkdown).toHaveBeenCalledWith(
+        '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
+      );
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        const mcpResult = result.value as MCPToolResult;
+        expect(mcpResult.content[0].type).toBe('text');
+        expect(mcpResult.content[0].text).toBe(mockMarkdownContent);
+        // Should not call getDocument when format is markdown (default)
+        expect(mockDocsService.getDocument).not.toHaveBeenCalled();
+      }
+    });
+
+    test('should return markdown format when explicitly requested', async () => {
+      const mockMarkdownContent = `# Complex Document
+
+## Introduction
+
+This document contains various **formatting** elements including:
+
+### Lists
+- **Bold items**
+- *Italic items*
+- ~~Strikethrough items~~
+
+### Code
+\`\`\`javascript
+console.log('Hello World');
+\`\`\`
+
+### Tables
+
+| Column 1 | Column 2 | Column 3 |
+|----------|----------|----------|
+| Cell 1   | Cell 2   | Cell 3   |
+
+### Quotes
+> This is an important quote
+
+### Links
+[Google Docs](https://docs.google.com)`;
+
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(ok(mockMarkdownContent));
+
+      const result = await tool.executeImpl({
+        documentId: 'complex-doc-123',
+        format: 'markdown',
+      });
+
+      expect(mockDocsService.getDocumentAsMarkdown).toHaveBeenCalledWith('complex-doc-123');
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        const mcpResult = result.value as MCPToolResult;
+        expect(mcpResult.content[0].type).toBe('text');
+        expect(mcpResult.content[0].text).toBe(mockMarkdownContent);
+        // Should not call getDocument when format is markdown
+        expect(mockDocsService.getDocument).not.toHaveBeenCalled();
+      }
+    });
+
+    test('should return JSON format when explicitly requested', async () => {
+      const mockDocument: DocsDocumentInfo = {
+        documentId: 'doc123',
+        title: 'JSON Format Test',
+        revisionId: 'revision-123',
+        createdTime: '2023-01-01T10:00:00Z',
+        modifiedTime: '2023-01-01T10:30:00Z',
+        documentUrl: 'https://docs.google.com/document/d/doc123/edit',
+        body: {
+          content: [
+            {
+              paragraph: {
+                elements: [
+                  {
+                    textRun: {
+                      content: 'Hello World\n',
+                      textStyle: {
+                        bold: true,
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      };
+
+      mockDocsService.getDocument.mockResolvedValue(ok(mockDocument));
+
+      const result = await tool.executeImpl({
+        documentId: 'doc123',
+        format: 'json',
+      });
+
+      expect(mockDocsService.getDocument).toHaveBeenCalledWith('doc123', false);
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        const mcpResult = result.value as MCPToolResult;
+        const text = mcpResult.content[0].text;
+        const resultData = JSON.parse(text!) as GetDocumentResult;
+        expect(resultData.document.documentId).toBe('doc123');
+        expect(resultData.document.title).toBe('JSON Format Test');
+        // Should not call getDocumentAsMarkdown when format is json
+        expect(mockDocsService.getDocumentAsMarkdown).not.toHaveBeenCalled();
+      }
+    });
+
+    test('should handle JSON format with includeContent', async () => {
+      const mockDocument: DocsDocumentInfo = {
+        documentId: 'content-doc',
+        title: 'Document with Content',
+        revisionId: 'content-revision',
+        createdTime: '2023-01-01T10:00:00Z',
+        modifiedTime: '2023-01-01T10:30:00Z',
+        documentUrl: 'https://docs.google.com/document/d/content-doc/edit',
+        body: {
+          content: [
+            {
+              paragraph: {
+                elements: [
+                  {
+                    textRun: {
+                      content: 'This is paragraph content.\n',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      };
+
+      mockDocsService.getDocument.mockResolvedValue(ok(mockDocument));
+
+      const result = await tool.executeImpl({
+        documentId: 'content-doc',
+        format: 'json',
+        includeContent: true,
+      });
+
+      expect(mockDocsService.getDocument).toHaveBeenCalledWith('content-doc', true);
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        const mcpResult = result.value as MCPToolResult;
+        const text = mcpResult.content[0].text;
+        const resultData = JSON.parse(text!) as GetDocumentResult;
+        expect(resultData.document.body).toBeDefined();
+        expect(resultData.document.body?.content).toHaveLength(1);
+      }
+    });
+
+    test('should handle invalid format parameter', async () => {
+      const result = await tool.executeImpl({
+        documentId: 'doc123',
+        format: 'invalid-format' as any,
+      });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('Format must be either "markdown" or "json"');
+      }
+    });
+
+    test('should handle markdown service errors gracefully', async () => {
+      const markdownError = new GoogleDocsError(
+        'Failed to export document as markdown',
+        'GOOGLE_DOCS_MARKDOWN_EXPORT_ERROR',
+        500,
+        'doc123'
+      );
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(err(markdownError));
+
+      const result = await tool.executeImpl({
+        documentId: 'doc123',
+        format: 'markdown',
+      });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(500);
+        expect(result.error.message).toContain('Failed to export document as markdown');
+      }
+    });
+
+    test('should handle markdown export not supported', async () => {
+      const exportError = new GoogleDocsError(
+        'Markdown export not supported for this document type',
+        'GOOGLE_DOCS_UNSUPPORTED_EXPORT',
+        400,
+        'doc123'
+      );
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(err(exportError));
+
+      const result = await tool.executeImpl({
+        documentId: 'doc123',
+        format: 'markdown',
+      });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(400);
+        expect(result.error.message).toContain('Markdown export not supported');
+      }
+    });
+
+    test('should handle empty markdown content', async () => {
+      const emptyMarkdown = '\n';
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(ok(emptyMarkdown));
+
+      const result = await tool.executeImpl({
+        documentId: 'empty-doc',
+        format: 'markdown',
+      });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        const mcpResult = result.value as MCPToolResult;
+        expect(mcpResult.content[0].text).toBe(emptyMarkdown);
+      }
+    });
+
+    test('should handle complex markdown with special characters', async () => {
+      const complexMarkdown = `# Document with Special Characters
+
+## Test Cases
+
+### Escaping and Special Syntax
+- Backslashes: \\\\\\\\ 
+- Asterisks: \\*not bold\\*
+- Underscores: \\_not italic\\_
+- Backticks: \\\` code blocks \\\`
+
+### Unicode and Emoji
+- Unicode: 测试文档 🚀
+- Mathematical symbols: α + β = γ
+- Currency: $100, €85, ¥500
+
+### HTML-like content
+<div>This should be treated as text</div>
+
+### Complex Links
+[Link with (parentheses)](https://example.com/path?param=value&other=test)
+
+### Code with backticks
+\`\`\`bash
+echo "Hello World"
+# This is a comment
+\`\`\``;
+
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(ok(complexMarkdown));
+
+      const result = await tool.executeImpl({
+        documentId: 'complex-chars-doc',
+        format: 'markdown',
+      });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        const mcpResult = result.value as MCPToolResult;
+        expect(mcpResult.content[0].text).toBe(complexMarkdown);
+        // Verify specific elements are preserved
+        expect(mcpResult.content[0].text).toContain('\\\\\\\\');
+        expect(mcpResult.content[0].text).toContain('测试文档 🚀');
+        expect(mcpResult.content[0].text).toContain('<div>This should be treated as text</div>');
+        expect(mcpResult.content[0].text).toContain('α + β = γ');
+      }
+    });
+
+    test('should validate format parameter with documentId', async () => {
+      // Test empty documentId with format
+      const result1 = await tool.executeImpl({
+        documentId: '',
+        format: 'markdown',
+      });
+
+      expect(result1.isErr()).toBe(true);
+      if (result1.isErr()) {
+        expect(result1.error.message).toContain('Document ID cannot be empty');
+      }
+
+      // Test whitespace documentId with format
+      const result2 = await tool.executeImpl({
+        documentId: '   ',
+        format: 'json',
+      });
+
+      expect(result2.isErr()).toBe(true);
+      if (result2.isErr()) {
+        expect(result2.error.message).toContain('Document ID cannot be empty');
+      }
+    });
+
+    test('should handle format parameter case insensitivity', async () => {
+      const mockMarkdownContent = '# Test Document\n\nContent here.';
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(ok(mockMarkdownContent));
+
+      // Test uppercase
+      const result1 = await tool.executeImpl({
+        documentId: 'doc123',
+        format: 'MARKDOWN' as any,
+      });
+
+      expect(result1.isOk()).toBe(true);
+
+      // Test mixed case
+      const result2 = await tool.executeImpl({
+        documentId: 'doc123',
+        format: 'Markdown' as any,
+      });
+
+      expect(result2.isOk()).toBe(true);
+
+      // Should handle case-insensitive comparison
+      expect(mockDocsService.getDocumentAsMarkdown).toHaveBeenCalledTimes(2);
     });
   });
 });

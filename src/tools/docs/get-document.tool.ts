@@ -11,7 +11,7 @@ import { docs_v1 } from 'googleapis';
 
 /**
  * Schema for get document input parameters
- * Includes document ID and optional content inclusion flag
+ * Includes document ID, optional content inclusion flag, and format selection
  */
 const GetDocumentInputSchema = z.object({
   documentId: z
@@ -28,6 +28,18 @@ const GetDocumentInputSchema = z.object({
         'Whether to include the document body content in the response',
       invalid_type_error: 'Include content must be a boolean',
     })
+    .optional(),
+  format: z
+    .string({
+      description:
+        'Output format: markdown for plain text markdown or json for structured document data',
+      invalid_type_error: 'Format must be either "markdown" or "json"',
+    })
+    .transform((val) => val.toLowerCase() as 'markdown' | 'json')
+    .refine((val) => ['markdown', 'json'].includes(val), {
+      message: 'Format must be either "markdown" or "json"',
+    })
+    .default('markdown')
     .optional(),
 });
 
@@ -50,21 +62,30 @@ type GetDocumentInput = z.infer<typeof GetDocumentInputSchema>;
  * **Input Parameters:**
  * - `documentId` (required): The unique identifier of the document
  * - `includeContent` (optional): Whether to include document body content
+ * - `format` (optional): Output format - 'markdown' (default) or 'json'
  *
  * **Output:**
- * Returns complete document information including document ID, title, URLs,
- * revision information, and optionally the complete document body structure
- * with paragraphs, text runs, and styling information.
+ * - Markdown format: Returns plain text markdown content
+ * - JSON format: Returns complete document information including document ID, title, URLs,
+ *   revision information, and optionally the complete document body structure
+ *   with paragraphs, text runs, and styling information.
  *
  * **Usage Examples:**
  * ```typescript
- * // Get document metadata only
+ * // Get document as markdown (default)
  * const result = await tool.execute({ documentId: "doc-123" });
  *
- * // Get document with full content
+ * // Get document as JSON with full content
  * const result = await tool.execute({
  *   documentId: "doc-123",
- *   includeContent: true
+ *   includeContent: true,
+ *   format: "json"
+ * });
+ *
+ * // Get document as markdown explicitly
+ * const result = await tool.execute({
+ *   documentId: "doc-123", 
+ *   format: "markdown"
  * });
  * ```
  *
@@ -90,7 +111,7 @@ export class GetDocumentTool extends BaseDocsTools<
     return {
       title: 'Get Google Document',
       description:
-        'Retrieves a Google Document with its metadata and optional content',
+        'Retrieves a Google Document with its metadata and optional content. Supports markdown (default) and JSON output formats.',
       inputSchema: GetDocumentInputSchema.shape,
     };
   }
@@ -187,6 +208,7 @@ export class GetDocumentTool extends BaseDocsTools<
       params: {
         documentId: params.documentId,
         includeContent: !!params.includeContent,
+        format: params.format || 'markdown',
       },
     });
 
@@ -224,58 +246,98 @@ export class GetDocumentTool extends BaseDocsTools<
         return err(docIdResult.error);
       }
 
-      // Retrieve document using DocsService with includeContent parameter
-      const getResult = await this.docsService.getDocument(
-        trimmedDocumentId,
-        validatedParams.includeContent ?? false
-      );
+      // Handle different formats
+      const format = validatedParams.format || 'markdown';
+      let response: MCPToolResult;
 
-      if (getResult.isErr()) {
-        this.logger.error(`${this.getToolName()}: Document retrieval failed`, {
-          requestId,
-          documentId: trimmedDocumentId,
-          error: getResult.error.toJSON(),
-        });
-        return err(this.handleServiceError(getResult.error, 'get_document'));
-      }
+      if (format === 'markdown') {
+        // Use getDocumentAsMarkdown for markdown format
+        const markdownResult = await this.docsService.getDocumentAsMarkdown(
+          trimmedDocumentId
+        );
 
-      // The DocsService.getDocument returns Schema$Document, convert to DocsDocumentInfo
-      const doc = getResult.value;
-      const documentInfo: DocsDocumentInfo = {
-        documentId: doc.documentId || trimmedDocumentId,
-        title: doc.title || 'Untitled Document',
-        revisionId: doc.revisionId || 'unknown',
-        createdTime: new Date().toISOString(), // Schema$Document doesn't have createdTime
-        modifiedTime: new Date().toISOString(), // Schema$Document doesn't have modifiedTime
-        documentUrl: `https://docs.google.com/document/d/${trimmedDocumentId}/edit`,
-        // Service now handles includeContent logic, so we convert the body if it exists
-        body: doc.body ? this.convertBodyToDocumentInfo(doc.body) : undefined,
-      };
-
-      const response: MCPToolResult = {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(
-              {
-                document: documentInfo,
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-
-      this.logger.info(
-        `${this.getToolName()}: Document retrieval completed successfully`,
-        {
-          requestId,
-          documentId: trimmedDocumentId,
-          title: documentInfo.title,
-          hasContent: !!documentInfo.body,
+        if (markdownResult.isErr()) {
+          this.logger.error(`${this.getToolName()}: Markdown export failed`, {
+            requestId,
+            documentId: trimmedDocumentId,
+            error: markdownResult.error.toJSON(),
+          });
+          return err(this.handleServiceError(markdownResult.error, 'get_document'));
         }
-      );
+
+        response = {
+          content: [
+            {
+              type: 'text' as const,
+              text: markdownResult.value,
+            },
+          ],
+        };
+
+        this.logger.info(
+          `${this.getToolName()}: Document retrieval as markdown completed successfully`,
+          {
+            requestId,
+            documentId: trimmedDocumentId,
+            format: 'markdown',
+            contentLength: markdownResult.value.length,
+          }
+        );
+      } else {
+        // Use getDocument for JSON format (existing behavior)
+        const getResult = await this.docsService.getDocument(
+          trimmedDocumentId,
+          validatedParams.includeContent ?? false
+        );
+
+        if (getResult.isErr()) {
+          this.logger.error(`${this.getToolName()}: Document retrieval failed`, {
+            requestId,
+            documentId: trimmedDocumentId,
+            error: getResult.error.toJSON(),
+          });
+          return err(this.handleServiceError(getResult.error, 'get_document'));
+        }
+
+        // The DocsService.getDocument returns Schema$Document, convert to DocsDocumentInfo
+        const doc = getResult.value;
+        const documentInfo: DocsDocumentInfo = {
+          documentId: doc.documentId || trimmedDocumentId,
+          title: doc.title || 'Untitled Document',
+          revisionId: doc.revisionId || 'unknown',
+          createdTime: new Date().toISOString(), // Schema$Document doesn't have createdTime
+          modifiedTime: new Date().toISOString(), // Schema$Document doesn't have modifiedTime
+          documentUrl: `https://docs.google.com/document/d/${trimmedDocumentId}/edit`,
+          // Service now handles includeContent logic, so we convert the body if it exists
+          body: doc.body ? this.convertBodyToDocumentInfo(doc.body) : undefined,
+        };
+
+        response = {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(
+                {
+                  document: documentInfo,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+
+        this.logger.info(
+          `${this.getToolName()}: Document retrieval as JSON completed successfully`,
+          {
+            requestId,
+            documentId: trimmedDocumentId,
+            title: documentInfo.title,
+            hasContent: !!documentInfo.body,
+            format: 'json',
+          }
+        );
+      }
 
       return ok(response);
     } catch (error) {

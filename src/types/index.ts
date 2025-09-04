@@ -451,7 +451,8 @@ export interface DriveFileContentOptions {
     | 'txt'
     | 'jpeg'
     | 'png'
-    | 'svg';
+    | 'svg'
+    | 'markdown';
   maxFileSize?: number;
 }
 

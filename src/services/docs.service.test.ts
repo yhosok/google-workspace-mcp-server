@@ -48,6 +48,7 @@ describe('DocsService', () => {
       getServiceStats: jest.fn(),
       createSpreadsheet: jest.fn(),
       createDocument: jest.fn(),
+      getFileContent: jest.fn(),
     } as unknown as jest.Mocked<DriveService>;
 
     mockLogger = {
@@ -370,7 +371,7 @@ describe('DocsService', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.code).toBe('GOOGLE_DOCS_SERVER_ERROR');
+        expect(result.error.code).toBe('GOOGLE_DOCS_NOT_INITIALIZED');
       }
     });
   });
@@ -481,7 +482,7 @@ describe('DocsService', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.code).toBe('GOOGLE_DOCS_SERVER_ERROR');
+        expect(result.error.code).toBe('GOOGLE_DOCS_NOT_INITIALIZED');
       }
     });
   });
@@ -606,7 +607,7 @@ describe('DocsService', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.code).toBe('GOOGLE_DOCS_SERVER_ERROR');
+        expect(result.error.code).toBe('GOOGLE_DOCS_NOT_INITIALIZED');
       }
     });
   });
@@ -733,7 +734,7 @@ describe('DocsService', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.code).toBe('GOOGLE_DOCS_SERVER_ERROR');
+        expect(result.error.code).toBe('GOOGLE_DOCS_NOT_INITIALIZED');
       }
     });
   });
@@ -921,7 +922,7 @@ describe('DocsService', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.code).toBe('GOOGLE_DOCS_SERVER_ERROR');
+        expect(result.error.code).toBe('GOOGLE_DOCS_NOT_INITIALIZED');
       }
     });
   });
@@ -1113,6 +1114,298 @@ describe('DocsService', () => {
 
       // Should complete quickly due to fast path optimization
       expect(duration).toBeLessThan(100); // Should be fast
+    });
+  });
+
+  describe('getDocumentAsMarkdown', () => {
+    beforeEach(async () => {
+      mockGoogle.docs.mockReturnValue(mockDocsApi);
+      await docsService.initialize();
+    });
+
+    test('should get document as markdown using DriveService integration', async () => {
+      const mockMarkdownContent = `# Test Document
+
+This is a **bold** text and *italic* text.
+
+## Section 2
+
+- Item 1
+- Item 2
+- Item 3
+
+### Code Example
+
+\`\`\`javascript
+console.log('Hello World');
+\`\`\`
+
+> This is a blockquote
+
+[Link to Google](https://google.com)`;
+
+      const mockDriveResponse = {
+        content: mockMarkdownContent,
+        mimeType: 'text/markdown',
+        size: mockMarkdownContent.length,
+        isExported: true,
+        exportFormat: 'markdown',
+      };
+
+      mockDriveService.getFileContent.mockResolvedValue(ok(mockDriveResponse));
+
+      const result = await docsService.getDocumentAsMarkdown('doc123');
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value).toBe(mockMarkdownContent);
+        expect(mockDriveService.getFileContent).toHaveBeenCalledWith('doc123', {
+          exportFormat: 'markdown',
+        });
+      }
+    });
+
+    test('should handle markdown export with complex formatting', async () => {
+      const complexMarkdown = `# Main Title
+
+## Subtitle with **Bold** and *Italic*
+
+This document contains various formatting elements:
+
+### Text Formatting
+- **Bold text**
+- *Italic text*  
+- ~~Strikethrough text~~
+- \`inline code\`
+
+### Lists
+
+#### Bulleted List
+- First item
+- Second item with **bold**
+- Third item with *italic*
+
+#### Numbered List
+1. First numbered item
+2. Second numbered item
+3. Third numbered item
+
+### Code Blocks
+
+\`\`\`typescript
+interface Document {
+  id: string;
+  title: string;
+  content: string;
+}
+
+const doc: Document = {
+  id: 'abc123',
+  title: 'Test Document',
+  content: 'Hello World'
+};
+\`\`\`
+
+### Tables
+
+| Column 1 | Column 2 | Column 3 |
+|----------|----------|----------|
+| Cell 1   | Cell 2   | Cell 3   |
+| Cell 4   | Cell 5   | Cell 6   |
+
+### Quotes and Links
+
+> This is an important quote from the document.
+
+For more information, see [Google Docs](https://docs.google.com).
+
+---
+
+*End of document*`;
+
+      const mockDriveResponse = {
+        content: complexMarkdown,
+        mimeType: 'text/markdown; charset=utf-8',
+        size: complexMarkdown.length,
+        isExported: true,
+        exportFormat: 'markdown',
+      };
+
+      mockDriveService.getFileContent.mockResolvedValue(ok(mockDriveResponse));
+
+      const result = await docsService.getDocumentAsMarkdown('complex-doc');
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value).toBe(complexMarkdown);
+        // Verify specific markdown elements
+        expect(result.value).toContain('# Main Title');
+        expect(result.value).toContain('**Bold text**');
+        expect(result.value).toContain('*Italic text*');
+        expect(result.value).toContain('~~Strikethrough text~~');
+        expect(result.value).toContain('```typescript');
+        expect(result.value).toContain('| Column 1 | Column 2 | Column 3 |');
+        expect(result.value).toContain('> This is an important quote');
+        expect(result.value).toContain(
+          '[Google Docs](https://docs.google.com)'
+        );
+      }
+    });
+
+    test('should handle empty document markdown export', async () => {
+      const emptyMarkdown = '\n'; // Empty document returns just a newline
+
+      const mockDriveResponse = {
+        content: emptyMarkdown,
+        mimeType: 'text/markdown',
+        size: 1,
+        isExported: true,
+        exportFormat: 'markdown',
+      };
+
+      mockDriveService.getFileContent.mockResolvedValue(ok(mockDriveResponse));
+
+      const result = await docsService.getDocumentAsMarkdown('empty-doc');
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value).toBe(emptyMarkdown);
+      }
+    });
+
+    test('should validate documentId parameter', async () => {
+      // Empty documentId
+      const result1 = await docsService.getDocumentAsMarkdown('');
+      expect(result1.isErr()).toBe(true);
+      if (result1.isErr()) {
+        expect(result1.error.message).toContain('documentId cannot be empty');
+      }
+
+      // Null documentId
+      const result2 = await docsService.getDocumentAsMarkdown(
+        null as unknown as string
+      );
+      expect(result2.isErr()).toBe(true);
+
+      // Undefined documentId
+      const result3 = await docsService.getDocumentAsMarkdown(
+        undefined as unknown as string
+      );
+      expect(result3.isErr()).toBe(true);
+
+      // Whitespace-only documentId
+      const result4 = await docsService.getDocumentAsMarkdown('   ');
+      expect(result4.isErr()).toBe(true);
+    });
+
+    test('should handle DriveService errors', async () => {
+      const driveError = new GoogleDocsError(
+        'Failed to export document to markdown',
+        'GOOGLE_DRIVE_EXPORT_ERROR',
+        500,
+        'doc123'
+      );
+      mockDriveService.getFileContent.mockResolvedValue(err(driveError));
+
+      const result = await docsService.getDocumentAsMarkdown('doc123');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(500);
+        expect(result.error.message).toContain(
+          'Failed to export document to markdown'
+        );
+      }
+    });
+
+    test('should handle document not found error', async () => {
+      const notFoundError = new GoogleDocsError(
+        'Document not found',
+        'GOOGLE_DOCS_DOCUMENT_NOT_FOUND',
+        404,
+        'nonexistent-doc'
+      );
+      mockDriveService.getFileContent.mockResolvedValue(err(notFoundError));
+
+      const result = await docsService.getDocumentAsMarkdown('nonexistent-doc');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(404);
+        expect(result.error.message).toContain('Document not found');
+      }
+    });
+
+    test('should handle permission denied error', async () => {
+      const permissionError = new GoogleDocsError(
+        'Permission denied to export document',
+        'GOOGLE_DOCS_PERMISSION_DENIED',
+        403,
+        'private-doc'
+      );
+      mockDriveService.getFileContent.mockResolvedValue(err(permissionError));
+
+      const result = await docsService.getDocumentAsMarkdown('private-doc');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(403);
+        expect(result.error.message).toContain('Permission denied');
+      }
+    });
+
+    test('should handle markdown export not supported error', async () => {
+      const exportError = new GoogleDocsError(
+        'Markdown export format not supported for this document',
+        'GOOGLE_DRIVE_UNSUPPORTED_EXPORT_FORMAT',
+        400,
+        'doc123'
+      );
+      mockDriveService.getFileContent.mockResolvedValue(err(exportError));
+
+      const result = await docsService.getDocumentAsMarkdown('doc123');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(400);
+        expect(result.error.message).toContain(
+          'Markdown export format not supported'
+        );
+      }
+    });
+
+    test('should require service initialization', async () => {
+      const uninitializedService = new DocsService(
+        mockAuthService,
+        mockDriveService
+      );
+
+      const result = await uninitializedService.getDocumentAsMarkdown('doc123');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('GOOGLE_DOCS_NOT_INITIALIZED');
+      }
+    });
+
+    test('should handle DriveService not available', async () => {
+      // Create DocsService without DriveService
+      const docsServiceWithoutDrive = new DocsService(
+        mockAuthService,
+        null as any
+      );
+      mockGoogle.docs.mockReturnValue(mockDocsApi);
+      await docsServiceWithoutDrive.initialize();
+
+      const result =
+        await docsServiceWithoutDrive.getDocumentAsMarkdown('doc123');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain(
+          'DriveService is required for markdown export'
+        );
+      }
     });
   });
 });
