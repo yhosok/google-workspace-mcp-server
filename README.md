@@ -109,7 +109,7 @@ When using npx, your Claude Desktop configuration becomes even simpler since you
         "GOOGLE_OAUTH_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
         "GOOGLE_OAUTH_CLIENT_SECRET": "your-client-secret",
         "GOOGLE_OAUTH_REDIRECT_URI": "http://localhost:3000/oauth2callback",
-        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/documents",
+        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/drive.readonly,https://www.googleapis.com/auth/documents",
         "GOOGLE_READ_ONLY_MODE": "false"
       }
     }
@@ -210,7 +210,7 @@ GOOGLE_AUTH_MODE=oauth2
 GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
 GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
-GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/documents
+GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/drive.readonly,https://www.googleapis.com/auth/documents
 ```
 
 **Note**: Both `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` are required. PKCE security is automatically enabled to provide additional protection beyond the client secret.
@@ -256,7 +256,7 @@ GOOGLE_AUTH_MODE=oauth2
 GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
 GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
-GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/documents
+GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/drive.readonly,https://www.googleapis.com/auth/documents
 GOOGLE_OAUTH_PORT=3000
 ```
 
@@ -400,7 +400,7 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
         "GOOGLE_OAUTH_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
         "GOOGLE_OAUTH_CLIENT_SECRET": "your-client-secret",
         "GOOGLE_OAUTH_REDIRECT_URI": "http://localhost:3000/oauth2callback",
-        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file",
+        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/drive.readonly,https://www.googleapis.com/auth/documents",
         "GOOGLE_READ_ONLY_MODE": "false"
       }
     }
