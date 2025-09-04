@@ -47,7 +47,9 @@ describe('SheetsCreateSpreadsheetTool', () => {
 
   describe('getToolName', () => {
     test('should return correct tool name', () => {
-      expect(tool.getToolName()).toBe('google-workspace__sheets__create-spreadsheet');
+      expect(tool.getToolName()).toBe(
+        'google-workspace__sheets__create-spreadsheet'
+      );
     });
   });
 

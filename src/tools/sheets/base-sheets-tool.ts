@@ -139,7 +139,9 @@ export abstract class BaseSheetsTools<
       const context = this.buildContextFromParams(params);
 
       // Determine operation type based on tool name
-      const operation = this.isWriteOperation(toolName) ? ('write' as const) : ('read' as const);
+      const operation = this.isWriteOperation(toolName)
+        ? ('write' as const)
+        : ('read' as const);
 
       // Validate access control if service is available
       const accessControlResult = await this.validateAccessControl(
@@ -187,7 +189,9 @@ export abstract class BaseSheetsTools<
    * @param params - The validated input parameters
    * @returns Result with tool output or error
    */
-  public abstract executeImpl(params: TInput): Promise<Result<TOutput, GoogleWorkspaceError>>;
+  public abstract executeImpl(
+    params: TInput
+  ): Promise<Result<TOutput, GoogleWorkspaceError>>;
 
   /**
    * Builds a context object from tool parameters for access control validation.
@@ -229,7 +233,14 @@ export abstract class BaseSheetsTools<
    * @returns Result indicating whether access is allowed
    */
   protected async validateAccessControl(
-    paramsOrRequest: unknown | { operation?: string; serviceName?: string; toolName?: string; context?: Record<string, unknown> },
+    paramsOrRequest:
+      | unknown
+      | {
+          operation?: string;
+          serviceName?: string;
+          toolName?: string;
+          context?: Record<string, unknown>;
+        },
     requestId: string
   ): Promise<Result<void, GoogleWorkspaceError>> {
     // If no access control service is configured, allow the operation
@@ -245,30 +256,43 @@ export abstract class BaseSheetsTools<
       let targetFolderId: string | undefined;
 
       // Determine if this is the new request object format or legacy params format
-      const isRequestObject = paramsOrRequest && 
-        typeof paramsOrRequest === 'object' && 
-        ('operation' in paramsOrRequest || 'serviceName' in paramsOrRequest || 'toolName' in paramsOrRequest);
+      const isRequestObject =
+        paramsOrRequest &&
+        typeof paramsOrRequest === 'object' &&
+        ('operation' in paramsOrRequest ||
+          'serviceName' in paramsOrRequest ||
+          'toolName' in paramsOrRequest);
 
       if (isRequestObject) {
         // New format: structured request object
-        const request = paramsOrRequest as { operation?: string; serviceName?: string; toolName?: string; context?: Record<string, unknown> };
-        
-        operation = request.operation as ('read' | 'write') || 
-          (this.isWriteOperation(request.toolName || this.getToolName()) ? 'write' : 'read');
+        const request = paramsOrRequest as {
+          operation?: string;
+          serviceName?: string;
+          toolName?: string;
+          context?: Record<string, unknown>;
+        };
+
+        operation =
+          (request.operation as 'read' | 'write') ||
+          (this.isWriteOperation(request.toolName || this.getToolName())
+            ? 'write'
+            : 'read');
         serviceName = request.serviceName || 'sheets';
         toolName = request.toolName || this.getToolName();
         context = request.context || {};
-        
+
         // Extract targetFolderId from context or compute from context
         const folderIds = this.getRequiredFolderIds(context);
         targetFolderId = folderIds.length > 0 ? folderIds[0] : undefined;
       } else {
         // Legacy format: raw params
-        operation = this.isWriteOperation(this.getToolName()) ? 'write' : 'read';
+        operation = this.isWriteOperation(this.getToolName())
+          ? 'write'
+          : 'read';
         serviceName = 'sheets';
         toolName = this.getToolName();
         context = this.buildContextFromParams(paramsOrRequest);
-        
+
         // Extract folder IDs from parameters for folder-based access control
         const folderIds = this.getRequiredFolderIds(paramsOrRequest);
         targetFolderId = folderIds.length > 0 ? folderIds[0] : undefined;
@@ -285,7 +309,8 @@ export abstract class BaseSheetsTools<
       };
 
       // Validate access using the access control service
-      const validationResult = await this.accessControlService.validateAccess(accessControlRequest);
+      const validationResult =
+        await this.accessControlService.validateAccess(accessControlRequest);
 
       if (validationResult.isErr()) {
         // Log access control denial as a warning (business logic, not a system error)
@@ -304,19 +329,23 @@ export abstract class BaseSheetsTools<
       return ok(undefined);
     } catch (error) {
       // Handle unexpected errors during access control validation
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       const accessError = new GoogleAccessControlError(
         `Access control validation failed: ${errorMessage}`,
         'general',
         'GOOGLE_ACCESS_CONTROL_ERROR',
         500,
         undefined,
-        { 
-          requestId, 
-          toolName: typeof paramsOrRequest === 'object' && paramsOrRequest && 'toolName' in paramsOrRequest 
-            ? (paramsOrRequest as any).toolName 
-            : this.getToolName(),
-          originalError: error instanceof Error ? error : undefined 
+        {
+          requestId,
+          toolName:
+            typeof paramsOrRequest === 'object' &&
+            paramsOrRequest &&
+            'toolName' in paramsOrRequest
+              ? (paramsOrRequest as any).toolName
+              : this.getToolName(),
+          originalError: error instanceof Error ? error : undefined,
         },
         error instanceof Error ? error : undefined
       );
@@ -324,9 +353,12 @@ export abstract class BaseSheetsTools<
       this.logger.error('Access control validation error', {
         error: accessError.toJSON(),
         requestId,
-        toolName: typeof paramsOrRequest === 'object' && paramsOrRequest && 'toolName' in paramsOrRequest 
-          ? (paramsOrRequest as any).toolName 
-          : this.getToolName(),
+        toolName:
+          typeof paramsOrRequest === 'object' &&
+          paramsOrRequest &&
+          'toolName' in paramsOrRequest
+            ? (paramsOrRequest as any).toolName
+            : this.getToolName(),
       });
 
       return err(accessError);
@@ -350,11 +382,7 @@ export abstract class BaseSheetsTools<
     const normalizedName = toolName.toLowerCase();
 
     // Define read operation patterns for Sheets
-    const readPatterns = [
-      'list',
-      'get',
-      'read',
-    ];
+    const readPatterns = ['list', 'get', 'read'];
 
     // Define write operation patterns for Sheets
     const writePatterns = [
@@ -374,8 +402,14 @@ export abstract class BaseSheetsTools<
 
     // Use word boundary matching to avoid substring conflicts like 'read' in 'create'
     // Create regex patterns that match whole words or are separated by common delimiters
-    const createReadRegex = (patterns: string[]) => 
-      patterns.map(pattern => new RegExp(`\\b${pattern}\\b|[_-]${pattern}[_-]|[_-]${pattern}$|^${pattern}[_-]`, 'i'));
+    const createReadRegex = (patterns: string[]) =>
+      patterns.map(
+        pattern =>
+          new RegExp(
+            `\\b${pattern}\\b|[_-]${pattern}[_-]|[_-]${pattern}$|^${pattern}[_-]`,
+            'i'
+          )
+      );
 
     const readRegexes = createReadRegex(readPatterns);
     const writeRegexes = createReadRegex(writePatterns);

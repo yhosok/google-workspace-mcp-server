@@ -219,7 +219,7 @@ export class CreateEventTool extends BaseCalendarTools<
     context?: ToolExecutionContext
   ): Promise<Result<any, GoogleWorkspaceError>> {
     const requestId = context?.requestId || this.generateRequestId();
-    
+
     this.logger.info('Executing create event tool', {
       calendarId: args.calendarId,
       summary: args.summary,

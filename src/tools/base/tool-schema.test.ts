@@ -96,14 +96,18 @@ describe('SchemaFactory', () => {
 
   describe('createToolInputSchema', () => {
     it('should create schema for google-workspace__sheets__list-spreadsheets tool', () => {
-      const schema = SchemaFactory.createToolInputSchema('google-workspace__sheets__list-spreadsheets');
+      const schema = SchemaFactory.createToolInputSchema(
+        'google-workspace__sheets__list-spreadsheets'
+      );
 
       expect(() => schema.parse({})).not.toThrow();
       expect(Object.keys(schema.shape)).toHaveLength(0);
     });
 
     it('should create schema for google-workspace__sheets__read-range tool', () => {
-      const schema = SchemaFactory.createToolInputSchema('google-workspace__sheets__read-range');
+      const schema = SchemaFactory.createToolInputSchema(
+        'google-workspace__sheets__read-range'
+      );
 
       expect(() =>
         schema.parse({
@@ -118,7 +122,9 @@ describe('SchemaFactory', () => {
     });
 
     it('should create schema for google-workspace__sheets__write-range tool', () => {
-      const schema = SchemaFactory.createToolInputSchema('google-workspace__sheets__write-range');
+      const schema = SchemaFactory.createToolInputSchema(
+        'google-workspace__sheets__write-range'
+      );
 
       expect(() =>
         schema.parse({
@@ -141,7 +147,9 @@ describe('SchemaFactory', () => {
     });
 
     it('should create schema for google-workspace__sheets__append-rows tool', () => {
-      const schema = SchemaFactory.createToolInputSchema('google-workspace__sheets__append-rows');
+      const schema = SchemaFactory.createToolInputSchema(
+        'google-workspace__sheets__append-rows'
+      );
 
       expect(() =>
         schema.parse({
@@ -166,7 +174,9 @@ describe('SchemaFactory', () => {
 
   describe('createResponseSchema', () => {
     it('should create schema for google-workspace__sheets__list-spreadsheets response', () => {
-      const schema = SchemaFactory.createResponseSchema('google-workspace__sheets__list-spreadsheets');
+      const schema = SchemaFactory.createResponseSchema(
+        'google-workspace__sheets__list-spreadsheets'
+      );
 
       expect(() =>
         schema.parse({
@@ -186,7 +196,9 @@ describe('SchemaFactory', () => {
     });
 
     it('should create schema for google-workspace__sheets__read-range response', () => {
-      const schema = SchemaFactory.createResponseSchema('google-workspace__sheets__read-range');
+      const schema = SchemaFactory.createResponseSchema(
+        'google-workspace__sheets__read-range'
+      );
 
       expect(() =>
         schema.parse({
@@ -211,7 +223,9 @@ describe('SchemaFactory', () => {
     });
 
     it('should create schema for google-workspace__sheets__write-range response', () => {
-      const schema = SchemaFactory.createResponseSchema('google-workspace__sheets__write-range');
+      const schema = SchemaFactory.createResponseSchema(
+        'google-workspace__sheets__write-range'
+      );
 
       expect(() =>
         schema.parse({
@@ -225,7 +239,9 @@ describe('SchemaFactory', () => {
     });
 
     it('should create schema for google-workspace__sheets__append-rows response', () => {
-      const schema = SchemaFactory.createResponseSchema('google-workspace__sheets__append-rows');
+      const schema = SchemaFactory.createResponseSchema(
+        'google-workspace__sheets__append-rows'
+      );
 
       expect(() =>
         schema.parse({
@@ -248,7 +264,10 @@ describe('SchemaFactory', () => {
 
   describe('validateToolInput', () => {
     it('should validate google-workspace__sheets__list-spreadsheets input successfully', () => {
-      const result = SchemaFactory.validateToolInput('google-workspace__sheets__list-spreadsheets', {});
+      const result = SchemaFactory.validateToolInput(
+        'google-workspace__sheets__list-spreadsheets',
+        {}
+      );
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data).toEqual({});
@@ -261,7 +280,10 @@ describe('SchemaFactory', () => {
         range: 'Sheet1!A1:B10',
       };
 
-      const result = SchemaFactory.validateToolInput('google-workspace__sheets__read-range', input);
+      const result = SchemaFactory.validateToolInput(
+        'google-workspace__sheets__read-range',
+        input
+      );
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data).toEqual(input);
@@ -269,7 +291,10 @@ describe('SchemaFactory', () => {
     });
 
     it('should return validation error for invalid input', () => {
-      const result = SchemaFactory.validateToolInput('google-workspace__sheets__read-range', {});
+      const result = SchemaFactory.validateToolInput(
+        'google-workspace__sheets__read-range',
+        {}
+      );
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toBeDefined();
@@ -286,7 +311,10 @@ describe('SchemaFactory', () => {
 
   describe('formatValidationError', () => {
     it('should format validation errors nicely', () => {
-      const result = SchemaFactory.validateToolInput('google-workspace__sheets__read-range', {});
+      const result = SchemaFactory.validateToolInput(
+        'google-workspace__sheets__read-range',
+        {}
+      );
 
       if (!result.success) {
         const formatted = SchemaFactory.formatValidationError(result.error);
@@ -298,10 +326,13 @@ describe('SchemaFactory', () => {
     });
 
     it('should handle single validation error', () => {
-      const result = SchemaFactory.validateToolInput('google-workspace__sheets__read-range', {
-        spreadsheetId: '',
-        range: 'A1:B10',
-      });
+      const result = SchemaFactory.validateToolInput(
+        'google-workspace__sheets__read-range',
+        {
+          spreadsheetId: '',
+          range: 'A1:B10',
+        }
+      );
 
       if (!result.success) {
         const formatted = SchemaFactory.formatValidationError(result.error);
@@ -324,8 +355,12 @@ describe('SchemaFactory', () => {
     });
 
     it('should maintain type safety across schema operations', () => {
-      const inputSchema = SchemaFactory.createToolInputSchema('google-workspace__sheets__write-range');
-      const responseSchema = SchemaFactory.createResponseSchema('google-workspace__sheets__write-range');
+      const inputSchema = SchemaFactory.createToolInputSchema(
+        'google-workspace__sheets__write-range'
+      );
+      const responseSchema = SchemaFactory.createResponseSchema(
+        'google-workspace__sheets__write-range'
+      );
 
       // This test ensures that our factory methods return properly typed schemas
       expect(inputSchema.shape).toBeDefined();

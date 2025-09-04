@@ -83,8 +83,9 @@ export class DriveServiceModule implements ServiceModule {
             authClient.value,
             this.logger
           );
-          
-          const accessControlInitResult = await this.accessControlService.initialize();
+
+          const accessControlInitResult =
+            await this.accessControlService.initialize();
           if (accessControlInitResult.isErr()) {
             this.logger.warn('Failed to initialize AccessControlService', {
               error: accessControlInitResult.error.toJSON(),
@@ -93,7 +94,9 @@ export class DriveServiceModule implements ServiceModule {
             this.accessControlService = undefined;
           }
         } else {
-          this.logger.warn('Failed to get auth client for AccessControlService');
+          this.logger.warn(
+            'Failed to get auth client for AccessControlService'
+          );
         }
       }
 
@@ -118,9 +121,24 @@ export class DriveServiceModule implements ServiceModule {
 
       // Create tool instances with optional AccessControlService
       this.tools = [
-        new ListFilesTool(this.driveService, authService, this.logger, this.accessControlService),
-        new GetFileTool(this.driveService, authService, this.logger, this.accessControlService),
-        new GetFileContentTool(this.driveService, authService, this.logger, this.accessControlService),
+        new ListFilesTool(
+          this.driveService,
+          authService,
+          this.logger,
+          this.accessControlService
+        ),
+        new GetFileTool(
+          this.driveService,
+          authService,
+          this.logger,
+          this.accessControlService
+        ),
+        new GetFileContentTool(
+          this.driveService,
+          authService,
+          this.logger,
+          this.accessControlService
+        ),
       ];
 
       this.initialized = true;

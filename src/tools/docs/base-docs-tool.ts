@@ -737,7 +737,14 @@ export abstract class BaseDocsTools<
    * @returns Result indicating whether access is allowed
    */
   protected async validateAccessControl(
-    paramsOrRequest: unknown | { operation?: string; serviceName?: string; toolName?: string; context?: Record<string, unknown> },
+    paramsOrRequest:
+      | unknown
+      | {
+          operation?: string;
+          serviceName?: string;
+          toolName?: string;
+          context?: Record<string, unknown>;
+        },
     requestId: string
   ): Promise<Result<void, GoogleWorkspaceError>> {
     // If no access control service is configured, allow the operation
@@ -753,30 +760,43 @@ export abstract class BaseDocsTools<
       let targetFolderId: string | undefined;
 
       // Determine if this is the new request object format or legacy params format
-      const isRequestObject = paramsOrRequest && 
-        typeof paramsOrRequest === 'object' && 
-        ('operation' in paramsOrRequest || 'serviceName' in paramsOrRequest || 'toolName' in paramsOrRequest);
+      const isRequestObject =
+        paramsOrRequest &&
+        typeof paramsOrRequest === 'object' &&
+        ('operation' in paramsOrRequest ||
+          'serviceName' in paramsOrRequest ||
+          'toolName' in paramsOrRequest);
 
       if (isRequestObject) {
         // New format: structured request object
-        const request = paramsOrRequest as { operation?: string; serviceName?: string; toolName?: string; context?: Record<string, unknown> };
-        
-        operation = request.operation as ('read' | 'write') || 
-          (this.isWriteOperation(request.toolName || this.getToolName()) ? 'write' : 'read');
+        const request = paramsOrRequest as {
+          operation?: string;
+          serviceName?: string;
+          toolName?: string;
+          context?: Record<string, unknown>;
+        };
+
+        operation =
+          (request.operation as 'read' | 'write') ||
+          (this.isWriteOperation(request.toolName || this.getToolName())
+            ? 'write'
+            : 'read');
         serviceName = request.serviceName || 'docs';
         toolName = request.toolName || this.getToolName();
         context = request.context || {};
-        
+
         // Extract targetFolderId from context or compute from context
         const folderIds = this.getRequiredFolderIds(context);
         targetFolderId = folderIds.length > 0 ? folderIds[0] : undefined;
       } else {
         // Legacy format: raw params
-        operation = this.isWriteOperation(this.getToolName()) ? 'write' : 'read';
+        operation = this.isWriteOperation(this.getToolName())
+          ? 'write'
+          : 'read';
         serviceName = 'docs';
         toolName = this.getToolName();
         context = this.buildContextFromParams(paramsOrRequest);
-        
+
         // Extract folder IDs from parameters for folder-based access control
         const folderIds = this.getRequiredFolderIds(paramsOrRequest);
         targetFolderId = folderIds.length > 0 ? folderIds[0] : undefined;
@@ -793,7 +813,8 @@ export abstract class BaseDocsTools<
       };
 
       // Validate access using the access control service
-      const validationResult = await this.accessControlService.validateAccess(accessControlRequest);
+      const validationResult =
+        await this.accessControlService.validateAccess(accessControlRequest);
 
       if (validationResult.isErr()) {
         // Log access control validation failure
@@ -818,12 +839,15 @@ export abstract class BaseDocsTools<
         'GOOGLE_ACCESS_CONTROL_ERROR',
         500,
         undefined,
-        { 
-          requestId, 
-          toolName: typeof paramsOrRequest === 'object' && paramsOrRequest && 'toolName' in paramsOrRequest 
-            ? (paramsOrRequest as any).toolName 
-            : this.getToolName(),
-          originalError: error instanceof Error ? error : undefined 
+        {
+          requestId,
+          toolName:
+            typeof paramsOrRequest === 'object' &&
+            paramsOrRequest &&
+            'toolName' in paramsOrRequest
+              ? (paramsOrRequest as any).toolName
+              : this.getToolName(),
+          originalError: error instanceof Error ? error : undefined,
         },
         error instanceof Error ? error : undefined
       );
@@ -831,9 +855,12 @@ export abstract class BaseDocsTools<
       this.logger.error('Access control validation error', {
         error: accessError.toJSON(),
         requestId,
-        toolName: typeof paramsOrRequest === 'object' && paramsOrRequest && 'toolName' in paramsOrRequest 
-          ? (paramsOrRequest as any).toolName 
-          : this.getToolName(),
+        toolName:
+          typeof paramsOrRequest === 'object' &&
+          paramsOrRequest &&
+          'toolName' in paramsOrRequest
+            ? (paramsOrRequest as any).toolName
+            : this.getToolName(),
       });
 
       return err(accessError);
@@ -857,12 +884,7 @@ export abstract class BaseDocsTools<
     const normalizedName = toolName.toLowerCase();
 
     // Define read operation patterns for Docs
-    const readPatterns = [
-      'get',
-      'read',
-      'list',
-      'view',
-    ];
+    const readPatterns = ['get', 'read', 'list', 'view'];
 
     // Define write operation patterns for Docs
     const writePatterns = [
@@ -935,7 +957,9 @@ export abstract class BaseDocsTools<
       const context = this.buildContextFromParams(params);
 
       // Determine operation type based on tool name
-      const operation = this.isWriteOperation(toolName) ? ('write' as const) : ('read' as const);
+      const operation = this.isWriteOperation(toolName)
+        ? ('write' as const)
+        : ('read' as const);
 
       // Validate access control if service is available
       const accessControlResult = await this.validateAccessControl(
@@ -984,7 +1008,9 @@ export abstract class BaseDocsTools<
    * @param params - The validated input parameters
    * @returns Result with tool output or error
    */
-  public abstract executeImpl(params: TInput): Promise<Result<TOutput, GoogleWorkspaceError>>;
+  public abstract executeImpl(
+    params: TInput
+  ): Promise<Result<TOutput, GoogleWorkspaceError>>;
 
   /**
    * Builds a context object from tool parameters for access control validation.

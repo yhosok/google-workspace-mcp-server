@@ -35,8 +35,8 @@ const GetDocumentInputSchema = z.object({
         'Output format: markdown for plain text markdown or json for structured document data',
       invalid_type_error: 'Format must be either "markdown" or "json"',
     })
-    .transform((val) => val.toLowerCase() as 'markdown' | 'json')
-    .refine((val) => ['markdown', 'json'].includes(val), {
+    .transform(val => val.toLowerCase() as 'markdown' | 'json')
+    .refine(val => ['markdown', 'json'].includes(val), {
       message: 'Format must be either "markdown" or "json"',
     })
     .default('markdown')
@@ -84,7 +84,7 @@ type GetDocumentInput = z.infer<typeof GetDocumentInputSchema>;
  *
  * // Get document as markdown explicitly
  * const result = await tool.execute({
- *   documentId: "doc-123", 
+ *   documentId: "doc-123",
  *   format: "markdown"
  * });
  * ```
@@ -252,9 +252,8 @@ export class GetDocumentTool extends BaseDocsTools<
 
       if (format === 'markdown') {
         // Use getDocumentAsMarkdown for markdown format
-        const markdownResult = await this.docsService.getDocumentAsMarkdown(
-          trimmedDocumentId
-        );
+        const markdownResult =
+          await this.docsService.getDocumentAsMarkdown(trimmedDocumentId);
 
         if (markdownResult.isErr()) {
           this.logger.error(`${this.getToolName()}: Markdown export failed`, {
@@ -262,7 +261,9 @@ export class GetDocumentTool extends BaseDocsTools<
             documentId: trimmedDocumentId,
             error: markdownResult.error.toJSON(),
           });
-          return err(this.handleServiceError(markdownResult.error, 'get_document'));
+          return err(
+            this.handleServiceError(markdownResult.error, 'get_document')
+          );
         }
 
         response = {
@@ -291,11 +292,14 @@ export class GetDocumentTool extends BaseDocsTools<
         );
 
         if (getResult.isErr()) {
-          this.logger.error(`${this.getToolName()}: Document retrieval failed`, {
-            requestId,
-            documentId: trimmedDocumentId,
-            error: getResult.error.toJSON(),
-          });
+          this.logger.error(
+            `${this.getToolName()}: Document retrieval failed`,
+            {
+              requestId,
+              documentId: trimmedDocumentId,
+              error: getResult.error.toJSON(),
+            }
+          );
           return err(this.handleServiceError(getResult.error, 'get_document'));
         }
 

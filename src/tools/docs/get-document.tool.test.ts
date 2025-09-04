@@ -110,7 +110,9 @@ describe('GetDocumentTool', () => {
 
 Hello World`;
 
-      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(ok(mockMarkdownContent));
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(
+        ok(mockMarkdownContent)
+      );
 
       const result = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
@@ -843,7 +845,9 @@ This is a **bold** text and *italic* text.
 - Item 2
 - Item 3`;
 
-      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(ok(mockMarkdownContent));
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(
+        ok(mockMarkdownContent)
+      );
 
       const result = await tool.executeImpl({
         documentId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
@@ -891,14 +895,18 @@ console.log('Hello World');
 ### Links
 [Google Docs](https://docs.google.com)`;
 
-      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(ok(mockMarkdownContent));
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(
+        ok(mockMarkdownContent)
+      );
 
       const result = await tool.executeImpl({
         documentId: 'complex-doc-123',
         format: 'markdown',
       });
 
-      expect(mockDocsService.getDocumentAsMarkdown).toHaveBeenCalledWith('complex-doc-123');
+      expect(mockDocsService.getDocumentAsMarkdown).toHaveBeenCalledWith(
+        'complex-doc-123'
+      );
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         const mcpResult = result.value as MCPToolResult;
@@ -990,7 +998,10 @@ console.log('Hello World');
         includeContent: true,
       });
 
-      expect(mockDocsService.getDocument).toHaveBeenCalledWith('content-doc', true);
+      expect(mockDocsService.getDocument).toHaveBeenCalledWith(
+        'content-doc',
+        true
+      );
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         const mcpResult = result.value as MCPToolResult;
@@ -1009,7 +1020,9 @@ console.log('Hello World');
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('Format must be either "markdown" or "json"');
+        expect(result.error.message).toContain(
+          'Format must be either "markdown" or "json"'
+        );
       }
     });
 
@@ -1020,7 +1033,9 @@ console.log('Hello World');
         500,
         'doc123'
       );
-      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(err(markdownError));
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(
+        err(markdownError)
+      );
 
       const result = await tool.executeImpl({
         documentId: 'doc123',
@@ -1030,7 +1045,9 @@ console.log('Hello World');
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         expect(result.error.statusCode).toBe(500);
-        expect(result.error.message).toContain('Failed to export document as markdown');
+        expect(result.error.message).toContain(
+          'Failed to export document as markdown'
+        );
       }
     });
 
@@ -1057,7 +1074,9 @@ console.log('Hello World');
 
     test('should handle empty markdown content', async () => {
       const emptyMarkdown = '\n';
-      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(ok(emptyMarkdown));
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(
+        ok(emptyMarkdown)
+      );
 
       const result = await tool.executeImpl({
         documentId: 'empty-doc',
@@ -1099,7 +1118,9 @@ echo "Hello World"
 # This is a comment
 \`\`\``;
 
-      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(ok(complexMarkdown));
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(
+        ok(complexMarkdown)
+      );
 
       const result = await tool.executeImpl({
         documentId: 'complex-chars-doc',
@@ -1113,7 +1134,9 @@ echo "Hello World"
         // Verify specific elements are preserved
         expect(mcpResult.content[0].text).toContain('\\\\\\\\');
         expect(mcpResult.content[0].text).toContain('测试文档 🚀');
-        expect(mcpResult.content[0].text).toContain('<div>This should be treated as text</div>');
+        expect(mcpResult.content[0].text).toContain(
+          '<div>This should be treated as text</div>'
+        );
         expect(mcpResult.content[0].text).toContain('α + β = γ');
       }
     });
@@ -1144,7 +1167,9 @@ echo "Hello World"
 
     test('should handle format parameter case insensitivity', async () => {
       const mockMarkdownContent = '# Test Document\n\nContent here.';
-      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(ok(mockMarkdownContent));
+      mockDocsService.getDocumentAsMarkdown.mockResolvedValue(
+        ok(mockMarkdownContent)
+      );
 
       // Test uppercase
       const result1 = await tool.executeImpl({

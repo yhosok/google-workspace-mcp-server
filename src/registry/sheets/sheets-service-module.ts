@@ -91,8 +91,9 @@ export class SheetsServiceModule implements ServiceModule {
             authClient.value,
             this.logger
           );
-          
-          const accessControlInitResult = await this.accessControlService.initialize();
+
+          const accessControlInitResult =
+            await this.accessControlService.initialize();
           if (accessControlInitResult.isErr()) {
             this.logger.warn('Failed to initialize AccessControlService', {
               error: accessControlInitResult.error.toJSON(),
@@ -101,7 +102,9 @@ export class SheetsServiceModule implements ServiceModule {
             this.accessControlService = undefined;
           }
         } else {
-          this.logger.warn('Failed to get auth client for AccessControlService');
+          this.logger.warn(
+            'Failed to get auth client for AccessControlService'
+          );
         }
       }
 
@@ -132,12 +135,42 @@ export class SheetsServiceModule implements ServiceModule {
 
       // Create tool instances with optional AccessControlService
       this.tools = [
-        new SheetsListTool(this.sheetsService, authService, undefined, this.accessControlService),
-        new SheetsReadTool(this.sheetsService, authService, undefined, this.accessControlService),
-        new SheetsWriteTool(this.sheetsService, authService, undefined, this.accessControlService),
-        new SheetsAppendTool(this.sheetsService, authService, undefined, this.accessControlService),
-        new SheetsAddSheetTool(this.sheetsService, authService, undefined, this.accessControlService),
-        new SheetsCreateSpreadsheetTool(this.sheetsService, authService, undefined, this.accessControlService),
+        new SheetsListTool(
+          this.sheetsService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
+        new SheetsReadTool(
+          this.sheetsService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
+        new SheetsWriteTool(
+          this.sheetsService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
+        new SheetsAppendTool(
+          this.sheetsService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
+        new SheetsAddSheetTool(
+          this.sheetsService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
+        new SheetsCreateSpreadsheetTool(
+          this.sheetsService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
       ];
 
       this.initialized = true;

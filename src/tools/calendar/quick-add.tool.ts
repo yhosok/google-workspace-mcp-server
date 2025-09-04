@@ -107,7 +107,7 @@ export class QuickAddTool extends BaseCalendarTools<
     context?: ToolExecutionContext
   ): Promise<Result<CalendarQuickAddResult, GoogleWorkspaceError>> {
     const requestId = context?.requestId || this.generateRequestId();
-    
+
     this.logger.info('Executing quick add tool', {
       calendarId: args.calendarId,
       text: args.text,

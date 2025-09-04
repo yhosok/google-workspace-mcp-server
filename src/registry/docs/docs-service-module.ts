@@ -116,8 +116,9 @@ export class DocsServiceModule implements ServiceModule {
             authClient.value,
             this.logger
           );
-          
-          const accessControlInitResult = await this.accessControlService.initialize();
+
+          const accessControlInitResult =
+            await this.accessControlService.initialize();
           if (accessControlInitResult.isErr()) {
             this.logger.warn('Failed to initialize AccessControlService', {
               error: accessControlInitResult.error.toJSON(),
@@ -126,7 +127,9 @@ export class DocsServiceModule implements ServiceModule {
             this.accessControlService = undefined;
           }
         } else {
-          this.logger.warn('Failed to get auth client for AccessControlService');
+          this.logger.warn(
+            'Failed to get auth client for AccessControlService'
+          );
         }
       }
 
@@ -151,11 +154,36 @@ export class DocsServiceModule implements ServiceModule {
 
       // Create tool instances with optional AccessControlService
       this.tools = [
-        new CreateDocumentTool(this.docsService, authService, undefined, this.accessControlService),
-        new GetDocumentTool(this.docsService, authService, undefined, this.accessControlService),
-        new UpdateDocumentTool(this.docsService, authService, undefined, this.accessControlService),
-        new InsertTextTool(this.docsService, authService, undefined, this.accessControlService),
-        new ReplaceTextTool(this.docsService, authService, undefined, this.accessControlService),
+        new CreateDocumentTool(
+          this.docsService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
+        new GetDocumentTool(
+          this.docsService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
+        new UpdateDocumentTool(
+          this.docsService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
+        new InsertTextTool(
+          this.docsService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
+        new ReplaceTextTool(
+          this.docsService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
       ];
 
       this.initialized = true;

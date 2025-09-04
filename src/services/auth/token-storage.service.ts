@@ -74,7 +74,7 @@ export class TokenStorageService implements TokenStorage {
     // Allow disabling keytar explicitly (e.g. in CI) or falling back if native lib missing
     const disableKeytar = process.env.DISABLE_KEYTAR === '1';
 
-  let keytarMod: unknown = null;
+    let keytarMod: unknown = null;
     if (!disableKeytar) {
       try {
         // Attempt dynamic import; will throw if native dependency (libsecret) missing
@@ -429,7 +429,7 @@ export class TokenStorageService implements TokenStorage {
       this.clearString(encryptedData);
 
       // Decryption failed - likely corruption
-  const corruptionType = this.classifyFileCorruption(error as Error);
+      const corruptionType = this.classifyFileCorruption(error as Error);
       if (corruptionType) {
         const timestamp = Date.now();
         await this.handleFileCorruption(
@@ -461,7 +461,7 @@ export class TokenStorageService implements TokenStorage {
 
       if (validatedCredentials === null) {
         // Structure corruption detected
-  const corruptionType = this.classifyFileCorruption(null);
+        const corruptionType = this.classifyFileCorruption(null);
         const timestamp = Date.now();
         await this.handleFileCorruption(
           this.TOKEN_FILE_PATH,
@@ -488,7 +488,7 @@ export class TokenStorageService implements TokenStorage {
       }
 
       // JSON parsing error - corruption detected
-  const corruptionType = this.classifyFileCorruption(error as Error);
+      const corruptionType = this.classifyFileCorruption(error as Error);
       const timestamp = Date.now();
       await this.handleFileCorruption(
         this.TOKEN_FILE_PATH,
@@ -859,7 +859,7 @@ export class TokenStorageService implements TokenStorage {
     error: Error | null
   ): Promise<void> {
     // Lazy timestamp generation - only create when actually logging
-  const createTimestamp = (): number => Date.now();
+    const createTimestamp = (): number => Date.now();
 
     // Pre-compute common error message to avoid repeated null checks
     const errorMessage = error?.message || 'Structure validation failed';
@@ -949,7 +949,7 @@ export class TokenStorageService implements TokenStorage {
     corruptionType: 'JSON_CORRUPTION' | 'STRUCTURE_CORRUPTION'
   ): Promise<void> {
     // Lazy timestamp generation - only create when actually logging
-  const createTimestamp = (): number => Date.now();
+    const createTimestamp = (): number => Date.now();
 
     // Pre-build base log object to avoid duplication
     const baseLogData = {

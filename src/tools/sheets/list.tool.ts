@@ -34,7 +34,9 @@ export class SheetsListTool extends BaseSheetsTools<{}, MCPToolResult> {
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('google-workspace__sheets__list-spreadsheets');
+    return SchemaFactory.createToolMetadata(
+      'google-workspace__sheets__list-spreadsheets'
+    );
   }
 
   public async executeImpl(
