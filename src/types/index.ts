@@ -404,6 +404,7 @@ export interface DriveFileInfo {
   size?: string;
   version?: string;
   description?: string;
+  driveId?: string;
   owners?: Array<{
     displayName?: string;
     emailAddress?: string;
@@ -422,6 +423,8 @@ export interface DriveFileListOptions {
   pageToken?: string;
   orderBy?: string;
   fields?: string;
+  corpora?: 'user' | 'domain' | 'teamDrive' | 'allTeamDrives';
+  driveId?: string;
 }
 
 export interface DriveFileListResult {

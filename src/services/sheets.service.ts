@@ -259,6 +259,7 @@ export class SheetsService extends GoogleService {
         q: "mimeType='application/vnd.google-apps.spreadsheet'",
         pageSize: 1,
         supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
       });
 
       this.logger.info('Sheets health check passed', {
@@ -394,6 +395,7 @@ export class SheetsService extends GoogleService {
         fields: 'files(id,name,modifiedTime,webViewLink)',
         orderBy: 'modifiedTime desc',
         supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
       });
 
       const spreadsheets =
