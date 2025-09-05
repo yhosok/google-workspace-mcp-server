@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseCalendarTools } from './base-calendar-tool.js';
+import { CALENDAR_TOOLS } from '../base/tool-definitions.js';
 import type { CalendarEventsResult, MCPToolResult } from '../../types/index.js';
 import type {
   ToolExecutionContext,
@@ -11,7 +12,7 @@ import { SchemaFactory } from '../base/tool-schema.js';
 
 // Define the type from the tool schema
 const ListEventsInputSchema = SchemaFactory.createToolInputSchema(
-  'google-workspace__calendar__list'
+  CALENDAR_TOOLS.LIST
 );
 type ListEventsInput = z.infer<typeof ListEventsInputSchema>;
 
@@ -59,11 +60,11 @@ export class ListEventsTool extends BaseCalendarTools<
   CalendarEventsResult
 > {
   public getToolName(): string {
-    return 'google-workspace__calendar__list';
+    return CALENDAR_TOOLS.LIST;
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('google-workspace__calendar__list');
+    return SchemaFactory.createToolMetadata(CALENDAR_TOOLS.LIST);
   }
 
   public async executeImpl(

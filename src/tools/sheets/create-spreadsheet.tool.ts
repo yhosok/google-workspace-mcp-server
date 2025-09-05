@@ -1,6 +1,7 @@
 import { Result, ok, err } from 'neverthrow';
 import type { Logger } from '../../utils/logger.js';
 import { SchemaFactory } from '../base/tool-schema.js';
+import { SHEETS_TOOLS } from '../base/tool-definitions.js';
 import type {
   ToolExecutionContext,
   ToolMetadata,
@@ -35,12 +36,12 @@ export class SheetsCreateSpreadsheetTool extends BaseSheetsTools<
   }
 
   public getToolName(): string {
-    return 'google-workspace__sheets__create-spreadsheet';
+    return SHEETS_TOOLS.CREATE_SPREADSHEET;
   }
 
   public getToolMetadata(): ToolMetadata {
     return SchemaFactory.createToolMetadata(
-      'google-workspace__sheets__create-spreadsheet'
+      SHEETS_TOOLS.CREATE_SPREADSHEET
     );
   }
 
@@ -71,7 +72,7 @@ export class SheetsCreateSpreadsheetTool extends BaseSheetsTools<
     // Parameter validation using unified schema approach
     const validationResult = this.validateWithSchema(
       SchemaFactory.createToolInputSchema(
-        'google-workspace__sheets__create-spreadsheet'
+        SHEETS_TOOLS.CREATE_SPREADSHEET
       ),
       params,
       { operation: 'sheets-create-spreadsheet', requestId }

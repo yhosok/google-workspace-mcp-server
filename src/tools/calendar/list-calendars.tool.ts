@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseCalendarTools } from './base-calendar-tool.js';
+import { CALENDAR_TOOLS } from '../base/tool-definitions.js';
 import type { CalendarListResult, MCPToolResult } from '../../types/index.js';
 import type {
   ToolExecutionContext,
@@ -46,12 +47,12 @@ export class ListCalendarsTool extends BaseCalendarTools<
   CalendarListResult
 > {
   public getToolName(): string {
-    return 'google-workspace__calendar__list-calendars';
+    return CALENDAR_TOOLS.LIST_CALENDARS;
   }
 
   public getToolMetadata(): ToolMetadata {
     return SchemaFactory.createToolMetadata(
-      'google-workspace__calendar__list-calendars'
+      CALENDAR_TOOLS.LIST_CALENDARS
     );
   }
 

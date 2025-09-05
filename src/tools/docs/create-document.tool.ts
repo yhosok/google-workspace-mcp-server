@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseDocsTools } from './base-docs-tool.js';
+import { DOCS_TOOLS } from '../base/tool-definitions.js';
 import type { DocsDocumentInfo, MCPToolResult } from '../../types/index.js';
 import type {
   ToolExecutionContext,
@@ -12,7 +13,7 @@ import { SchemaFactory } from '../base/tool-schema.js';
 
 // Define the type from the tool schema
 const CreateDocumentInputSchema = SchemaFactory.createToolInputSchema(
-  'google-workspace__docs__create'
+  DOCS_TOOLS.CREATE
 );
 type CreateDocumentInput = z.infer<typeof CreateDocumentInputSchema>;
 
@@ -61,7 +62,7 @@ export class CreateDocumentTool extends BaseDocsTools<
    * @returns The tool name string
    */
   public getToolName(): string {
-    return 'google-workspace__docs__create';
+    return DOCS_TOOLS.CREATE;
   }
 
   /**
@@ -69,7 +70,7 @@ export class CreateDocumentTool extends BaseDocsTools<
    * @returns ToolMetadata object with input schema and descriptions
    */
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('google-workspace__docs__create');
+    return SchemaFactory.createToolMetadata(DOCS_TOOLS.CREATE);
   }
 
   /**

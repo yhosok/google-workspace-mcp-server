@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SchemaFactory } from '../base/tool-schema.js';
+import { DRIVE_TOOLS } from '../base/tool-definitions.js';
 import { BaseDriveTool } from './base-drive-tool.js';
 import type { DriveFileListResult, MCPToolResult } from '../../types/index.js';
 import type {
@@ -81,12 +82,12 @@ export class ListFilesTool extends BaseDriveTool<
   MCPToolResult
 > {
   public getToolName(): string {
-    return 'google-workspace__drive__list-files';
+    return DRIVE_TOOLS.LIST_FILES;
   }
 
   public getToolMetadata(): ToolMetadata {
     return SchemaFactory.createToolMetadata(
-      'google-workspace__drive__list-files'
+      DRIVE_TOOLS.LIST_FILES
     );
   }
 
@@ -99,7 +100,7 @@ export class ListFilesTool extends BaseDriveTool<
     try {
       // Validate input parameters
       const inputSchema = SchemaFactory.createToolInputSchema(
-        'google-workspace__drive__list-files'
+        DRIVE_TOOLS.LIST_FILES
       );
       const validationResult = this.validateWithSchema(inputSchema, args);
       if (validationResult.isErr()) {

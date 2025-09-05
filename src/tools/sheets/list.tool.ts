@@ -5,6 +5,7 @@ import type {
   ToolExecutionContext,
 } from '../base/tool-registry.js';
 import { SchemaFactory } from '../base/tool-schema.js';
+import { SHEETS_TOOLS } from '../base/tool-definitions.js';
 import type { SheetsService } from '../../services/sheets.service.js';
 import type { AuthService } from '../../services/auth.service.js';
 import type { AccessControlService } from '../../services/access-control.service.js';
@@ -30,12 +31,12 @@ export class SheetsListTool extends BaseSheetsTools<{}, MCPToolResult> {
   }
 
   public getToolName(): string {
-    return 'google-workspace__sheets__list-spreadsheets';
+    return SHEETS_TOOLS.LIST_SPREADSHEETS;
   }
 
   public getToolMetadata(): ToolMetadata {
     return SchemaFactory.createToolMetadata(
-      'google-workspace__sheets__list-spreadsheets'
+      SHEETS_TOOLS.LIST_SPREADSHEETS
     );
   }
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseCalendarTools } from './base-calendar-tool.js';
+import { CALENDAR_TOOLS } from '../base/tool-definitions.js';
 import type {
   CalendarCreateEventResult,
   CalendarEvent,
@@ -15,7 +16,7 @@ import { SchemaFactory } from '../base/tool-schema.js';
 
 // Define the type from the tool schema
 const CreateEventInputSchema = SchemaFactory.createToolInputSchema(
-  'google-workspace__calendar__create'
+  CALENDAR_TOOLS.CREATE as any
 );
 type CreateEventInput = z.infer<typeof CreateEventInputSchema>;
 
@@ -83,12 +84,12 @@ export class CreateEventTool extends BaseCalendarTools<
   CalendarCreateEventResult
 > {
   public getToolName(): string {
-    return 'google-workspace__calendar__create';
+    return CALENDAR_TOOLS.CREATE;
   }
 
   public getToolMetadata(): ToolMetadata {
     return SchemaFactory.createToolMetadata(
-      'google-workspace__calendar__create'
+      CALENDAR_TOOLS.CREATE as any
     );
   }
 

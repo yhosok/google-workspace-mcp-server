@@ -43,14 +43,6 @@ import {
   ReplaceTextTool,
 } from '../../tools/docs/index.js';
 
-/**
- * Tool name constants following the established naming pattern
- */
-export const CREATE_DOCUMENT_TOOL_NAME = 'google-workspace__docs__create';
-export const GET_DOCUMENT_TOOL_NAME = 'google-workspace__docs__get';
-export const UPDATE_DOCUMENT_TOOL_NAME = 'google-workspace__docs__update';
-export const INSERT_TEXT_TOOL_NAME = 'google-workspace__docs__insert-text';
-export const REPLACE_TEXT_TOOL_NAME = 'google-workspace__docs__replace-text';
 
 /**
  * Google Docs Service Module

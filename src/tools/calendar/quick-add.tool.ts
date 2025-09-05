@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseCalendarTools } from './base-calendar-tool.js';
+import { CALENDAR_TOOLS } from '../base/tool-definitions.js';
 import type {
   CalendarQuickAddResult,
   MCPToolResult,
@@ -14,7 +15,7 @@ import { SchemaFactory } from '../base/tool-schema.js';
 
 // Define the type from the tool schema
 const QuickAddInputSchema = SchemaFactory.createToolInputSchema(
-  'google-workspace__calendar__quick-add'
+  CALENDAR_TOOLS.QUICK_ADD
 );
 type QuickAddInput = z.infer<typeof QuickAddInputSchema>;
 
@@ -78,12 +79,12 @@ export class QuickAddTool extends BaseCalendarTools<
   CalendarQuickAddResult
 > {
   public getToolName(): string {
-    return 'google-workspace__calendar__quick-add';
+    return CALENDAR_TOOLS.QUICK_ADD;
   }
 
   public getToolMetadata(): ToolMetadata {
     return SchemaFactory.createToolMetadata(
-      'google-workspace__calendar__quick-add'
+      CALENDAR_TOOLS.QUICK_ADD
     );
   }
 

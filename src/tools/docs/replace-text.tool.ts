@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseDocsTools } from './base-docs-tool.js';
+import { DOCS_TOOLS } from '../base/tool-definitions.js';
 import type { MCPToolResult } from '../../types/index.js';
 import type {
   ToolExecutionContext,
@@ -11,7 +12,7 @@ import { SchemaFactory } from '../base/tool-schema.js';
 
 // Define the type from the tool schema
 const ReplaceTextInputSchema = SchemaFactory.createToolInputSchema(
-  'google-workspace__docs__replace-text'
+  DOCS_TOOLS.REPLACE_TEXT
 );
 type ReplaceTextInput = z.infer<typeof ReplaceTextInputSchema>;
 
@@ -85,7 +86,7 @@ export class ReplaceTextTool extends BaseDocsTools<
    * @returns The tool name string
    */
   public getToolName(): string {
-    return 'google-workspace__docs__replace-text';
+    return DOCS_TOOLS.REPLACE_TEXT;
   }
 
   /**
@@ -94,7 +95,7 @@ export class ReplaceTextTool extends BaseDocsTools<
    */
   public getToolMetadata(): ToolMetadata {
     return SchemaFactory.createToolMetadata(
-      'google-workspace__docs__replace-text'
+      DOCS_TOOLS.REPLACE_TEXT
     );
   }
 

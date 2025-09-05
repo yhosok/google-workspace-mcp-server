@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { docs_v1 } from 'googleapis';
 import { BaseDocsTools } from './base-docs-tool.js';
+import { DOCS_TOOLS } from '../base/tool-definitions.js';
 import type {
   DocsBatchUpdateResult,
   MCPToolResult,
@@ -15,7 +16,7 @@ import { SchemaFactory } from '../base/tool-schema.js';
 
 // Define the type from the tool schema
 const UpdateDocumentInputSchema = SchemaFactory.createToolInputSchema(
-  'google-workspace__docs__update'
+  DOCS_TOOLS.UPDATE
 );
 type UpdateDocumentInput = z.infer<typeof UpdateDocumentInputSchema>;
 
@@ -89,7 +90,7 @@ export class UpdateDocumentTool extends BaseDocsTools<
    * @returns The tool name string
    */
   public getToolName(): string {
-    return 'google-workspace__docs__update';
+    return DOCS_TOOLS.UPDATE;
   }
 
   /**
@@ -97,7 +98,7 @@ export class UpdateDocumentTool extends BaseDocsTools<
    * @returns ToolMetadata object with input schema and descriptions
    */
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('google-workspace__docs__update');
+    return SchemaFactory.createToolMetadata(DOCS_TOOLS.UPDATE);
   }
 
   /**

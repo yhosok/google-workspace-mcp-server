@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseCalendarTools } from './base-calendar-tool.js';
+import { CALENDAR_TOOLS } from '../base/tool-definitions.js';
 import type {
   CalendarDeleteEventResult,
   MCPToolResult,
@@ -14,7 +15,7 @@ import { SchemaFactory } from '../base/tool-schema.js';
 
 // Define the type from the tool schema
 const DeleteEventInputSchema = SchemaFactory.createToolInputSchema(
-  'google-workspace__calendar__delete'
+  CALENDAR_TOOLS.DELETE
 );
 type DeleteEventInput = z.infer<typeof DeleteEventInputSchema>;
 
@@ -69,12 +70,12 @@ export class DeleteEventTool extends BaseCalendarTools<
   CalendarDeleteEventResult
 > {
   public getToolName(): string {
-    return 'google-workspace__calendar__delete';
+    return CALENDAR_TOOLS.DELETE;
   }
 
   public getToolMetadata(): ToolMetadata {
     return SchemaFactory.createToolMetadata(
-      'google-workspace__calendar__delete'
+      CALENDAR_TOOLS.DELETE
     );
   }
 

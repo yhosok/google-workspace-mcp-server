@@ -1,4 +1,14 @@
 import { z } from 'zod';
+import {
+  ALL_TOOLS,
+  SHEETS_TOOLS,
+  DRIVE_TOOLS,
+  CALENDAR_TOOLS,
+  DOCS_TOOLS,
+  TOOL_METADATA,
+  getToolMetadata,
+  type SupportedToolId,
+} from './tool-definitions.js';
 
 /**
  * Cache for compiled schemas to improve performance
@@ -7,32 +17,9 @@ const schemaCache = new Map<string, z.ZodType>();
 
 /**
  * Supported tool types for schema generation
+ * Now imported from centralized tool definitions
  */
-export type SupportedTool =
-  // PDR-style naming for sheets tools
-  | 'google-workspace__sheets__list-spreadsheets'
-  | 'google-workspace__sheets__read-range'
-  | 'google-workspace__sheets__write-range'
-  | 'google-workspace__sheets__append-rows'
-  | 'google-workspace__sheets__add-sheet'
-  | 'google-workspace__sheets__create-spreadsheet'
-  // Drive tools
-  | 'google-workspace__drive__list-files'
-  | 'google-workspace__drive__get-file'
-  | 'google-workspace__drive__get-file-content'
-  // Calendar tools
-  | 'google-workspace__calendar__list-calendars'
-  | 'google-workspace__calendar__list'
-  | 'google-workspace__calendar__get'
-  | 'google-workspace__calendar__create'
-  | 'google-workspace__calendar__quick-add'
-  | 'google-workspace__calendar__delete'
-  // Docs tools
-  | 'google-workspace__docs__get'
-  | 'google-workspace__docs__create'
-  | 'google-workspace__docs__update'
-  | 'google-workspace__docs__insert-text'
-  | 'google-workspace__docs__replace-text';
+export type SupportedTool = SupportedToolId;
 
 /**
  * Factory class for creating standardized Zod schemas for Google Workspace MCP tools
@@ -308,18 +295,18 @@ export class SchemaFactory {
     let schema: z.ZodObject<Record<string, z.ZodType>>;
 
     switch (tool) {
-      case 'google-workspace__sheets__list-spreadsheets':
+      case SHEETS_TOOLS.LIST_SPREADSHEETS:
         schema = z.object({});
         break;
 
-      case 'google-workspace__sheets__read-range':
+      case SHEETS_TOOLS.READ_RANGE:
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           range: SchemaFactory.createRangeSchema(),
         });
         break;
 
-      case 'google-workspace__sheets__write-range':
+      case SHEETS_TOOLS.WRITE_RANGE:
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           range: SchemaFactory.createRangeSchema(),
@@ -327,7 +314,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__sheets__append-rows':
+      case SHEETS_TOOLS.APPEND_ROWS:
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           range: SchemaFactory.createRangeSchema(),
@@ -335,7 +322,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__sheets__add-sheet':
+      case SHEETS_TOOLS.ADD_SHEET:
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           title: z
@@ -354,7 +341,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__sheets__create-spreadsheet':
+      case SHEETS_TOOLS.CREATE_SPREADSHEET:
         schema = z.object({
           title: z
             .string()
@@ -371,7 +358,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__drive__list-files':
+      case DRIVE_TOOLS.LIST_FILES:
         schema = z.object({
           query: SchemaFactory.createQuerySchema(),
           maxResults: z
@@ -395,7 +382,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__drive__get-file':
+      case DRIVE_TOOLS.GET_FILE:
         schema = z.object({
           fileId: SchemaFactory.createFileIdSchema(),
           fields: z
@@ -409,7 +396,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__drive__get-file-content':
+      case DRIVE_TOOLS.GET_FILE_CONTENT:
         schema = z.object({
           fileId: SchemaFactory.createFileIdSchema(),
           exportFormat: SchemaFactory.createExportFormatSchema(),
@@ -424,11 +411,11 @@ export class SchemaFactory {
         break;
 
       // Calendar tools
-      case 'google-workspace__calendar__list-calendars':
+      case CALENDAR_TOOLS.LIST_CALENDARS:
         schema = z.object({});
         break;
 
-      case 'google-workspace__calendar__list':
+      case CALENDAR_TOOLS.LIST:
         schema = z.object({
           calendarId: SchemaFactory.createCalendarIdSchema(),
           timeMin: z
@@ -466,14 +453,14 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__calendar__get':
+      case CALENDAR_TOOLS.GET as SupportedTool:
         schema = z.object({
           calendarId: SchemaFactory.createCalendarIdSchema(),
           eventId: SchemaFactory.createEventIdSchema(),
         });
         break;
 
-      case 'google-workspace__calendar__create':
+      case CALENDAR_TOOLS.CREATE as SupportedTool:
         schema = z.object({
           calendarId: SchemaFactory.createCalendarIdSchema(),
           summary: z
@@ -534,7 +521,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__calendar__quick-add':
+      case CALENDAR_TOOLS.QUICK_ADD:
         schema = z.object({
           calendarId: SchemaFactory.createCalendarIdSchema(),
           text: z
@@ -545,7 +532,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__calendar__delete':
+      case CALENDAR_TOOLS.DELETE as SupportedTool:
         schema = z.object({
           calendarId: SchemaFactory.createCalendarIdSchema(),
           eventId: SchemaFactory.createEventIdSchema(),
@@ -557,7 +544,7 @@ export class SchemaFactory {
         break;
 
       // Docs tools
-      case 'google-workspace__docs__get':
+      case DOCS_TOOLS.GET as SupportedTool:
         schema = z.object({
           documentId: SchemaFactory.createDocumentIdSchema(),
           includeContent: z
@@ -580,7 +567,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__docs__create':
+      case DOCS_TOOLS.CREATE as SupportedTool:
         schema = z.object({
           title: SchemaFactory.createDocumentTitleSchema(),
           folderId: z
@@ -592,7 +579,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__docs__update':
+      case DOCS_TOOLS.UPDATE as SupportedTool:
         schema = z.object({
           documentId: SchemaFactory.createDocumentIdSchema(),
           requests: z
@@ -606,7 +593,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__docs__insert-text':
+      case DOCS_TOOLS.INSERT_TEXT:
         schema = z.object({
           documentId: SchemaFactory.createDocumentIdSchema(),
           text: z
@@ -628,7 +615,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__docs__replace-text':
+      case DOCS_TOOLS.REPLACE_TEXT:
         schema = z.object({
           documentId: SchemaFactory.createDocumentIdSchema(),
           searchText: z
@@ -665,7 +652,7 @@ export class SchemaFactory {
     tool: SupportedTool
   ): z.ZodObject<Record<string, z.ZodType>> {
     switch (tool) {
-      case 'google-workspace__sheets__list-spreadsheets':
+      case SHEETS_TOOLS.LIST_SPREADSHEETS:
         return z.object({
           spreadsheets: z.array(
             z.object({
@@ -677,21 +664,21 @@ export class SchemaFactory {
           ),
         });
 
-      case 'google-workspace__sheets__read-range':
+      case SHEETS_TOOLS.READ_RANGE:
         return z.object({
           range: z.string(),
           values: z.array(z.array(z.string())),
           majorDimension: z.enum(['ROWS', 'COLUMNS']),
         });
 
-      case 'google-workspace__sheets__write-range':
+      case SHEETS_TOOLS.WRITE_RANGE:
         return z.object({
           updatedCells: z.number(),
           updatedRows: z.number(),
           updatedColumns: z.number(),
         });
 
-      case 'google-workspace__sheets__append-rows':
+      case SHEETS_TOOLS.APPEND_ROWS:
         return z.object({
           updates: z.object({
             updatedRows: z.number(),
@@ -699,7 +686,7 @@ export class SchemaFactory {
           }),
         });
 
-      case 'google-workspace__sheets__add-sheet':
+      case SHEETS_TOOLS.ADD_SHEET:
         return z.object({
           sheetId: z.number(),
           title: z.string(),
@@ -707,7 +694,7 @@ export class SchemaFactory {
           spreadsheetId: z.string(),
         });
 
-      case 'google-workspace__sheets__create-spreadsheet':
+      case SHEETS_TOOLS.CREATE_SPREADSHEET:
         return z.object({
           spreadsheetId: z.string(),
           spreadsheetUrl: z.string(),
@@ -751,6 +738,7 @@ export class SchemaFactory {
 
   /**
    * Creates a complete tool metadata object with schema
+   * Now uses centralized tool definitions and metadata
    */
   public static createToolMetadata(tool: SupportedTool): {
     title: string;
@@ -758,104 +746,10 @@ export class SchemaFactory {
     inputSchema: Record<string, z.ZodType>;
   } {
     const inputSchema = SchemaFactory.createToolInputSchema(tool);
-
-    const metadata = {
-      'google-workspace__sheets__list-spreadsheets': {
-        title: 'List Spreadsheets',
-        description: 'List all spreadsheets in the configured Drive folder',
-      },
-      'google-workspace__sheets__read-range': {
-        title: 'Read Spreadsheet Range',
-        description: 'Read data from a specific spreadsheet range',
-      },
-      'google-workspace__sheets__write-range': {
-        title: 'Write to Spreadsheet Range',
-        description: 'Write data to a specific spreadsheet range',
-      },
-      'google-workspace__sheets__append-rows': {
-        title: 'Append to Spreadsheet',
-        description: 'Append data to a spreadsheet',
-      },
-      'google-workspace__sheets__add-sheet': {
-        title: 'Add Sheet to Spreadsheet',
-        description: 'Add a new sheet (tab) to an existing spreadsheet',
-      },
-      'google-workspace__sheets__create-spreadsheet': {
-        title: 'Create New Spreadsheet',
-        description:
-          'Create a new spreadsheet. If GOOGLE_DRIVE_FOLDER_ID is configured, the spreadsheet will be created in that folder; otherwise it will be created in the default location',
-      },
-      'google-workspace__drive__list-files': {
-        title: 'List Drive Files',
-        description:
-          'List files in Google Drive with optional filtering and search',
-      },
-      'google-workspace__drive__get-file': {
-        title: 'Get Drive File Metadata',
-        description:
-          'Gets metadata and details for a specific Google Drive file',
-      },
-      'google-workspace__drive__get-file-content': {
-        title: 'Get Drive File Content',
-        description: 'Downloads and retrieves content from a Google Drive file',
-      },
-      'google-workspace__calendar__list-calendars': {
-        title: 'List Calendars',
-        description: 'Lists all calendars accessible to the authenticated user',
-      },
-      'google-workspace__calendar__list': {
-        title: 'List Calendar Events',
-        description:
-          'Lists events from a specific calendar with optional filtering and pagination',
-      },
-      'google-workspace__calendar__get': {
-        title: 'Get Calendar Event',
-        description:
-          'Retrieves detailed information about a specific calendar event',
-      },
-      'google-workspace__calendar__create': {
-        title: 'Create Calendar Event',
-        description:
-          'Creates a new calendar event with comprehensive options for attendees, reminders, and recurrence',
-      },
-      'google-workspace__calendar__quick-add': {
-        title: 'Quick Add Calendar Event',
-        description:
-          'Creates a calendar event using natural language parsing for quick event creation',
-      },
-      'google-workspace__calendar__delete': {
-        title: 'Delete Calendar Event',
-        description:
-          'Permanently deletes a calendar event with options for attendee notifications',
-      },
-      'google-workspace__docs__get': {
-        title: 'Get Google Document',
-        description:
-          'Retrieves a Google Document with its metadata and optional content. Supports markdown (default) and JSON output formats.',
-      },
-      'google-workspace__docs__create': {
-        title: 'Create Google Document',
-        description:
-          'Creates a new Google Document with the specified title and optional folder location',
-      },
-      'google-workspace__docs__update': {
-        title: 'Update Google Document',
-        description:
-          'Performs batch updates on a Google Document using the batchUpdate API',
-      },
-      'google-workspace__docs__insert-text': {
-        title: 'Insert Text into Document',
-        description: 'Inserts text at a specific position in a Google Document',
-      },
-      'google-workspace__docs__replace-text': {
-        title: 'Replace Text in Document',
-        description:
-          'Replaces all occurrences of specified text in a Google Document',
-      },
-    };
+    const metadata = getToolMetadata(tool);
 
     return {
-      ...metadata[tool],
+      ...metadata,
       inputSchema: inputSchema.shape,
     };
   }

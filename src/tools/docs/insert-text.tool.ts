@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseDocsTools } from './base-docs-tool.js';
+import { DOCS_TOOLS } from '../base/tool-definitions.js';
 import type { DocsInsertTextResult, MCPToolResult } from '../../types/index.js';
 import type {
   ToolExecutionContext,
@@ -11,7 +12,7 @@ import { SchemaFactory } from '../base/tool-schema.js';
 
 // Define the type from the tool schema
 const InsertTextInputSchema = SchemaFactory.createToolInputSchema(
-  'google-workspace__docs__insert-text'
+  DOCS_TOOLS.INSERT_TEXT
 );
 type InsertTextInput = z.infer<typeof InsertTextInputSchema>;
 
@@ -89,7 +90,7 @@ export class InsertTextTool extends BaseDocsTools<
    * @returns The tool name string
    */
   public getToolName(): string {
-    return 'google-workspace__docs__insert-text';
+    return DOCS_TOOLS.INSERT_TEXT;
   }
 
   /**
@@ -98,7 +99,7 @@ export class InsertTextTool extends BaseDocsTools<
    */
   public getToolMetadata(): ToolMetadata {
     return SchemaFactory.createToolMetadata(
-      'google-workspace__docs__insert-text'
+      DOCS_TOOLS.INSERT_TEXT
     );
   }
 
