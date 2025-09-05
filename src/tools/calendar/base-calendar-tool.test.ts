@@ -373,13 +373,13 @@ describe('BaseCalendarTools', () => {
   });
 
   // ===============================
-  // ACCESS CONTROL INTEGRATION TESTS (RED PHASE - SHOULD FAIL)
+  // ACCESS CONTROL INTEGRATION TESTS
   // ===============================
 
-  describe('Access Control Integration (RED PHASE - Should Fail)', () => {
+  describe('Access Control Integration', () => {
     describe('validateAccessControl method', () => {
       it('should exist and be callable', () => {
-        // This test should fail because validateAccessControl doesn't exist yet
+        // Access control method should be available in base calendar tool
         expect(typeof (testTool as any).validateAccessControl).toBe('function');
       });
 
@@ -395,7 +395,7 @@ describe('BaseCalendarTools', () => {
           ok(undefined)
         );
 
-        // This test should fail because validateAccessControl doesn't exist yet
+        // Test the validateAccessControl method implementation
         const result = await (testTool as any).validateAccessControl(
           request,
           'test-request-id'
@@ -424,7 +424,7 @@ describe('BaseCalendarTools', () => {
           ok(undefined)
         );
 
-        // This test should fail because validateAccessControl doesn't exist yet
+        // Test the validateAccessControl method implementation
         const result = await (testTool as any).validateAccessControl(
           request,
           'test-request-id'
@@ -453,7 +453,7 @@ describe('BaseCalendarTools', () => {
           ok(undefined)
         );
 
-        // This test should fail because validateAccessControl doesn't exist yet
+        // Test the validateAccessControl method implementation
         const result = await (testTool as any).validateAccessControl(
           request,
           'test-request-id'
@@ -486,7 +486,7 @@ describe('BaseCalendarTools', () => {
           err(accessError)
         );
 
-        // This test should fail because validateAccessControl doesn't exist yet
+        // Test the validateAccessControl method implementation
         const result = await (testTool as any).validateAccessControl(
           request,
           'test-request-id'
@@ -516,7 +516,7 @@ describe('BaseCalendarTools', () => {
           err(serviceError)
         );
 
-        // This test should fail because validateAccessControl doesn't exist yet
+        // Test the validateAccessControl method implementation
         const result = await (testTool as any).validateAccessControl(
           request,
           'test-request-id'
@@ -545,7 +545,7 @@ describe('BaseCalendarTools', () => {
           err(toolError)
         );
 
-        // This test should fail because validateAccessControl doesn't exist yet
+        // Test the validateAccessControl method implementation
         const result = await (testTool as any).validateAccessControl(
           request,
           'test-request-id'
@@ -569,7 +569,7 @@ describe('BaseCalendarTools', () => {
           new Error('Network error')
         );
 
-        // This test should fail because validateAccessControl doesn't exist yet
+        // Test the validateAccessControl method implementation
         const result = await (testTool as any).validateAccessControl(
           request,
           'test-request-id'
@@ -591,7 +591,7 @@ describe('BaseCalendarTools', () => {
 
     describe('isWriteOperation method', () => {
       it('should exist and be callable', () => {
-        // This test should fail because isWriteOperation doesn't exist yet
+        // Test the isWriteOperation method implementation
         expect(typeof (testTool as any).isWriteOperation).toBe('function');
       });
 
@@ -606,7 +606,7 @@ describe('BaseCalendarTools', () => {
         ];
 
         readOperations.forEach(toolName => {
-          // This test should fail because isWriteOperation doesn't exist yet
+          // Test the isWriteOperation method implementation
           const result = (testTool as any).isWriteOperation(toolName);
           expect(result).toBe(false);
         });
@@ -625,7 +625,7 @@ describe('BaseCalendarTools', () => {
         ];
 
         writeOperations.forEach(toolName => {
-          // This test should fail because isWriteOperation doesn't exist yet
+          // Test the isWriteOperation method implementation
           const result = (testTool as any).isWriteOperation(toolName);
           expect(result).toBe(true);
         });
@@ -640,7 +640,7 @@ describe('BaseCalendarTools', () => {
         ];
 
         edgeCases.forEach(({ toolName, expected }) => {
-          // This test should fail because isWriteOperation doesn't exist yet
+          // Test the isWriteOperation method implementation
           const result = (testTool as any).isWriteOperation(toolName);
           expect(result).toBe(expected);
         });
@@ -672,7 +672,7 @@ describe('BaseCalendarTools', () => {
         ];
 
         testCases.forEach(({ toolName, expected }) => {
-          // This test should fail because isWriteOperation doesn't exist yet
+          // Test the isWriteOperation method implementation
           const result = (testTool as any).isWriteOperation(toolName);
           expect(result).toBe(expected);
         });
@@ -681,7 +681,7 @@ describe('BaseCalendarTools', () => {
 
     describe('getRequiredFolderIds method', () => {
       it('should exist and be callable', () => {
-        // This test should fail because getRequiredFolderIds doesn't exist yet
+        // Test the getRequiredFolderIds method implementation
         expect(typeof (testTool as any).getRequiredFolderIds).toBe('function');
       });
 
@@ -695,7 +695,7 @@ describe('BaseCalendarTools', () => {
         ];
 
         testCases.forEach(params => {
-          // This test should fail because getRequiredFolderIds doesn't exist yet
+          // Test the getRequiredFolderIds method implementation
           const result = (testTool as any).getRequiredFolderIds(params);
           expect(result).toEqual([]);
         });
@@ -726,7 +726,7 @@ describe('BaseCalendarTools', () => {
         ];
 
         testCases.forEach(({ params, expected }) => {
-          // This test should fail because getRequiredFolderIds doesn't exist yet
+          // Test the getRequiredFolderIds method implementation
           const result = (testTool as any).getRequiredFolderIds(params);
           expect(result).toEqual(expected);
         });
@@ -752,7 +752,7 @@ describe('BaseCalendarTools', () => {
         ];
 
         testCases.forEach(({ params, expected }) => {
-          // This test should fail because getRequiredFolderIds doesn't exist yet
+          // Test the getRequiredFolderIds method implementation
           const result = (testTool as any).getRequiredFolderIds(params);
           expect(result).toEqual(expected);
         });
@@ -767,7 +767,7 @@ describe('BaseCalendarTools', () => {
           ok({ result: 'success' })
         );
 
-        // This test should fail because access control integration doesn't exist yet
+        // Test access control integration with tool execution
         expect(typeof (testTool as any).executeWithAccessControl).toBe(
           'function'
         );
@@ -790,7 +790,7 @@ describe('BaseCalendarTools', () => {
           err(accessError)
         );
 
-        // This test should fail because write operation access control doesn't exist yet
+        // Test write operation access control validation
         const result = await (testTool as any).executeWithAccessControl(
           writeInput,
           'google-workspace__calendar__create-event'
@@ -819,7 +819,7 @@ describe('BaseCalendarTools', () => {
           maxResults: 10,
         };
 
-        // This test should fail because read operation flow doesn't exist yet
+        // Test read operation flow with access control
         const result = await (testTool as any).executeWithAccessControl(
           readInput,
           'google-workspace__calendar__list-events'
@@ -848,7 +848,7 @@ describe('BaseCalendarTools', () => {
           ok(undefined)
         );
 
-        // This test should fail because executeWithAccessControl doesn't exist yet
+        // Test the executeWithAccessControl method implementation
         const result = await (testTool as any).executeWithAccessControl(
           validInput,
           'google-workspace__calendar__list-events'
@@ -872,7 +872,7 @@ describe('BaseCalendarTools', () => {
           ok(undefined)
         );
 
-        // This test should fail because validateAccessControl doesn't exist yet
+        // Test the validateAccessControl method implementation
         const result = await (testTool as any).validateAccessControl(
           request,
           'test-request-id'
@@ -897,7 +897,7 @@ describe('BaseCalendarTools', () => {
           new TypeError('Unexpected error')
         );
 
-        // This test should fail because error conversion doesn't exist yet
+        // Test error conversion in access control validation
         const result = await (testTool as any).validateAccessControl(
           request,
           'test-request-id'
@@ -925,7 +925,7 @@ describe('BaseCalendarTools', () => {
           err(originalError)
         );
 
-        // This test should fail because error context preservation doesn't exist yet
+        // Test error context preservation in access control
         const result = await (testTool as any).validateAccessControl(
           request,
           'test-request-id'
@@ -1001,7 +1001,7 @@ describe('BaseCalendarTools', () => {
 
     describe('AccessControlService dependency injection (RED PHASE)', () => {
       it('should accept AccessControlService as constructor parameter', () => {
-        // This test should fail because AccessControlService injection doesn't exist yet
+        // Test AccessControlService injection functionality
         expect(() => {
           new TestCalendarTools(
             mockCalendarService,
@@ -1013,7 +1013,7 @@ describe('BaseCalendarTools', () => {
       });
 
       it('should use injected AccessControlService for validations', async () => {
-        // This test should fail because AccessControlService injection doesn't exist yet
+        // Test AccessControlService injection functionality
         const toolWithAccessControl = new TestCalendarTools(
           mockCalendarService,
           mockAuthService,
@@ -1043,7 +1043,7 @@ describe('BaseCalendarTools', () => {
       });
 
       it('should handle optional AccessControlService parameter', () => {
-        // This test should fail because optional AccessControlService doesn't exist yet
+        // Test optional AccessControlService parameter handling
         const toolWithoutAccessControl = new TestCalendarTools(
           mockCalendarService,
           mockAuthService,
@@ -1075,7 +1075,7 @@ describe('BaseCalendarTools', () => {
           ok(undefined)
         );
 
-        // This test should fail because validateAccessControl doesn't exist yet
+        // Test the validateAccessControl method implementation
         const result = await (testTool as any).validateAccessControl(
           request,
           'test-request-id'
@@ -1110,7 +1110,7 @@ describe('BaseCalendarTools', () => {
           ok(undefined)
         );
 
-        // This test should fail because validateAccessControl doesn't exist yet
+        // Test the validateAccessControl method implementation
         const result = await (testTool as any).validateAccessControl(
           request,
           'test-request-id'
@@ -1145,7 +1145,7 @@ describe('BaseCalendarTools', () => {
           ok(undefined)
         );
 
-        // This test should fail because validateAccessControl doesn't exist yet
+        // Test the validateAccessControl method implementation
         const result = await (testTool as any).validateAccessControl(
           request,
           'test-request-id'

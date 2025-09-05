@@ -19,7 +19,20 @@ export type SupportedTool =
   // Drive tools
   | 'google-workspace__drive__list-files'
   | 'google-workspace__drive__get-file'
-  | 'google-workspace__drive__get-file-content';
+  | 'google-workspace__drive__get-file-content'
+  // Calendar tools
+  | 'google-workspace__calendar__list-calendars'
+  | 'google-workspace__calendar__list'
+  | 'google-workspace__calendar__get'
+  | 'google-workspace__calendar__create'
+  | 'google-workspace__calendar__quick-add'
+  | 'google-workspace__calendar__delete'
+  // Docs tools
+  | 'google-workspace__docs__get'
+  | 'google-workspace__docs__create'
+  | 'google-workspace__docs__update'
+  | 'google-workspace__docs__insert-text'
+  | 'google-workspace__docs__replace-text';
 
 /**
  * Factory class for creating standardized Zod schemas for Google Workspace MCP tools
@@ -130,6 +143,54 @@ export class SchemaFactory {
   }
 
   /**
+   * Creates a schema for calendar ID validation
+   */
+  public static createCalendarIdSchema(): z.ZodString {
+    return z
+      .string()
+      .min(1, 'Calendar ID cannot be empty')
+      .describe('The calendar ID');
+  }
+
+  /**
+   * Creates a schema for event ID validation
+   */
+  public static createEventIdSchema(): z.ZodString {
+    return z
+      .string()
+      .min(1, 'Event ID cannot be empty')
+      .describe('The unique identifier of the event');
+  }
+
+  /**
+   * Creates a schema for document ID validation
+   */
+  public static createDocumentIdSchema(): z.ZodString {
+    return z
+      .string({
+        required_error: 'Document ID is required',
+        invalid_type_error: 'Document ID must be a string',
+      })
+      .min(1, 'Document ID cannot be empty')
+      .max(100, 'Document ID too long')
+      .describe('The unique identifier of the Google Docs document');
+  }
+
+  /**
+   * Creates a schema for document title validation
+   */
+  public static createDocumentTitleSchema(): z.ZodString {
+    return z
+      .string({
+        required_error: 'Title is required',
+        invalid_type_error: 'Title must be a string',
+      })
+      .min(1, 'Title cannot be empty')
+      .max(255, 'Title too long')
+      .describe('The title of the document');
+  }
+
+  /**
    * Creates a schema for Drive API query string validation
    */
   public static createQuerySchema(): z.ZodOptional<z.ZodString> {
@@ -151,6 +212,84 @@ export class SchemaFactory {
       .enum(['pdf', 'docx', 'xlsx', 'csv', 'txt', 'html', 'odt', 'rtf'])
       .optional()
       .describe('Export format for Google Workspace files');
+  }
+
+  /**
+   * Creates a schema for Calendar event time information
+   */
+  public static createEventTimeSchema(): z.ZodEffects<z.ZodObject<any>, any> {
+    return z
+      .object({
+        dateTime: z
+          .string()
+          .optional()
+          .describe('ISO 8601 date-time string with timezone'),
+        date: z
+          .string()
+          .optional()
+          .describe('ISO 8601 date string for all-day events'),
+        timeZone: z
+          .string()
+          .optional()
+          .describe('Time zone identifier (e.g., "America/New_York")'),
+      })
+      .refine(data => !!(data.dateTime || data.date), {
+        message: 'Either dateTime or date must be provided',
+      });
+  }
+
+  /**
+   * Creates a schema for Calendar event attendee information
+   */
+  public static createAttendeeSchema(): z.ZodObject<any> {
+    return z.object({
+      email: z.string().email().describe('Email address of the attendee'),
+      displayName: z
+        .string()
+        .optional()
+        .describe('Display name of the attendee'),
+      optional: z
+        .boolean()
+        .optional()
+        .describe('Whether attendance is optional'),
+      responseStatus: z
+        .enum(['needsAction', 'declined', 'tentative', 'accepted'])
+        .optional(),
+      comment: z.string().optional().describe('Comment from the attendee'),
+      additionalGuests: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe('Number of additional guests'),
+    });
+  }
+
+  /**
+   * Creates a schema for Calendar reminder settings
+   */
+  public static createReminderSchema(): z.ZodObject<any> {
+    return z.object({
+      useDefault: z
+        .boolean()
+        .optional()
+        .describe('Whether to use default reminders'),
+      overrides: z
+        .array(
+          z.object({
+            method: z
+              .enum(['email', 'popup'])
+              .describe('Reminder delivery method'),
+            minutes: z
+              .number()
+              .int()
+              .min(0)
+              .describe('Minutes before event to send reminder'),
+          })
+        )
+        .optional()
+        .describe('Custom reminder settings'),
+    });
   }
 
   /**
@@ -281,6 +420,233 @@ export class SchemaFactory {
             .min(1, 'Maximum file size must be positive')
             .max(1024 * 1024 * 1024, 'Maximum file size too large (max 1GB)')
             .optional(),
+        });
+        break;
+
+      // Calendar tools
+      case 'google-workspace__calendar__list-calendars':
+        schema = z.object({});
+        break;
+
+      case 'google-workspace__calendar__list':
+        schema = z.object({
+          calendarId: SchemaFactory.createCalendarIdSchema(),
+          timeMin: z
+            .string()
+            .optional()
+            .describe('Lower bound (exclusive) for events to list'),
+          timeMax: z
+            .string()
+            .optional()
+            .describe('Upper bound (exclusive) for events to list'),
+          maxResults: z
+            .number()
+            .int()
+            .min(1)
+            .max(2500)
+            .optional()
+            .describe('Maximum number of events to return'),
+          orderBy: z
+            .enum(['startTime', 'updated'])
+            .optional()
+            .describe('How to order the events'),
+          singleEvents: z
+            .boolean()
+            .optional()
+            .describe('Expand recurring events into instances'),
+          showDeleted: z
+            .boolean()
+            .optional()
+            .describe('Include deleted events'),
+          showHiddenInvitations: z
+            .boolean()
+            .optional()
+            .describe('Include hidden invitations'),
+          q: z.string().optional().describe('Free text search terms'),
+        });
+        break;
+
+      case 'google-workspace__calendar__get':
+        schema = z.object({
+          calendarId: SchemaFactory.createCalendarIdSchema(),
+          eventId: SchemaFactory.createEventIdSchema(),
+        });
+        break;
+
+      case 'google-workspace__calendar__create':
+        schema = z.object({
+          calendarId: SchemaFactory.createCalendarIdSchema(),
+          summary: z
+            .string()
+            .min(1)
+            .max(1024)
+            .describe('The title/summary of the event'),
+          description: z
+            .string()
+            .max(8192)
+            .optional()
+            .describe('Detailed description of the event'),
+          location: z
+            .string()
+            .max(1024)
+            .optional()
+            .describe('Location of the event'),
+          start: SchemaFactory.createEventTimeSchema().describe(
+            'Start date/time of the event'
+          ),
+          end: SchemaFactory.createEventTimeSchema().describe(
+            'End date/time of the event'
+          ),
+          attendees: z
+            .array(SchemaFactory.createAttendeeSchema())
+            .optional()
+            .describe('List of event attendees'),
+          reminders: SchemaFactory.createReminderSchema()
+            .optional()
+            .describe('Reminder settings for the event'),
+          recurrence: z
+            .array(z.string())
+            .optional()
+            .describe('RRULE recurrence patterns'),
+          transparency: z
+            .enum(['opaque', 'transparent'])
+            .optional()
+            .describe('Event transparency'),
+          visibility: z
+            .enum(['default', 'public', 'private', 'confidential'])
+            .optional(),
+          anyoneCanAddSelf: z
+            .boolean()
+            .optional()
+            .describe('Whether anyone can add themselves'),
+          guestsCanInviteOthers: z
+            .boolean()
+            .optional()
+            .describe('Whether guests can invite others'),
+          guestsCanModify: z
+            .boolean()
+            .optional()
+            .describe('Whether guests can modify event'),
+          guestsCanSeeOtherGuests: z
+            .boolean()
+            .optional()
+            .describe('Whether guests can see other guests'),
+        });
+        break;
+
+      case 'google-workspace__calendar__quick-add':
+        schema = z.object({
+          calendarId: SchemaFactory.createCalendarIdSchema(),
+          text: z
+            .string()
+            .min(1)
+            .max(1024)
+            .describe('Natural language description of the event to create'),
+        });
+        break;
+
+      case 'google-workspace__calendar__delete':
+        schema = z.object({
+          calendarId: SchemaFactory.createCalendarIdSchema(),
+          eventId: SchemaFactory.createEventIdSchema(),
+          sendUpdates: z
+            .enum(['all', 'externalOnly', 'none'])
+            .optional()
+            .describe('Whether to send cancellation emails to attendees'),
+        });
+        break;
+
+      // Docs tools
+      case 'google-workspace__docs__get':
+        schema = z.object({
+          documentId: SchemaFactory.createDocumentIdSchema(),
+          includeContent: z
+            .boolean()
+            .optional()
+            .describe(
+              'Whether to include the document body content in the response'
+            ),
+          format: z
+            .string()
+            .transform(val => val.toLowerCase() as 'markdown' | 'json')
+            .refine(val => ['markdown', 'json'].includes(val), {
+              message: 'Format must be either "markdown" or "json"',
+            })
+            .default('markdown')
+            .optional()
+            .describe(
+              'Output format: markdown for plain text markdown or json for structured document data'
+            ),
+        });
+        break;
+
+      case 'google-workspace__docs__create':
+        schema = z.object({
+          title: SchemaFactory.createDocumentTitleSchema(),
+          folderId: z
+            .string()
+            .optional()
+            .describe(
+              'Optional folder ID where the document should be created'
+            ),
+        });
+        break;
+
+      case 'google-workspace__docs__update':
+        schema = z.object({
+          documentId: SchemaFactory.createDocumentIdSchema(),
+          requests: z
+            .array(z.any(), {
+              required_error: 'Requests array is required',
+              invalid_type_error: 'Requests must be an array',
+            })
+            .describe(
+              'Array of batch update requests to apply to the document'
+            ),
+        });
+        break;
+
+      case 'google-workspace__docs__insert-text':
+        schema = z.object({
+          documentId: SchemaFactory.createDocumentIdSchema(),
+          text: z
+            .string({
+              required_error: 'Text is required',
+              invalid_type_error: 'Text cannot be null',
+            })
+            .describe('The text to insert into the document'),
+          index: z
+            .number({
+              invalid_type_error: 'Index must be a number',
+            })
+            .int('Index must be an integer')
+            .min(0, 'Index must be non-negative')
+            .optional()
+            .describe(
+              'The position where text should be inserted (0-based index)'
+            ),
+        });
+        break;
+
+      case 'google-workspace__docs__replace-text':
+        schema = z.object({
+          documentId: SchemaFactory.createDocumentIdSchema(),
+          searchText: z
+            .string({
+              required_error: 'Search text is required',
+              invalid_type_error: 'Text cannot be null',
+            })
+            .describe('The text to search for and replace'),
+          replaceText: z
+            .string({
+              required_error: 'Replace text is required',
+              invalid_type_error: 'Text cannot be null',
+            })
+            .describe('The replacement text (can be empty for deletion)'),
+          matchCase: z
+            .boolean()
+            .optional()
+            .describe('Whether to match case when searching for text'),
         });
         break;
 
@@ -421,15 +787,70 @@ export class SchemaFactory {
       },
       'google-workspace__drive__list-files': {
         title: 'List Drive Files',
-        description: 'List files in Google Drive with optional filtering and search',
+        description:
+          'List files in Google Drive with optional filtering and search',
       },
       'google-workspace__drive__get-file': {
         title: 'Get Drive File Metadata',
-        description: 'Gets metadata and details for a specific Google Drive file',
+        description:
+          'Gets metadata and details for a specific Google Drive file',
       },
       'google-workspace__drive__get-file-content': {
         title: 'Get Drive File Content',
         description: 'Downloads and retrieves content from a Google Drive file',
+      },
+      'google-workspace__calendar__list-calendars': {
+        title: 'List Calendars',
+        description: 'Lists all calendars accessible to the authenticated user',
+      },
+      'google-workspace__calendar__list': {
+        title: 'List Calendar Events',
+        description:
+          'Lists events from a specific calendar with optional filtering and pagination',
+      },
+      'google-workspace__calendar__get': {
+        title: 'Get Calendar Event',
+        description:
+          'Retrieves detailed information about a specific calendar event',
+      },
+      'google-workspace__calendar__create': {
+        title: 'Create Calendar Event',
+        description:
+          'Creates a new calendar event with comprehensive options for attendees, reminders, and recurrence',
+      },
+      'google-workspace__calendar__quick-add': {
+        title: 'Quick Add Calendar Event',
+        description:
+          'Creates a calendar event using natural language parsing for quick event creation',
+      },
+      'google-workspace__calendar__delete': {
+        title: 'Delete Calendar Event',
+        description:
+          'Permanently deletes a calendar event with options for attendee notifications',
+      },
+      'google-workspace__docs__get': {
+        title: 'Get Google Document',
+        description:
+          'Retrieves a Google Document with its metadata and optional content. Supports markdown (default) and JSON output formats.',
+      },
+      'google-workspace__docs__create': {
+        title: 'Create Google Document',
+        description:
+          'Creates a new Google Document with the specified title and optional folder location',
+      },
+      'google-workspace__docs__update': {
+        title: 'Update Google Document',
+        description:
+          'Performs batch updates on a Google Document using the batchUpdate API',
+      },
+      'google-workspace__docs__insert-text': {
+        title: 'Insert Text into Document',
+        description: 'Inserts text at a specific position in a Google Document',
+      },
+      'google-workspace__docs__replace-text': {
+        title: 'Replace Text in Document',
+        description:
+          'Replaces all occurrences of specified text in a Google Document',
       },
     };
 

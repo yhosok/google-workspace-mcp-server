@@ -7,23 +7,12 @@ import type {
 } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
+import { SchemaFactory } from '../base/tool-schema.js';
 
-/**
- * Schema for get event input
- */
-const GetEventInputSchema = z
-  .object({
-    calendarId: z
-      .string()
-      .min(1)
-      .describe('The calendar ID containing the event'),
-    eventId: z
-      .string()
-      .min(1)
-      .describe('The unique identifier of the event to retrieve'),
-  })
-  .describe('Get detailed information about a specific calendar event');
-
+// Define the type from the tool schema
+const GetEventInputSchema = SchemaFactory.createToolInputSchema(
+  'google-workspace__calendar__get'
+);
 type GetEventInput = z.infer<typeof GetEventInputSchema>;
 
 /**
@@ -70,12 +59,7 @@ export class GetEventTool extends BaseCalendarTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return {
-      title: 'Get Calendar Event',
-      description:
-        'Retrieves detailed information about a specific calendar event',
-      inputSchema: GetEventInputSchema.shape,
-    };
+    return SchemaFactory.createToolMetadata('google-workspace__calendar__get');
   }
 
   public async executeImpl(

@@ -7,41 +7,12 @@ import type {
 } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleDocsError, GoogleWorkspaceError } from '../../errors/index.js';
+import { SchemaFactory } from '../base/tool-schema.js';
 
-/**
- * Schema for replace text input parameters
- * Includes document ID, search text, replacement text, and optional case matching
- */
-const ReplaceTextInputSchema = z.object({
-  documentId: z
-    .string({
-      description: 'The unique identifier of the Google Docs document',
-      required_error: 'Document ID is required',
-      invalid_type_error: 'Document ID must be a string',
-    })
-    .min(1, 'Document ID cannot be empty')
-    .max(100, 'Document ID too long'),
-  searchText: z
-    .string({
-      description: 'Text to search for in the document',
-      required_error: 'Search text is required',
-      invalid_type_error: 'Text cannot be null',
-    })
-    .max(1000000, 'Search text too long'), // 1MB limit, empty strings allowed
-  replaceText: z
-    .string({
-      description: 'Text to replace the search text with',
-      required_error: 'Replace text is required',
-      invalid_type_error: 'Text cannot be null',
-    })
-    .max(1000000, 'Replace text too long'), // 1MB limit, can be empty
-  matchCase: z
-    .boolean({
-      description: 'Whether the search should be case-sensitive',
-    })
-    .optional(),
-});
-
+// Define the type from the tool schema
+const ReplaceTextInputSchema = SchemaFactory.createToolInputSchema(
+  'google-workspace__docs__replace-text'
+);
 type ReplaceTextInput = z.infer<typeof ReplaceTextInputSchema>;
 
 /**
@@ -122,12 +93,9 @@ export class ReplaceTextTool extends BaseDocsTools<
    * @returns ToolMetadata object with input schema and descriptions
    */
   public getToolMetadata(): ToolMetadata {
-    return {
-      title: 'Replace Text in Document',
-      description:
-        'Replaces all occurrences of specified text in a Google Document',
-      inputSchema: ReplaceTextInputSchema.shape,
-    };
+    return SchemaFactory.createToolMetadata(
+      'google-workspace__docs__replace-text'
+    );
   }
 
   /**

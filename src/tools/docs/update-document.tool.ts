@@ -11,29 +11,12 @@ import type {
 } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleDocsError, GoogleWorkspaceError } from '../../errors/index.js';
+import { SchemaFactory } from '../base/tool-schema.js';
 
-/**
- * Schema for update document input parameters
- * Includes document ID and an array of batch update requests
- */
-const UpdateDocumentInputSchema = z.object({
-  documentId: z
-    .string({
-      description: 'The unique identifier of the Google Docs document',
-      required_error: 'Document ID is required',
-      invalid_type_error: 'Document ID must be a string',
-    })
-    .min(1, 'Document ID cannot be empty')
-    .max(100, 'Document ID too long'),
-  requests: z
-    .array(z.any(), {
-      description: 'Array of batch update requests to apply to the document',
-      required_error: 'Requests array is required',
-      invalid_type_error: 'Requests must be an array',
-    })
-    .max(500, 'Too many requests in batch (max 500)'),
-});
-
+// Define the type from the tool schema
+const UpdateDocumentInputSchema = SchemaFactory.createToolInputSchema(
+  'google-workspace__docs__update'
+);
 type UpdateDocumentInput = z.infer<typeof UpdateDocumentInputSchema>;
 
 /**
@@ -114,12 +97,7 @@ export class UpdateDocumentTool extends BaseDocsTools<
    * @returns ToolMetadata object with input schema and descriptions
    */
   public getToolMetadata(): ToolMetadata {
-    return {
-      title: 'Update Google Document',
-      description:
-        'Performs batch updates on a Google Document using the batchUpdate API',
-      inputSchema: UpdateDocumentInputSchema.shape,
-    };
+    return SchemaFactory.createToolMetadata('google-workspace__docs__update');
   }
 
   /**

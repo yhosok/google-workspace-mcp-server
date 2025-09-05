@@ -7,6 +7,7 @@ import type {
 } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
+import { SchemaFactory } from '../base/tool-schema.js';
 
 /**
  * Schema for list calendars input (no parameters required)
@@ -49,11 +50,9 @@ export class ListCalendarsTool extends BaseCalendarTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return {
-      title: 'List Calendars',
-      description: 'Lists all calendars accessible to the authenticated user',
-      inputSchema: {},
-    };
+    return SchemaFactory.createToolMetadata(
+      'google-workspace__calendar__list-calendars'
+    );
   }
 
   public async executeImpl(

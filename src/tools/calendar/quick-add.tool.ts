@@ -10,24 +10,12 @@ import type {
 } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
+import { SchemaFactory } from '../base/tool-schema.js';
 
-/**
- * Schema for quick add input
- */
-const QuickAddInputSchema = z
-  .object({
-    calendarId: z
-      .string()
-      .min(1)
-      .describe('The calendar ID to create the event in'),
-    text: z
-      .string()
-      .min(1)
-      .max(1024)
-      .describe('Natural language description of the event to create'),
-  })
-  .describe('Create a calendar event using natural language text');
-
+// Define the type from the tool schema
+const QuickAddInputSchema = SchemaFactory.createToolInputSchema(
+  'google-workspace__calendar__quick-add'
+);
 type QuickAddInput = z.infer<typeof QuickAddInputSchema>;
 
 /**
@@ -94,12 +82,9 @@ export class QuickAddTool extends BaseCalendarTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return {
-      title: 'Quick Add Calendar Event',
-      description:
-        'Creates a calendar event using natural language text with intelligent parsing of dates, times, and locations',
-      inputSchema: QuickAddInputSchema.shape,
-    };
+    return SchemaFactory.createToolMetadata(
+      'google-workspace__calendar__quick-add'
+    );
   }
 
   public async executeImpl(

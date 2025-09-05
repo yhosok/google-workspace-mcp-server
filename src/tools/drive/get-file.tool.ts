@@ -163,7 +163,10 @@ export class GetFileTool extends BaseDriveTool<GetFileInput, MCPToolResult> {
       let fieldsArray = validatedArgs.fields ? [...validatedArgs.fields] : [];
 
       // Handle includePermissions parameter
-      if (validatedArgs.includePermissions && !fieldsArray.includes('permissions')) {
+      if (
+        validatedArgs.includePermissions &&
+        !fieldsArray.includes('permissions')
+      ) {
         fieldsArray.push('permissions');
       }
 

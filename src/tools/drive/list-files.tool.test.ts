@@ -503,7 +503,8 @@ describe('ListFilesTool', () => {
       });
 
       expect(mockDriveService.listFiles).toHaveBeenCalledWith({
-        query: "trashed = false and 'folder123' in parents and (name contains 'Test')",
+        query:
+          "trashed = false and 'folder123' in parents and (name contains 'Test')",
       });
       expect(result.isOk()).toBe(true);
     });
@@ -595,7 +596,8 @@ describe('ListFilesTool', () => {
       });
 
       expect(mockDriveService.listFiles).toHaveBeenCalledWith({
-        query: "trashed = false and 'folder123' in parents and (name contains 'Test')",
+        query:
+          "trashed = false and 'folder123' in parents and (name contains 'Test')",
       });
       expect(result.isOk()).toBe(true);
     });

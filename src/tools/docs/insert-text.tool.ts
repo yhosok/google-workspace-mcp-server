@@ -7,38 +7,12 @@ import type {
 } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleDocsError, GoogleWorkspaceError } from '../../errors/index.js';
+import { SchemaFactory } from '../base/tool-schema.js';
 
-/**
- * Schema for insert text input parameters
- * Includes document ID, text content, and optional insertion index
- */
-const InsertTextInputSchema = z.object({
-  documentId: z
-    .string({
-      description: 'The unique identifier of the Google Docs document',
-      required_error: 'Document ID is required',
-      invalid_type_error: 'Document ID must be a string',
-    })
-    .min(1, 'Document ID cannot be empty')
-    .max(100, 'Document ID too long'),
-  text: z
-    .string({
-      description: 'Text content to insert into the document',
-      required_error: 'Text is required',
-      invalid_type_error: 'Text cannot be null',
-    })
-    .max(1000000, 'Text content too long'), // 1MB limit
-  index: z
-    .number({
-      description: 'Zero-based index position where text should be inserted',
-      invalid_type_error: 'Index must be a number',
-    })
-    .int('Index must be an integer')
-    .min(0, 'Index must be non-negative')
-    .max(10000000, 'Index too large')
-    .optional(),
-});
-
+// Define the type from the tool schema
+const InsertTextInputSchema = SchemaFactory.createToolInputSchema(
+  'google-workspace__docs__insert-text'
+);
 type InsertTextInput = z.infer<typeof InsertTextInputSchema>;
 
 /**
@@ -123,11 +97,9 @@ export class InsertTextTool extends BaseDocsTools<
    * @returns ToolMetadata object with input schema and descriptions
    */
   public getToolMetadata(): ToolMetadata {
-    return {
-      title: 'Insert Text into Document',
-      description: 'Inserts text at a specific position in a Google Document',
-      inputSchema: InsertTextInputSchema.shape,
-    };
+    return SchemaFactory.createToolMetadata(
+      'google-workspace__docs__insert-text'
+    );
   }
 
   /**

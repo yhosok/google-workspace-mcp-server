@@ -160,17 +160,17 @@ export class ListFilesTool extends BaseDriveTool<
 
       // Build query string with automatic trashed filter
       let queryParts: string[] = ['trashed = false'];
-      
+
       // Handle folderId parameter by adding to query
       if (validatedArgs.folderId !== undefined) {
         queryParts.push(`'${validatedArgs.folderId}' in parents`);
       }
-      
+
       // Add user's custom query if provided
       if (validatedArgs.query) {
         queryParts.push(`(${validatedArgs.query})`);
       }
-      
+
       // Combine all query parts
       const queryString = queryParts.join(' and ');
       driveOptions.query = queryString;

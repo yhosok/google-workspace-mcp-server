@@ -14,7 +14,15 @@ import { GoogleDriveError } from '../../errors/index.js';
  */
 type GetFileContentInput = {
   fileId: string;
-  exportFormat?: 'pdf' | 'docx' | 'xlsx' | 'csv' | 'txt' | 'html' | 'odt' | 'rtf';
+  exportFormat?:
+    | 'pdf'
+    | 'docx'
+    | 'xlsx'
+    | 'csv'
+    | 'txt'
+    | 'html'
+    | 'odt'
+    | 'rtf';
   maxFileSize?: number;
 };
 
