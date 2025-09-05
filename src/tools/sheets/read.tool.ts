@@ -41,7 +41,9 @@ export class SheetsReadTool extends BaseSheetsTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('google-workspace__sheets__read-range');
+    return SchemaFactory.createToolMetadata(
+      'google-workspace__sheets__read-range'
+    );
   }
 
   public async executeImpl(
@@ -58,7 +60,9 @@ export class SheetsReadTool extends BaseSheetsTools<
 
     // Parameter validation
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema('google-workspace__sheets__read-range'),
+      SchemaFactory.createToolInputSchema(
+        'google-workspace__sheets__read-range'
+      ),
       params,
       { operation: 'read-sheets', requestId }
     );

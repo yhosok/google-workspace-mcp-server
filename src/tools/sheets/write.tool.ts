@@ -42,7 +42,9 @@ export class SheetsWriteTool extends BaseSheetsTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('google-workspace__sheets__write-range');
+    return SchemaFactory.createToolMetadata(
+      'google-workspace__sheets__write-range'
+    );
   }
 
   public async executeImpl(
@@ -60,7 +62,9 @@ export class SheetsWriteTool extends BaseSheetsTools<
 
     // Parameter validation
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema('google-workspace__sheets__write-range'),
+      SchemaFactory.createToolInputSchema(
+        'google-workspace__sheets__write-range'
+      ),
       params,
       { operation: 'write-sheets', requestId }
     );
@@ -83,7 +87,10 @@ export class SheetsWriteTool extends BaseSheetsTools<
     }
 
     // Validate access control for write operations
-    const accessResult = await this.validateAccessControl(validatedParams, requestId);
+    const accessResult = await this.validateAccessControl(
+      validatedParams,
+      requestId
+    );
     if (accessResult.isErr()) {
       return err(accessResult.error);
     }

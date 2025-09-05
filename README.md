@@ -13,7 +13,7 @@ This MCP server implements the [Model Context Protocol](https://modelcontextprot
 - **Google Sheets Integration**: Full CRUD operations on spreadsheets with optional folder placement
 - **Google Calendar Integration**: Complete calendar management with event creation, updates, and deletion
 - **Google Drive Integration**: Smart file creation with folder management for organized workspace
-- **Google Docs Integration**: Complete document creation, editing, and content management
+- **Google Docs Integration**: Complete document creation, editing, and content management with Markdown export support
 - **Dual Authentication Support**: Both Service Account and OAuth2 user authentication with PKCE enhanced security
 - **Advanced Timeout Control**: Dual-layer timeout protection with AbortController
 - **Configurable Retry/Backoff Strategy**: Intelligent retry handling for transient API failures
@@ -109,7 +109,7 @@ When using npx, your Claude Desktop configuration becomes even simpler since you
         "GOOGLE_OAUTH_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
         "GOOGLE_OAUTH_CLIENT_SECRET": "your-client-secret",
         "GOOGLE_OAUTH_REDIRECT_URI": "http://localhost:3000/oauth2callback",
-        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/documents",
+        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/drive.readonly,https://www.googleapis.com/auth/documents",
         "GOOGLE_READ_ONLY_MODE": "false"
       }
     }
@@ -210,7 +210,7 @@ GOOGLE_AUTH_MODE=oauth2
 GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
 GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
-GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/documents
+GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/drive.readonly,https://www.googleapis.com/auth/documents
 ```
 
 **Note**: Both `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` are required. PKCE security is automatically enabled to provide additional protection beyond the client secret.
@@ -256,7 +256,7 @@ GOOGLE_AUTH_MODE=oauth2
 GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
 GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
-GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/documents
+GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/drive.readonly,https://www.googleapis.com/auth/documents
 GOOGLE_OAUTH_PORT=3000
 ```
 
@@ -400,7 +400,7 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
         "GOOGLE_OAUTH_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
         "GOOGLE_OAUTH_CLIENT_SECRET": "your-client-secret",
         "GOOGLE_OAUTH_REDIRECT_URI": "http://localhost:3000/oauth2callback",
-        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file",
+        "GOOGLE_OAUTH_SCOPES": "https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/calendar,https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/drive.readonly,https://www.googleapis.com/auth/documents",
         "GOOGLE_READ_ONLY_MODE": "false"
       }
     }
@@ -655,7 +655,7 @@ Downloads and retrieves the content of a Google Drive file, with automatic expor
 - `exportFormat` (optional): Export format for Google Workspace files (pdf, docx, xlsx, pptx, odt, txt, html, etc.)
 
 **Supported Export Formats:**
-- **Google Docs**: pdf, docx, odt, txt, html
+- **Google Docs**: pdf, docx, odt, txt, html, markdown
 - **Google Sheets**: pdf, xlsx, csv, tsv, ods, html
 - **Google Slides**: pdf, pptx, odp, txt, html, jpeg, png
 - **Google Drawings**: pdf, svg, png, jpeg
@@ -684,16 +684,19 @@ Creates a new Google Document with the specified title and optional folder place
 ```
 
 #### `google-workspace__docs__get`
-Retrieves Google Document metadata and optional content.
+Retrieves Google Document metadata and optional content in Markdown or JSON format.
 
 **Parameters:**
 - `documentId` (required): The unique identifier of the Google Docs document
 - `includeContent` (optional): Whether to include the document body content in the response
+- `format` (optional): Output format - 'markdown' (default) or 'json' for structured data
 
 **Example usage in Claude:**
 ```
 "Get metadata for document [document-id]"
 "Get the full content of document [document-id]"
+"Get document [document-id] in markdown format"
+"Get document [document-id] as JSON with structured data"
 ```
 
 #### `google-workspace__docs__update`

@@ -86,8 +86,9 @@ export class CalendarServiceModule implements ServiceModule {
             authClient.value,
             this.logger
           );
-          
-          const accessControlInitResult = await this.accessControlService.initialize();
+
+          const accessControlInitResult =
+            await this.accessControlService.initialize();
           if (accessControlInitResult.isErr()) {
             this.logger.warn('Failed to initialize AccessControlService', {
               error: accessControlInitResult.error.toJSON(),
@@ -96,7 +97,9 @@ export class CalendarServiceModule implements ServiceModule {
             this.accessControlService = undefined;
           }
         } else {
-          this.logger.warn('Failed to get auth client for AccessControlService');
+          this.logger.warn(
+            'Failed to get auth client for AccessControlService'
+          );
         }
       }
 
@@ -121,12 +124,42 @@ export class CalendarServiceModule implements ServiceModule {
 
       // Create tool instances with optional AccessControlService
       this.tools = [
-        new ListCalendarsTool(this.calendarService, authService, undefined, this.accessControlService),
-        new ListEventsTool(this.calendarService, authService, undefined, this.accessControlService),
-        new GetEventTool(this.calendarService, authService, undefined, this.accessControlService),
-        new CreateEventTool(this.calendarService, authService, undefined, this.accessControlService),
-        new QuickAddTool(this.calendarService, authService, undefined, this.accessControlService),
-        new DeleteEventTool(this.calendarService, authService, undefined, this.accessControlService),
+        new ListCalendarsTool(
+          this.calendarService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
+        new ListEventsTool(
+          this.calendarService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
+        new GetEventTool(
+          this.calendarService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
+        new CreateEventTool(
+          this.calendarService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
+        new QuickAddTool(
+          this.calendarService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
+        new DeleteEventTool(
+          this.calendarService,
+          authService,
+          undefined,
+          this.accessControlService
+        ),
       ];
 
       this.initialized = true;

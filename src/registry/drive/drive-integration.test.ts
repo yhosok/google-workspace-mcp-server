@@ -83,7 +83,7 @@ describe('Drive Integration Tests', () => {
     jest.clearAllTimers();
     jest.useRealTimers();
     jest.restoreAllMocks();
-    
+
     // Force garbage collection if available
     if (global.gc) {
       global.gc();

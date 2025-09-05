@@ -254,7 +254,7 @@ describe('OAuth2AuthProvider', () => {
     if (mockServer) {
       // Remove all event listeners to prevent memory leaks
       mockServer.removeAllListeners?.();
-      
+
       // Call close and destroy methods if they exist
       if (typeof mockServer.close === 'function') {
         mockServer.close();
@@ -267,7 +267,7 @@ describe('OAuth2AuthProvider', () => {
     // Clear any remaining timers (Jest should handle this, but being explicit)
     jest.clearAllTimers();
     jest.useRealTimers();
-    
+
     // Force garbage collection of any lingering promises or timeouts
     jest.clearAllMocks();
   });
@@ -277,11 +277,11 @@ describe('OAuth2AuthProvider', () => {
     jest.clearAllTimers();
     jest.useRealTimers();
     jest.restoreAllMocks();
-    
+
     // Clean up any global state that might have been modified
     delete process.env.TEST_OAUTH_STATE;
     delete process.env.NODE_ENV;
-    
+
     // Force final garbage collection
     if (global.gc) {
       global.gc();

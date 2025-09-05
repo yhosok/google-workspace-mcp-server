@@ -206,7 +206,10 @@ export class CreateDocumentTool extends BaseDocsTools<
       }
 
       // Validate access control for write operations
-      const accessResult = await this.validateAccessControl(validatedParams, requestId);
+      const accessResult = await this.validateAccessControl(
+        validatedParams,
+        requestId
+      );
       if (accessResult.isErr()) {
         return err(accessResult.error);
       }

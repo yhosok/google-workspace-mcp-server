@@ -9,6 +9,7 @@ import { AccessControlService } from '../../services/access-control.service.js';
 import { Logger } from '../../utils/logger.js';
 import {
   GoogleWorkspaceError,
+  GoogleWorkspaceResult,
   GoogleAuthError,
   GoogleDocsError,
   GoogleServiceError,
@@ -90,16 +91,25 @@ describe('BaseDocsTools', () => {
       updateConfig: jest.fn(),
     } as unknown as jest.Mocked<Logger>;
 
-    testTool = new TestDocsTools(mockDocsService, mockAuthService, mockLogger, mockAccessControlService);
+    testTool = new TestDocsTools(
+      mockDocsService,
+      mockAuthService,
+      mockLogger,
+      mockAccessControlService
+    );
 
     // Setup access control service mocks with default behavior
+    (mockAccessControlService.validateAccess as any) = jest
+      .fn()
+      // @ts-expect-error - Mock return type compatibility
+      .mockResolvedValue(googleOk(void 0));
     // @ts-ignore - Mocking access control service methods
-    mockAccessControlService.validateAccess = jest.fn().mockResolvedValue(googleOk(undefined));
-    // @ts-ignore - Mocking access control service methods
-    mockAccessControlService.getAccessControlSummary = jest.fn().mockReturnValue({
-      readOnlyMode: false,
-      hasRestrictions: false,
-    });
+    mockAccessControlService.getAccessControlSummary = jest
+      .fn()
+      .mockReturnValue({
+        readOnlyMode: false,
+        hasRestrictions: false,
+      });
 
     // Reset mocks
     jest.clearAllMocks();
@@ -923,10 +933,15 @@ describe('BaseDocsTools', () => {
           context: { documentId: 'test-doc-id' },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
@@ -947,10 +962,15 @@ describe('BaseDocsTools', () => {
           context: { documentId: 'test-doc-id', folderId: 'folder-123' },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
@@ -971,10 +991,15 @@ describe('BaseDocsTools', () => {
           context: { title: 'New Document', folderId: 'folder-456' },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
@@ -999,13 +1024,20 @@ describe('BaseDocsTools', () => {
           serviceName: 'docs',
           resourceType: 'document',
         });
-        mockAccessControlService.validateAccess.mockResolvedValue(err(accessError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(accessError)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlReadOnlyError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlReadOnlyError
+        );
         expect(mockLogger.warn).toHaveBeenCalledWith(
           'Access control validation failed',
           expect.objectContaining({
@@ -1030,13 +1062,20 @@ describe('BaseDocsTools', () => {
           'allowed-folder',
           { operation: 'create', resourceType: 'document' }
         );
-        mockAccessControlService.validateAccess.mockResolvedValue(err(folderError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(folderError)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlFolderError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlFolderError
+        );
       });
 
       it('should handle service access control errors', async () => {
@@ -1052,13 +1091,20 @@ describe('BaseDocsTools', () => {
           ['sheets', 'calendar'],
           { operation: 'write', resourceType: 'document' }
         );
-        mockAccessControlService.validateAccess.mockResolvedValue(err(serviceError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(serviceError)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlServiceError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlServiceError
+        );
       });
 
       it('should handle tool access control errors', async () => {
@@ -1074,13 +1120,20 @@ describe('BaseDocsTools', () => {
           ['google-workspace__docs__get-document'],
           { operation: 'write', serviceName: 'docs' }
         );
-        mockAccessControlService.validateAccess.mockResolvedValue(err(toolError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(toolError)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlToolError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlToolError
+        );
       });
 
       it('should handle unexpected access control errors', async () => {
@@ -1091,13 +1144,20 @@ describe('BaseDocsTools', () => {
           context: { documentId: 'test-doc-id' },
         };
 
-        mockAccessControlService.validateAccess.mockRejectedValue(new Error('Network error'));
+        mockAccessControlService.validateAccess.mockRejectedValue(
+          new Error('Network error')
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlError
+        );
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Access control validation error',
           expect.objectContaining({
@@ -1170,13 +1230,19 @@ describe('BaseDocsTools', () => {
       it('should handle tool name parsing correctly', () => {
         const testCases = [
           // Standard patterns
-          { toolName: 'google-workspace__docs__create-document', expected: true },
+          {
+            toolName: 'google-workspace__docs__create-document',
+            expected: true,
+          },
           { toolName: 'google-workspace__docs__get-document', expected: false },
           // Legacy patterns
           { toolName: 'docs-create', expected: true },
           { toolName: 'docs-read', expected: false },
           // Mixed case
-          { toolName: 'google-workspace__docs__CREATE-document', expected: true },
+          {
+            toolName: 'google-workspace__docs__CREATE-document',
+            expected: true,
+          },
           { toolName: 'google-workspace__docs__GET-document', expected: false },
         ];
 
@@ -1209,7 +1275,7 @@ describe('BaseDocsTools', () => {
             expected: ['target-789'],
           },
           {
-            params: { 
+            params: {
               folderId: 'folder-123',
               parentFolderId: 'parent-456',
             },
@@ -1319,7 +1385,9 @@ describe('BaseDocsTools', () => {
             params: {
               documentId: 'doc-123',
               folderId: 'doc-folder-456',
-              requests: [{ insertText: { text: 'Hello', location: { index: 1 } } }],
+              requests: [
+                { insertText: { text: 'Hello', location: { index: 1 } } },
+              ],
             },
             expected: ['doc-folder-456'],
           },
@@ -1347,9 +1415,11 @@ describe('BaseDocsTools', () => {
           // @ts-ignore - Mock return value
           ok({ result: 'success' })
         );
-        
+
         // This test should fail because access control integration doesn't exist yet
-        expect(typeof (testTool as any).executeWithAccessControl).toBe('function');
+        expect(typeof (testTool as any).executeWithAccessControl).toBe(
+          'function'
+        );
       });
 
       it('should validate access control before executing write operations', async () => {
@@ -1365,7 +1435,9 @@ describe('BaseDocsTools', () => {
           serviceName: 'docs',
           resourceType: 'document',
         });
-        mockAccessControlService.validateAccess.mockResolvedValue(err(accessError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(accessError)
+        );
 
         // This test should fail because write operation access control doesn't exist yet
         const result = await (testTool as any).executeWithAccessControl(
@@ -1374,7 +1446,9 @@ describe('BaseDocsTools', () => {
         );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlReadOnlyError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlReadOnlyError
+        );
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
           operation: 'write',
           serviceName: 'docs',
@@ -1419,7 +1493,9 @@ describe('BaseDocsTools', () => {
           test: 'valid-data',
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because executeWithAccessControl doesn't exist yet
         const result = await (testTool as any).executeWithAccessControl(
@@ -1441,10 +1517,15 @@ describe('BaseDocsTools', () => {
           context: { documentId: 'test-doc-id' },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result).toHaveProperty('isOk');
         expect(result).toHaveProperty('isErr');
@@ -1461,10 +1542,15 @@ describe('BaseDocsTools', () => {
         };
 
         // Simulate unexpected error type
-        mockAccessControlService.validateAccess.mockRejectedValue(new TypeError('Unexpected error'));
+        mockAccessControlService.validateAccess.mockRejectedValue(
+          new TypeError('Unexpected error')
+        );
 
         // This test should fail because error conversion doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
         const error = result._unsafeUnwrapErr();
@@ -1484,10 +1570,15 @@ describe('BaseDocsTools', () => {
           serviceName: 'docs',
           resourceType: 'document',
         });
-        mockAccessControlService.validateAccess.mockResolvedValue(err(originalError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(originalError)
+        );
 
         // This test should fail because error context preservation doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
         const error = result._unsafeUnwrapErr();
@@ -1506,7 +1597,9 @@ describe('BaseDocsTools', () => {
       it('should not break existing authentication validation', async () => {
         mockAuthService.validateAuth.mockResolvedValue(ok(true));
 
-        const result = await (testTool as any).validateAuthentication('test-request-id');
+        const result = await (testTool as any).validateAuthentication(
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAuthService.validateAuth).toHaveBeenCalledTimes(1);
@@ -1518,8 +1611,9 @@ describe('BaseDocsTools', () => {
         });
         const data = { test: 'valid-data' };
 
-        (validateToolInput as jest.MockedFunction<typeof validateToolInput>)
-          .mockReturnValue(ok(data));
+        (
+          validateToolInput as jest.MockedFunction<typeof validateToolInput>
+        ).mockReturnValue(ok(data));
 
         const result = (testTool as any).validateWithSchema(schema, data);
 
@@ -1529,7 +1623,7 @@ describe('BaseDocsTools', () => {
 
       it('should not break existing document validation methods', () => {
         const validDocumentId = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
-        
+
         // This assumes documentIdValidation method exists (from earlier tests)
         // If it doesn't exist yet, this test should pass after implementation
         expect(typeof (testTool as any).documentIdValidation).toBe('function');
@@ -1537,7 +1631,7 @@ describe('BaseDocsTools', () => {
 
       it('should not break existing text validation methods', () => {
         const validText = 'This is valid text content.';
-        
+
         // This assumes textValidation method exists (from earlier tests)
         // If it doesn't exist yet, this test should pass after implementation
         expect(typeof (testTool as any).textValidation).toBe('function');
@@ -1545,7 +1639,7 @@ describe('BaseDocsTools', () => {
 
       it('should not break existing index validation methods', () => {
         const validIndex = 1;
-        
+
         // This assumes indexValidation method exists (from earlier tests)
         // If it doesn't exist yet, this test should pass after implementation
         expect(typeof (testTool as any).indexValidation).toBe('function');
@@ -1587,15 +1681,18 @@ describe('BaseDocsTools', () => {
           context: {},
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
-
-        const result = await (toolWithAccessControl as any).validateAccessControl(
-          request,
-          'test-request-id'
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
         );
 
+        const result = await (
+          toolWithAccessControl as any
+        ).validateAccessControl(request, 'test-request-id');
+
         expect(result.isOk()).toBe(true);
-        expect(mockAccessControlService.validateAccess).toHaveBeenCalledTimes(1);
+        expect(mockAccessControlService.validateAccess).toHaveBeenCalledTimes(
+          1
+        );
       });
 
       it('should handle optional AccessControlService parameter', () => {
@@ -1607,7 +1704,9 @@ describe('BaseDocsTools', () => {
         );
 
         expect(toolWithoutAccessControl).toBeDefined();
-        expect((toolWithoutAccessControl as any).accessControlService).toBeUndefined();
+        expect(
+          (toolWithoutAccessControl as any).accessControlService
+        ).toBeUndefined();
       });
     });
 
@@ -1617,16 +1716,21 @@ describe('BaseDocsTools', () => {
           operation: 'create' as const,
           serviceName: 'docs',
           toolName: 'google-workspace__docs__create-document',
-          context: { 
+          context: {
             title: 'New Document',
             folderId: 'docs-folder-123',
           },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
@@ -1647,17 +1751,22 @@ describe('BaseDocsTools', () => {
           operation: 'write' as const,
           serviceName: 'docs',
           toolName: 'google-workspace__docs__insert-text',
-          context: { 
+          context: {
             documentId: 'doc-456',
             text: 'Inserted text',
             index: 10,
           },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
@@ -1679,7 +1788,7 @@ describe('BaseDocsTools', () => {
           operation: 'write' as const,
           serviceName: 'docs',
           toolName: 'google-workspace__docs__replace-text',
-          context: { 
+          context: {
             documentId: 'doc-789',
             searchText: 'old text',
             replaceText: 'new text',
@@ -1687,10 +1796,15 @@ describe('BaseDocsTools', () => {
           },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({

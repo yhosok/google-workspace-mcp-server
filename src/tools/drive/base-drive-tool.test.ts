@@ -9,6 +9,7 @@ import { AccessControlService } from '../../services/access-control.service.js';
 import { Logger } from '../../utils/logger.js';
 import {
   GoogleWorkspaceError,
+  GoogleWorkspaceResult,
   GoogleServiceError,
   GoogleAuthError,
   GoogleDriveError,
@@ -101,16 +102,25 @@ describe('BaseDriveTool', () => {
       updateConfig: jest.fn(),
     } as unknown as jest.Mocked<Logger>;
 
-    testTool = new TestDriveTools(mockDriveService, mockAuthService, mockLogger, mockAccessControlService);
+    testTool = new TestDriveTools(
+      mockDriveService,
+      mockAuthService,
+      mockLogger,
+      mockAccessControlService
+    );
 
     // Setup access control service mocks with default behavior
+    (mockAccessControlService.validateAccess as any) = jest
+      .fn()
+      // @ts-expect-error - Mock return type compatibility
+      .mockResolvedValue(googleOk(void 0));
     // @ts-ignore - Mocking access control service methods
-    mockAccessControlService.validateAccess = jest.fn().mockResolvedValue(googleOk(undefined));
-    // @ts-ignore - Mocking access control service methods
-    mockAccessControlService.getAccessControlSummary = jest.fn().mockReturnValue({
-      readOnlyMode: false,
-      hasRestrictions: false,
-    });
+    mockAccessControlService.getAccessControlSummary = jest
+      .fn()
+      .mockReturnValue({
+        readOnlyMode: false,
+        hasRestrictions: false,
+      });
 
     // Reset mocks
     jest.clearAllMocks();
@@ -278,7 +288,10 @@ describe('BaseDriveTool', () => {
     it('should validate correct folder ID', () => {
       const validFolderId = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
 
-      const result = (testTool as any).validateFolderId(validFolderId, 'create_file');
+      const result = (testTool as any).validateFolderId(
+        validFolderId,
+        'create_file'
+      );
 
       expect(result.isOk()).toBe(true);
       expect(result._unsafeUnwrap()).toBe(validFolderId);
@@ -295,7 +308,10 @@ describe('BaseDriveTool', () => {
     it('should handle special folder references', () => {
       const rootFolderId = 'root';
 
-      const result = (testTool as any).validateFolderId(rootFolderId, 'create_file');
+      const result = (testTool as any).validateFolderId(
+        rootFolderId,
+        'create_file'
+      );
 
       expect(result.isOk()).toBe(true);
       expect(result._unsafeUnwrap()).toBe('root');
@@ -317,7 +333,9 @@ describe('BaseDriveTool', () => {
       const schemas = BaseDriveTool.createCommonSchemas();
 
       // Test fileId schema
-      const fileIdResult = schemas.fileId.safeParse('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+      const fileIdResult = schemas.fileId.safeParse(
+        '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
+      );
       expect(fileIdResult.success).toBe(true);
 
       // Test fileName schema
@@ -361,10 +379,15 @@ describe('BaseDriveTool', () => {
           context: { fileId: 'test-file-id' },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
@@ -385,10 +408,15 @@ describe('BaseDriveTool', () => {
           context: { fileId: 'test-file-id', folderId: 'folder-123' },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
@@ -409,10 +437,15 @@ describe('BaseDriveTool', () => {
           context: { name: 'New File', parentFolderId: 'folder-456' },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
@@ -437,13 +470,20 @@ describe('BaseDriveTool', () => {
           serviceName: 'drive',
           resourceType: 'drive_file',
         });
-        mockAccessControlService.validateAccess.mockResolvedValue(err(accessError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(accessError)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlReadOnlyError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlReadOnlyError
+        );
         expect(mockLogger.warn).toHaveBeenCalledWith(
           'Access control validation failed',
           expect.objectContaining({
@@ -468,13 +508,20 @@ describe('BaseDriveTool', () => {
           'allowed-folder',
           { operation: 'create', resourceType: 'drive_file' }
         );
-        mockAccessControlService.validateAccess.mockResolvedValue(err(folderError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(folderError)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlFolderError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlFolderError
+        );
       });
 
       it('should handle service access control errors', async () => {
@@ -490,13 +537,20 @@ describe('BaseDriveTool', () => {
           ['sheets', 'docs'],
           { operation: 'write', resourceType: 'drive_file' }
         );
-        mockAccessControlService.validateAccess.mockResolvedValue(err(serviceError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(serviceError)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlServiceError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlServiceError
+        );
       });
 
       it('should handle tool access control errors', async () => {
@@ -512,13 +566,20 @@ describe('BaseDriveTool', () => {
           ['google-workspace__drive__get-file'],
           { operation: 'write', serviceName: 'drive' }
         );
-        mockAccessControlService.validateAccess.mockResolvedValue(err(toolError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(toolError)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlToolError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlToolError
+        );
       });
 
       it('should handle unexpected access control errors', async () => {
@@ -529,13 +590,20 @@ describe('BaseDriveTool', () => {
           context: { fileId: 'test-file-id' },
         };
 
-        mockAccessControlService.validateAccess.mockRejectedValue(new Error('Network error'));
+        mockAccessControlService.validateAccess.mockRejectedValue(
+          new Error('Network error')
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlError
+        );
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Access control validation error',
           expect.objectContaining({
@@ -647,7 +715,7 @@ describe('BaseDriveTool', () => {
             expected: ['target-789'],
           },
           {
-            params: { 
+            params: {
               folderId: 'folder-123',
               parentFolderId: 'parent-456',
             },
@@ -792,9 +860,11 @@ describe('BaseDriveTool', () => {
           // @ts-ignore - Mock return value
           ok({ result: 'success' })
         );
-        
+
         // This test should fail because access control integration doesn't exist yet
-        expect(typeof (testTool as any).executeWithAccessControl).toBe('function');
+        expect(typeof (testTool as any).executeWithAccessControl).toBe(
+          'function'
+        );
       });
 
       it('should validate access control before executing write operations', async () => {
@@ -809,7 +879,9 @@ describe('BaseDriveTool', () => {
           serviceName: 'drive',
           resourceType: 'drive_file',
         });
-        mockAccessControlService.validateAccess.mockResolvedValue(err(accessError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(accessError)
+        );
 
         // This test should fail because write operation access control doesn't exist yet
         const result = await (testTool as any).executeWithAccessControl(
@@ -818,7 +890,9 @@ describe('BaseDriveTool', () => {
         );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlReadOnlyError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlReadOnlyError
+        );
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
           operation: 'write',
           serviceName: 'drive',
@@ -863,7 +937,9 @@ describe('BaseDriveTool', () => {
           test: 'valid-data',
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because executeWithAccessControl doesn't exist yet
         const result = await (testTool as any).executeWithAccessControl(
@@ -885,10 +961,15 @@ describe('BaseDriveTool', () => {
           context: { fileId: 'test-file-id' },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result).toHaveProperty('isOk');
         expect(result).toHaveProperty('isErr');
@@ -905,10 +986,15 @@ describe('BaseDriveTool', () => {
         };
 
         // Simulate unexpected error type
-        mockAccessControlService.validateAccess.mockRejectedValue(new TypeError('Unexpected error'));
+        mockAccessControlService.validateAccess.mockRejectedValue(
+          new TypeError('Unexpected error')
+        );
 
         // This test should fail because error conversion doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
         const error = result._unsafeUnwrapErr();
@@ -928,10 +1014,15 @@ describe('BaseDriveTool', () => {
           serviceName: 'drive',
           resourceType: 'drive_file',
         });
-        mockAccessControlService.validateAccess.mockResolvedValue(err(originalError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(originalError)
+        );
 
         // This test should fail because error context preservation doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
         const error = result._unsafeUnwrapErr();
@@ -950,8 +1041,9 @@ describe('BaseDriveTool', () => {
         });
         const data = { test: 'valid-data' };
 
-        (validateToolInput as jest.MockedFunction<typeof validateToolInput>)
-          .mockReturnValue(ok(data));
+        (
+          validateToolInput as jest.MockedFunction<typeof validateToolInput>
+        ).mockReturnValue(ok(data));
 
         const result = (testTool as any).validateWithSchema(schema, data);
 
@@ -961,8 +1053,11 @@ describe('BaseDriveTool', () => {
 
       it('should not break existing file validation methods', () => {
         const validFileId = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
-        
-        const result = (testTool as any).validateFileId(validFileId, 'get_file');
+
+        const result = (testTool as any).validateFileId(
+          validFileId,
+          'get_file'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(result._unsafeUnwrap()).toBe(validFileId);
@@ -970,8 +1065,11 @@ describe('BaseDriveTool', () => {
 
       it('should not break existing folder validation methods', () => {
         const validFolderId = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
-        
-        const result = (testTool as any).validateFolderId(validFolderId, 'create_file');
+
+        const result = (testTool as any).validateFolderId(
+          validFolderId,
+          'create_file'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(result._unsafeUnwrap()).toBe(validFolderId);
@@ -1022,15 +1120,18 @@ describe('BaseDriveTool', () => {
           context: {},
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
-
-        const result = await (toolWithAccessControl as any).validateAccessControl(
-          request,
-          'test-request-id'
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
         );
 
+        const result = await (
+          toolWithAccessControl as any
+        ).validateAccessControl(request, 'test-request-id');
+
         expect(result.isOk()).toBe(true);
-        expect(mockAccessControlService.validateAccess).toHaveBeenCalledTimes(1);
+        expect(mockAccessControlService.validateAccess).toHaveBeenCalledTimes(
+          1
+        );
       });
 
       it('should handle optional AccessControlService parameter', () => {
@@ -1042,7 +1143,9 @@ describe('BaseDriveTool', () => {
         );
 
         expect(toolWithoutAccessControl).toBeDefined();
-        expect((toolWithoutAccessControl as any).accessControlService).toBeUndefined();
+        expect(
+          (toolWithoutAccessControl as any).accessControlService
+        ).toBeUndefined();
       });
     });
 
@@ -1052,17 +1155,22 @@ describe('BaseDriveTool', () => {
           operation: 'create' as const,
           serviceName: 'drive',
           toolName: 'google-workspace__drive__create-file',
-          context: { 
+          context: {
             name: 'New File.txt',
             parentFolderId: 'drive-folder-123',
             mimeType: 'text/plain',
           },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
@@ -1084,17 +1192,22 @@ describe('BaseDriveTool', () => {
           operation: 'write' as const,
           serviceName: 'drive',
           toolName: 'google-workspace__drive__move-file',
-          context: { 
+          context: {
             fileId: 'file-456',
             sourceFolderId: 'source-folder',
             targetFolderId: 'target-folder-789',
           },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
@@ -1116,16 +1229,21 @@ describe('BaseDriveTool', () => {
           operation: 'read' as const,
           serviceName: 'drive',
           toolName: 'google-workspace__drive__list-files',
-          context: { 
+          context: {
             query: "'folder-123' in parents",
             maxResults: 10,
           },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({

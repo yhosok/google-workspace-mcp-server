@@ -43,7 +43,9 @@ export class SheetsAddSheetTool extends BaseSheetsTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('google-workspace__sheets__add-sheet');
+    return SchemaFactory.createToolMetadata(
+      'google-workspace__sheets__add-sheet'
+    );
   }
 
   public async executeImpl(
@@ -61,7 +63,9 @@ export class SheetsAddSheetTool extends BaseSheetsTools<
 
     // Validate parameters using schema validation
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema('google-workspace__sheets__add-sheet'),
+      SchemaFactory.createToolInputSchema(
+        'google-workspace__sheets__add-sheet'
+      ),
       params,
       { operation: 'add-sheet' }
     );
@@ -94,7 +98,10 @@ export class SheetsAddSheetTool extends BaseSheetsTools<
     }
 
     // Validate access control for write operations
-    const accessResult = await this.validateAccessControl(validatedParams, requestId);
+    const accessResult = await this.validateAccessControl(
+      validatedParams,
+      requestId
+    );
     if (accessResult.isErr()) {
       return err(accessResult.error);
     }

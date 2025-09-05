@@ -39,7 +39,9 @@ export class SheetsCreateSpreadsheetTool extends BaseSheetsTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('google-workspace__sheets__create-spreadsheet');
+    return SchemaFactory.createToolMetadata(
+      'google-workspace__sheets__create-spreadsheet'
+    );
   }
 
   public async executeImpl(
@@ -68,7 +70,9 @@ export class SheetsCreateSpreadsheetTool extends BaseSheetsTools<
 
     // Parameter validation using unified schema approach
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema('google-workspace__sheets__create-spreadsheet'),
+      SchemaFactory.createToolInputSchema(
+        'google-workspace__sheets__create-spreadsheet'
+      ),
       params,
       { operation: 'sheets-create-spreadsheet', requestId }
     );

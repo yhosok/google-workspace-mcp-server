@@ -9,6 +9,7 @@ import { AccessControlService } from '../../services/access-control.service.js';
 import { Logger } from '../../utils/logger.js';
 import {
   GoogleWorkspaceError,
+  GoogleWorkspaceResult,
   GoogleAuthError,
   GoogleSheetsError,
   GoogleSheetsInvalidRangeError,
@@ -100,13 +101,17 @@ describe('BaseSheetsTools', () => {
     );
 
     // Setup access control service mocks with default behavior
+    (mockAccessControlService.validateAccess as any) = jest
+      .fn()
+      // @ts-expect-error - Mock return type compatibility
+      .mockResolvedValue(googleOk(void 0));
     // @ts-ignore - Mocking access control service methods
-    mockAccessControlService.validateAccess = jest.fn().mockResolvedValue(googleOk(undefined));
-    // @ts-ignore - Mocking access control service methods
-    mockAccessControlService.getAccessControlSummary = jest.fn().mockReturnValue({
-      readOnlyMode: false,
-      hasRestrictions: false,
-    });
+    mockAccessControlService.getAccessControlSummary = jest
+      .fn()
+      .mockReturnValue({
+        readOnlyMode: false,
+        hasRestrictions: false,
+      });
 
     // Reset mocks
     jest.clearAllMocks();
@@ -1063,10 +1068,15 @@ describe('BaseSheetsTools', () => {
           context: { spreadsheetId: 'test-sheet-id' },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
@@ -1087,10 +1097,15 @@ describe('BaseSheetsTools', () => {
           context: { spreadsheetId: 'test-sheet-id', folderId: 'folder-123' },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
@@ -1115,13 +1130,20 @@ describe('BaseSheetsTools', () => {
           serviceName: 'sheets',
           resourceType: 'spreadsheet',
         });
-        mockAccessControlService.validateAccess.mockResolvedValue(err(accessError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(accessError)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlReadOnlyError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlReadOnlyError
+        );
         expect(mockLogger.warn).toHaveBeenCalledWith(
           'Access control validation failed',
           expect.objectContaining({
@@ -1146,13 +1168,20 @@ describe('BaseSheetsTools', () => {
           'allowed-folder',
           { operation: 'create', resourceType: 'spreadsheet' }
         );
-        mockAccessControlService.validateAccess.mockResolvedValue(err(folderError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(folderError)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlFolderError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlFolderError
+        );
       });
 
       it('should handle service access control errors', async () => {
@@ -1168,13 +1197,20 @@ describe('BaseSheetsTools', () => {
           ['docs', 'calendar'],
           { operation: 'write', resourceType: 'spreadsheet' }
         );
-        mockAccessControlService.validateAccess.mockResolvedValue(err(serviceError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(serviceError)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlServiceError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlServiceError
+        );
       });
 
       it('should handle tool access control errors', async () => {
@@ -1190,13 +1226,20 @@ describe('BaseSheetsTools', () => {
           ['google-workspace__sheets__read-range'],
           { operation: 'write', serviceName: 'sheets' }
         );
-        mockAccessControlService.validateAccess.mockResolvedValue(err(toolError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(toolError)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlToolError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlToolError
+        );
       });
 
       it('should handle unexpected access control errors', async () => {
@@ -1207,13 +1250,20 @@ describe('BaseSheetsTools', () => {
           context: { spreadsheetId: 'test-sheet-id' },
         };
 
-        mockAccessControlService.validateAccess.mockRejectedValue(new Error('Network error'));
+        mockAccessControlService.validateAccess.mockRejectedValue(
+          new Error('Network error')
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlError
+        );
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Access control validation error',
           expect.objectContaining({
@@ -1285,13 +1335,19 @@ describe('BaseSheetsTools', () => {
       it('should handle tool name parsing correctly', () => {
         const testCases = [
           // Standard patterns
-          { toolName: 'google-workspace__sheets__create-spreadsheet', expected: true },
+          {
+            toolName: 'google-workspace__sheets__create-spreadsheet',
+            expected: true,
+          },
           { toolName: 'google-workspace__sheets__read-range', expected: false },
           // Legacy patterns
           { toolName: 'sheets-create', expected: true },
           { toolName: 'sheets-read', expected: false },
           // Mixed case
-          { toolName: 'google-workspace__sheets__CREATE-spreadsheet', expected: true },
+          {
+            toolName: 'google-workspace__sheets__CREATE-spreadsheet',
+            expected: true,
+          },
           { toolName: 'google-workspace__sheets__READ-range', expected: false },
         ];
 
@@ -1324,7 +1380,7 @@ describe('BaseSheetsTools', () => {
             expected: ['target-789'],
           },
           {
-            params: { 
+            params: {
               folderId: 'folder-123',
               parentFolderId: 'parent-456',
             },
@@ -1436,9 +1492,11 @@ describe('BaseSheetsTools', () => {
           // @ts-ignore - Mock return value
           ok({ result: 'success' })
         );
-        
+
         // This test should fail because access control integration doesn't exist yet
-        expect(typeof (testTool as any).executeWithAccessControl).toBe('function');
+        expect(typeof (testTool as any).executeWithAccessControl).toBe(
+          'function'
+        );
       });
 
       it('should validate access control before executing write operations', async () => {
@@ -1454,7 +1512,9 @@ describe('BaseSheetsTools', () => {
           serviceName: 'sheets',
           resourceType: 'spreadsheet',
         });
-        mockAccessControlService.validateAccess.mockResolvedValue(err(accessError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(accessError)
+        );
 
         // This test should fail because write operation access control doesn't exist yet
         const result = await (testTool as any).executeWithAccessControl(
@@ -1463,7 +1523,9 @@ describe('BaseSheetsTools', () => {
         );
 
         expect(result.isErr()).toBe(true);
-        expect(result._unsafeUnwrapErr()).toBeInstanceOf(GoogleAccessControlReadOnlyError);
+        expect(result._unsafeUnwrapErr()).toBeInstanceOf(
+          GoogleAccessControlReadOnlyError
+        );
         expect(mockAccessControlService.validateAccess).toHaveBeenCalledWith({
           operation: 'write',
           serviceName: 'sheets',
@@ -1508,7 +1570,9 @@ describe('BaseSheetsTools', () => {
           test: 'valid-data',
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because executeWithAccessControl doesn't exist yet
         const result = await (testTool as any).executeWithAccessControl(
@@ -1530,10 +1594,15 @@ describe('BaseSheetsTools', () => {
           context: { spreadsheetId: 'test-sheet-id' },
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
+        );
 
         // This test should fail because validateAccessControl doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result).toHaveProperty('isOk');
         expect(result).toHaveProperty('isErr');
@@ -1550,10 +1619,15 @@ describe('BaseSheetsTools', () => {
         };
 
         // Simulate unexpected error type
-        mockAccessControlService.validateAccess.mockRejectedValue(new TypeError('Unexpected error'));
+        mockAccessControlService.validateAccess.mockRejectedValue(
+          new TypeError('Unexpected error')
+        );
 
         // This test should fail because error conversion doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
         const error = result._unsafeUnwrapErr();
@@ -1573,10 +1647,15 @@ describe('BaseSheetsTools', () => {
           serviceName: 'sheets',
           resourceType: 'spreadsheet',
         });
-        mockAccessControlService.validateAccess.mockResolvedValue(err(originalError));
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          err(originalError)
+        );
 
         // This test should fail because error context preservation doesn't exist yet
-        const result = await (testTool as any).validateAccessControl(request, 'test-request-id');
+        const result = await (testTool as any).validateAccessControl(
+          request,
+          'test-request-id'
+        );
 
         expect(result.isErr()).toBe(true);
         const error = result._unsafeUnwrapErr();
@@ -1595,7 +1674,9 @@ describe('BaseSheetsTools', () => {
       it('should not break existing authentication validation', async () => {
         mockAuthService.validateAuth.mockResolvedValue(ok(true));
 
-        const result = await (testTool as any).validateAuthentication('test-request-id');
+        const result = await (testTool as any).validateAuthentication(
+          'test-request-id'
+        );
 
         expect(result.isOk()).toBe(true);
         expect(mockAuthService.validateAuth).toHaveBeenCalledTimes(1);
@@ -1607,8 +1688,9 @@ describe('BaseSheetsTools', () => {
         });
         const data = { test: 'valid-data' };
 
-        (validateToolInput as jest.MockedFunction<typeof validateToolInput>)
-          .mockReturnValue(ok(data));
+        (
+          validateToolInput as jest.MockedFunction<typeof validateToolInput>
+        ).mockReturnValue(ok(data));
 
         const result = (testTool as any).validateWithSchema(schema, data);
 
@@ -1618,7 +1700,7 @@ describe('BaseSheetsTools', () => {
 
       it('should not break existing calculateStatistics method', () => {
         const values = [['cell1', 'cell2'], ['cell3']];
-        
+
         const stats = (testTool as any).calculateStatistics(values);
 
         expect(stats).toEqual({
@@ -1664,15 +1746,18 @@ describe('BaseSheetsTools', () => {
           context: {},
         };
 
-        mockAccessControlService.validateAccess.mockResolvedValue(ok(undefined));
-
-        const result = await (toolWithAccessControl as any).validateAccessControl(
-          request,
-          'test-request-id'
+        mockAccessControlService.validateAccess.mockResolvedValue(
+          ok(undefined)
         );
 
+        const result = await (
+          toolWithAccessControl as any
+        ).validateAccessControl(request, 'test-request-id');
+
         expect(result.isOk()).toBe(true);
-        expect(mockAccessControlService.validateAccess).toHaveBeenCalledTimes(1);
+        expect(mockAccessControlService.validateAccess).toHaveBeenCalledTimes(
+          1
+        );
       });
 
       it('should handle optional AccessControlService parameter', () => {
@@ -1684,7 +1769,9 @@ describe('BaseSheetsTools', () => {
         );
 
         expect(toolWithoutAccessControl).toBeDefined();
-        expect((toolWithoutAccessControl as any).accessControlService).toBeUndefined();
+        expect(
+          (toolWithoutAccessControl as any).accessControlService
+        ).toBeUndefined();
       });
     });
   });

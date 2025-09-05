@@ -196,6 +196,7 @@ describe('DriveService', () => {
       expect(mockDriveApi.files.list).toHaveBeenCalledWith({
         q: "mimeType='application/vnd.google-apps.spreadsheet'",
         pageSize: 1,
+        supportsAllDrives: true,
       });
     });
 
@@ -264,6 +265,7 @@ describe('DriveService', () => {
           mimeType: 'application/vnd.google-apps.spreadsheet',
         },
         fields: 'id, name, webViewLink, parents, createdTime',
+        supportsAllDrives: true,
       });
     });
 
@@ -298,6 +300,7 @@ describe('DriveService', () => {
           parents: ['target-folder-id'],
         },
         fields: 'id, name, webViewLink, parents, createdTime',
+        supportsAllDrives: true,
       });
     });
 
@@ -408,6 +411,7 @@ describe('DriveService', () => {
           mimeType: 'application/vnd.google-apps.document',
         },
         fields: 'id, name, webViewLink, parents, createdTime',
+        supportsAllDrives: true,
       });
     });
 
@@ -441,6 +445,7 @@ describe('DriveService', () => {
           parents: ['target-folder-id'],
         },
         fields: 'id, name, webViewLink, parents, createdTime',
+        supportsAllDrives: true,
       });
     });
 
@@ -625,6 +630,7 @@ describe('DriveService', () => {
         fields:
           'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
         orderBy: 'modifiedTime desc',
+        supportsAllDrives: true,
       });
     });
 
@@ -666,6 +672,7 @@ describe('DriveService', () => {
         fields:
           'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
         orderBy: 'modifiedTime desc',
+        supportsAllDrives: true,
       });
     });
 
@@ -702,6 +709,7 @@ describe('DriveService', () => {
         fields:
           'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
         orderBy: 'modifiedTime desc',
+        supportsAllDrives: true,
       });
     });
 
@@ -878,6 +886,7 @@ describe('DriveService', () => {
         fileId: 'file123',
         fields:
           'id, name, mimeType, createdTime, modifiedTime, webViewLink, webContentLink, parents, size, version, description, owners, permissions',
+        supportsAllDrives: true,
       });
     });
 
@@ -900,6 +909,7 @@ describe('DriveService', () => {
       expect(mockDriveApi.files.get).toHaveBeenCalledWith({
         fileId: 'file123',
         fields: 'id, name, mimeType',
+        supportsAllDrives: true,
       });
     });
 
@@ -1013,11 +1023,13 @@ describe('DriveService', () => {
 
       expect(mockDriveApi.files.get).toHaveBeenNthCalledWith(1, {
         fileId: 'file123',
-        fields: 'id, mimeType, size',
+        fields: 'id, mimeType, size, name',
+        supportsAllDrives: true,
       });
       expect(mockDriveApi.files.get).toHaveBeenNthCalledWith(2, {
         fileId: 'file123',
         alt: 'media',
+        supportsAllDrives: true,
       });
     });
 
@@ -1054,7 +1066,8 @@ describe('DriveService', () => {
 
       expect(mockDriveApi.files.get).toHaveBeenCalledWith({
         fileId: 'doc123',
-        fields: 'id, mimeType, size',
+        fields: 'id, mimeType, size, name',
+        supportsAllDrives: true,
       });
       expect(mockDriveApi.files.export).toHaveBeenCalledWith({
         fileId: 'doc123',
@@ -1152,10 +1165,17 @@ describe('DriveService', () => {
       }
     });
 
-    test('should handle 404 Not Found error', async () => {
+    test('should handle 404 Not Found error when export also fails', async () => {
       const error = new Error('File not found') as Error & { status: number };
       error.status = 404;
+      const exportError = new Error('Export failed') as Error & {
+        status: number;
+      };
+      exportError.status = 404;
+
+      // First call (metadata) fails, second call (export) also fails
       mockDriveApi.files.get.mockRejectedValue(error);
+      mockDriveApi.files.export.mockRejectedValue(exportError);
 
       const result = await driveService.getFileContent('non-existent-file');
 
@@ -1246,6 +1266,162 @@ describe('DriveService', () => {
       if (result.isErr()) {
         expect(result.error.statusCode).toBe(500);
         expect(result.error.message).toContain('Export failed');
+      }
+    });
+
+    test('should export Google Docs file to Markdown', async () => {
+      const mockFileResponse = {
+        data: {
+          id: 'doc123',
+          mimeType: 'application/vnd.google-apps.document',
+          size: undefined, // Google Apps files don't have size
+        },
+      };
+
+      const mockExportResponse = {
+        data: '# Hello World\n\nThis is a **bold** text and *italic* text.\n\n- Item 1\n- Item 2\n',
+        headers: {
+          'content-type': 'text/markdown',
+          'content-length': '78',
+        },
+      };
+
+      mockDriveApi.files.get.mockResolvedValue(mockFileResponse);
+      mockDriveApi.files.export.mockResolvedValue(mockExportResponse);
+
+      const result = await driveService.getFileContent('doc123', {
+        exportFormat: 'markdown',
+      });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.content).toBe(
+          '# Hello World\n\nThis is a **bold** text and *italic* text.\n\n- Item 1\n- Item 2\n'
+        );
+        expect(result.value.mimeType).toBe('text/markdown');
+        expect(result.value.size).toBe(78);
+        expect(result.value.isExported).toBe(true);
+        expect(result.value.exportFormat).toBe('markdown');
+      }
+
+      expect(mockDriveApi.files.get).toHaveBeenCalledWith({
+        fileId: 'doc123',
+        fields: 'id, mimeType, size, name',
+        supportsAllDrives: true,
+      });
+      expect(mockDriveApi.files.export).toHaveBeenCalledWith({
+        fileId: 'doc123',
+        mimeType: 'text/markdown',
+      });
+    });
+
+    test('should handle markdown export with complex formatting', async () => {
+      const mockFileResponse = {
+        data: {
+          id: 'complex-doc',
+          mimeType: 'application/vnd.google-apps.document',
+        },
+      };
+
+      const complexMarkdown = `# Main Title
+
+## Subtitle
+
+This is a paragraph with **bold text**, *italic text*, and ~~strikethrough text~~.
+
+### Lists
+
+#### Bulleted List
+- First item
+- Second item with **bold**
+- Third item with *italic*
+
+#### Numbered List
+1. First numbered item
+2. Second numbered item
+3. Third numbered item
+
+### Code and Links
+
+Here's some \`inline code\` and a [link to Google](https://google.com).
+
+\`\`\`javascript
+console.log('Hello World');
+\`\`\`
+
+> This is a blockquote
+
+---
+
+**Table Example:**
+
+| Column 1 | Column 2 | Column 3 |
+|----------|----------|----------|
+| Cell 1   | Cell 2   | Cell 3   |
+| Cell 4   | Cell 5   | Cell 6   |
+`;
+
+      const mockExportResponse = {
+        data: complexMarkdown,
+        headers: {
+          'content-type': 'text/markdown; charset=utf-8',
+          'content-length': complexMarkdown.length.toString(),
+        },
+      };
+
+      mockDriveApi.files.get.mockResolvedValue(mockFileResponse);
+      mockDriveApi.files.export.mockResolvedValue(mockExportResponse);
+
+      const result = await driveService.getFileContent('complex-doc', {
+        exportFormat: 'markdown',
+      });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.content).toBe(complexMarkdown);
+        expect(result.value.mimeType).toBe('text/markdown; charset=utf-8');
+        expect(result.value.isExported).toBe(true);
+        expect(result.value.exportFormat).toBe('markdown');
+        // Verify specific markdown elements are present
+        expect(result.value.content).toContain('# Main Title');
+        expect(result.value.content).toContain('**bold text**');
+        expect(result.value.content).toContain('*italic text*');
+        expect(result.value.content).toContain('- First item');
+        expect(result.value.content).toContain('1. First numbered item');
+        expect(result.value.content).toContain('```javascript');
+        expect(result.value.content).toContain('> This is a blockquote');
+        expect(result.value.content).toContain(
+          '| Column 1 | Column 2 | Column 3 |'
+        );
+      }
+    });
+
+    test('should handle markdown export error gracefully', async () => {
+      const mockFileResponse = {
+        data: {
+          id: 'doc123',
+          mimeType: 'application/vnd.google-apps.document',
+        },
+      };
+
+      mockDriveApi.files.get.mockResolvedValue(mockFileResponse);
+
+      const exportError = new Error(
+        'Markdown export not available'
+      ) as Error & {
+        status: number;
+      };
+      exportError.status = 400;
+      mockDriveApi.files.export.mockRejectedValue(exportError);
+
+      const result = await driveService.getFileContent('doc123', {
+        exportFormat: 'markdown',
+      });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.statusCode).toBe(400);
+        expect(result.error.message).toContain('Markdown export not available');
       }
     });
   });

@@ -56,11 +56,15 @@ describe('DriveServiceModule', () => {
 
     // Setup tool mocks
     mockListFilesTool = {
-      getToolName: jest.fn().mockReturnValue('google-workspace__drive__list-files'),
+      getToolName: jest
+        .fn()
+        .mockReturnValue('google-workspace__drive__list-files'),
       registerTool: jest.fn(),
     };
     mockGetFileTool = {
-      getToolName: jest.fn().mockReturnValue('google-workspace__drive__get-file'),
+      getToolName: jest
+        .fn()
+        .mockReturnValue('google-workspace__drive__get-file'),
       registerTool: jest.fn(),
     };
     mockGetFileContentTool = {

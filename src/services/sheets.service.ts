@@ -258,6 +258,7 @@ export class SheetsService extends GoogleService {
       await this.driveApi.files.list({
         q: "mimeType='application/vnd.google-apps.spreadsheet'",
         pageSize: 1,
+        supportsAllDrives: true,
       });
 
       this.logger.info('Sheets health check passed', {
@@ -392,6 +393,7 @@ export class SheetsService extends GoogleService {
         q: query,
         fields: 'files(id,name,modifiedTime,webViewLink)',
         orderBy: 'modifiedTime desc',
+        supportsAllDrives: true,
       });
 
       const spreadsheets =

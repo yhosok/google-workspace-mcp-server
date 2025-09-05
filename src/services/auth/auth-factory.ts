@@ -12,6 +12,8 @@ import type { EnvironmentConfig } from '../../types/index.js';
 import type { Logger } from '../../utils/logger.js';
 import type { GoogleWorkspaceResult } from '../../errors/index.js';
 
+import { GOOGLE_SCOPES } from '../../config/index.js';
+
 import { ServiceAccountAuthProvider } from './service-account-auth.provider.js';
 import { OAuth2AuthProvider } from './oauth2-auth.provider.js';
 import { TokenStorageService } from './token-storage.service.js';
@@ -21,16 +23,6 @@ import {
   GoogleAuthInvalidCredentialsError,
 } from '../../errors/index.js';
 import { ok, err } from 'neverthrow';
-
-/**
- * Default OAuth2 scopes for Google Workspace integration.
- */
-const DEFAULT_SCOPES = [
-  'https://www.googleapis.com/auth/spreadsheets',
-  'https://www.googleapis.com/auth/calendar',
-  'https://www.googleapis.com/auth/drive.file',
-  'https://www.googleapis.com/auth/documents',
-];
 
 /**
  * Default OAuth2 configuration values.
@@ -412,7 +404,7 @@ export class AuthFactory {
   private static extractOAuth2Config(config: EnvironmentConfig): OAuth2Config {
     const scopes = config.GOOGLE_OAUTH_SCOPES
       ? config.GOOGLE_OAUTH_SCOPES.split(',').map(s => s.trim())
-      : DEFAULT_SCOPES;
+      : [...GOOGLE_SCOPES];
 
     const redirectUri =
       config.GOOGLE_OAUTH_REDIRECT_URI ||

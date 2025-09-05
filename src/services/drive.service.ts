@@ -244,6 +244,7 @@ export class DriveService extends GoogleService {
       await this.driveApi.files.list({
         q: "mimeType='application/vnd.google-apps.spreadsheet'",
         pageSize: 1,
+        supportsAllDrives: true,
       });
 
       this.logger.info('Drive health check passed', {
@@ -481,6 +482,7 @@ export class DriveService extends GoogleService {
       const response = await this.driveApi.files.create({
         requestBody: fileMetadata,
         fields: 'id, name, webViewLink, parents, createdTime',
+        supportsAllDrives: true,
       });
 
       // Validate response
@@ -602,12 +604,14 @@ export class DriveService extends GoogleService {
         pageToken?: string;
         orderBy?: string;
         fields: string;
+        supportsAllDrives?: boolean;
       } = {
         fields:
           options?.fields ||
           'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
         pageSize: options?.pageSize || 100,
         orderBy: options?.orderBy || 'modifiedTime desc',
+        supportsAllDrives: true,
         ...(options?.query && { q: options.query }),
         ...(options?.pageToken && { pageToken: options.pageToken }),
       };
@@ -732,11 +736,13 @@ export class DriveService extends GoogleService {
       const requestParams: {
         fileId: string;
         fields: string;
+        supportsAllDrives?: boolean;
       } = {
         fileId: fileId.trim(),
         fields:
           options?.fields ||
           'id, name, mimeType, createdTime, modifiedTime, webViewLink, webContentLink, parents, size, version, description, owners, permissions',
+        supportsAllDrives: true,
       };
 
       // Call Drive API
@@ -793,13 +799,22 @@ export class DriveService extends GoogleService {
    *
    * Handles both regular file downloads and Google Workspace file exports:
    * - Regular files: Direct binary/text content download
-   * - Google Docs: Export to PDF, DOCX, ODT, RTF, TXT, HTML, EPUB
+   * - Google Docs: Export to PDF, DOCX, ODT, RTF, TXT, HTML, EPUB, Markdown
    * - Google Sheets: Export to XLSX, ODS, CSV, PDF
    * - Google Slides: Export to PPTX, ODP, PDF, TXT, JPEG, PNG, SVG
    *
-   * **Important**: Large file size validation and memory management included.
+   * Shared Drive Support:
+   * All Drive API calls include supportsAllDrives: true to enable access to
+   * files stored in Google Shared Drives (Team Drives).
    *
-   * **Use Cases**:
+   * Access Requirements:
+   * - User must have appropriate permissions to access the file
+   * - Both metadata access and export permissions are required
+   * - Files in shared drives require proper sharing permissions
+   *
+   * Important: Large file size validation and memory management included.
+   *
+   * Use Cases:
    * - File backup and archival
    * - Format conversion workflows
    * - Content processing pipelines
@@ -817,6 +832,11 @@ export class DriveService extends GoogleService {
    * // Export Google Doc as PDF
    * const pdfResult = await service.getFileContent('doc-id', {
    *   exportFormat: 'pdf'
+   * });
+   *
+   * // Export Google Doc as Markdown
+   * const markdownResult = await service.getFileContent('doc-id', {
+   *   exportFormat: 'markdown'
    * });
    *
    * // Export Google Sheets as Excel
@@ -864,32 +884,50 @@ export class DriveService extends GoogleService {
       await this.ensureInitialized();
 
       // First, get file metadata to determine the file type and size
-      const metadataResponse = await this.driveApi.files.get({
-        fileId: fileId.trim(),
-        fields: 'id, mimeType, size',
-      });
+      let file: {
+        id?: string | null;
+        mimeType?: string | null;
+        size?: string | null;
+        name?: string | null;
+      } = {};
+      let mimeType: string;
+      let fileSize: number;
 
-      if (!metadataResponse.data) {
-        throw new GoogleDriveError(
-          'Failed to get file metadata',
-          'GOOGLE_DRIVE_API_ERROR',
-          500,
+      try {
+        const metadataResponse = await this.driveApi.files.get({
+          fileId: fileId.trim(),
+          fields: 'id, mimeType, size, name',
+          supportsAllDrives: true,
+        });
+
+        if (!metadataResponse.data) {
+          throw new GoogleDriveError(
+            'Failed to get file metadata',
+            'GOOGLE_DRIVE_API_ERROR',
+            500,
+            fileId
+          );
+        }
+
+        file = metadataResponse.data;
+        mimeType = file.mimeType || '';
+        fileSize = parseInt(file.size || '0', 10);
+
+        // Validate file size
+        if (fileSize > maxFileSize) {
+          throw new GoogleDriveError(
+            `File size too large (${Math.round(fileSize / 1024 / 1024)}MB exceeds limit of ${Math.round(maxFileSize / 1024 / 1024)}MB)`,
+            'GOOGLE_DRIVE_FILE_TOO_LARGE',
+            413,
+            fileId
+          );
+        }
+      } catch (error) {
+        const driveError = this.convertToDriveError(
+          error instanceof Error ? error : new Error(String(error)),
           fileId
         );
-      }
-
-      const file = metadataResponse.data;
-      const mimeType = file.mimeType || '';
-      const fileSize = parseInt(file.size || '0', 10);
-
-      // Validate file size
-      if (fileSize > maxFileSize) {
-        throw new GoogleDriveError(
-          `File size too large (${Math.round(fileSize / 1024 / 1024)}MB exceeds limit of ${Math.round(maxFileSize / 1024 / 1024)}MB)`,
-          'GOOGLE_DRIVE_FILE_TOO_LARGE',
-          413,
-          fileId
-        );
+        throw driveError;
       }
 
       // Define Google Workspace MIME types and their export formats
@@ -902,6 +940,7 @@ export class DriveService extends GoogleService {
           txt: 'text/plain',
           html: 'text/html',
           epub: 'application/epub+zip',
+          markdown: 'text/markdown',
         },
         'application/vnd.google-apps.spreadsheet': {
           xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -950,7 +989,11 @@ export class DriveService extends GoogleService {
         });
 
         content = exportResponse.data as string | Buffer;
-        resultMimeType = exportMimeType;
+        // Use MIME type from response headers if available, fallback to mapping
+        resultMimeType =
+          (exportResponse.headers &&
+            (exportResponse.headers['content-type'] as string)) ||
+          exportMimeType;
         isExported = true;
         exportFormat = requestedFormat;
 
@@ -966,6 +1009,7 @@ export class DriveService extends GoogleService {
         const contentResponse = await this.driveApi.files.get({
           fileId: fileId.trim(),
           alt: 'media',
+          supportsAllDrives: true,
         });
 
         content = contentResponse.data as string | Buffer;
@@ -990,7 +1034,7 @@ export class DriveService extends GoogleService {
 
       this.logger.info('Successfully retrieved file content', {
         fileId,
-        fileName: file.name,
+        fileName: file.name || 'unknown',
         originalMimeType: mimeType,
         resultMimeType,
         isExported,

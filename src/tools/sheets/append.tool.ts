@@ -42,7 +42,9 @@ export class SheetsAppendTool extends BaseSheetsTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata('google-workspace__sheets__append-rows');
+    return SchemaFactory.createToolMetadata(
+      'google-workspace__sheets__append-rows'
+    );
   }
 
   public async executeImpl(
@@ -60,7 +62,9 @@ export class SheetsAppendTool extends BaseSheetsTools<
 
     // Parameter validation
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema('google-workspace__sheets__append-rows'),
+      SchemaFactory.createToolInputSchema(
+        'google-workspace__sheets__append-rows'
+      ),
       params,
       { operation: 'append-sheets', requestId, useSpecificMessages: true }
     );
@@ -83,7 +87,10 @@ export class SheetsAppendTool extends BaseSheetsTools<
     }
 
     // Validate access control for write operations
-    const accessResult = await this.validateAccessControl(validatedParams, requestId);
+    const accessResult = await this.validateAccessControl(
+      validatedParams,
+      requestId
+    );
     if (accessResult.isErr()) {
       return err(accessResult.error);
     }
