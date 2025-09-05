@@ -825,7 +825,7 @@ describe('BaseDriveTool', () => {
             params: {
               fileId: 'file-123',
               parentFolderId: 'drive-folder-456',
-              query: 'name contains "test"',
+              query: 'name contains \'test\'',
             },
             expected: ['drive-folder-456'],
           },

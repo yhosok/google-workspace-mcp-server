@@ -78,8 +78,39 @@ describe('ListFilesTool', () => {
       const metadata = tool.getToolMetadata();
       expect(metadata.title).toBe('List Drive Files');
       expect(metadata.description).toBe(
-        'Lists files in Google Drive with optional filtering and search'
+        'List files in Google Drive with optional filtering and search'
       );
+      expect(metadata.inputSchema).toBeDefined();
+    });
+
+    test('should have optional query field in schema', () => {
+      const metadata = tool.getToolMetadata();
+      expect(metadata.inputSchema).toHaveProperty('query');
+    });
+
+    test('should have optional maxResults field in schema', () => {
+      const metadata = tool.getToolMetadata();
+      expect(metadata.inputSchema).toHaveProperty('maxResults');
+    });
+
+    test('should have optional pageToken field in schema', () => {
+      const metadata = tool.getToolMetadata();
+      expect(metadata.inputSchema).toHaveProperty('pageToken');
+    });
+
+    test('should have optional orderBy field in schema', () => {
+      const metadata = tool.getToolMetadata();
+      expect(metadata.inputSchema).toHaveProperty('orderBy');
+    });
+
+    test('should have optional folderId field in schema', () => {
+      const metadata = tool.getToolMetadata();
+      expect(metadata.inputSchema).toHaveProperty('folderId');
+    });
+
+    test('should have all fields as optional', () => {
+      const metadata = tool.getToolMetadata();
+      // All fields are optional, so no required array needed
       expect(metadata.inputSchema).toBeDefined();
     });
   });
@@ -154,11 +185,11 @@ describe('ListFilesTool', () => {
       mockDriveService.listFiles.mockResolvedValue(ok(expectedResult));
 
       const result = await tool.executeImpl({
-        query: 'name contains "Test"',
+        query: "name contains 'Test'",
       });
 
       expect(mockDriveService.listFiles).toHaveBeenCalledWith({
-        query: 'name contains "Test"',
+        query: "trashed = false and (name contains 'Test')",
       });
       expect(result.isOk()).toBe(true);
     });
@@ -188,6 +219,7 @@ describe('ListFilesTool', () => {
 
       expect(mockDriveService.listFiles).toHaveBeenCalledWith({
         pageSize: 5,
+        query: 'trashed = false',
       });
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
@@ -225,7 +257,7 @@ describe('ListFilesTool', () => {
       });
 
       expect(mockDriveService.listFiles).toHaveBeenCalledWith({
-        query: "'folder123' in parents",
+        query: "trashed = false and 'folder123' in parents",
       });
       expect(result.isOk()).toBe(true);
     });
@@ -257,6 +289,7 @@ describe('ListFilesTool', () => {
 
       expect(mockDriveService.listFiles).toHaveBeenCalledWith({
         orderBy: 'name',
+        query: 'trashed = false',
       });
       expect(result.isOk()).toBe(true);
     });
@@ -288,6 +321,7 @@ describe('ListFilesTool', () => {
 
       expect(mockDriveService.listFiles).toHaveBeenCalledWith({
         pageToken: 'page-token-123',
+        query: 'trashed = false',
       });
       expect(result.isOk()).toBe(true);
     });
@@ -464,12 +498,104 @@ describe('ListFilesTool', () => {
       mockDriveService.listFiles.mockResolvedValue(ok(expectedResult));
 
       const result = await tool.executeImpl({
-        query: 'name contains "Test"',
+        query: "name contains 'Test'",
         folderId: 'folder123',
       });
 
       expect(mockDriveService.listFiles).toHaveBeenCalledWith({
-        query: '\'folder123\' in parents and (name contains "Test")',
+        query: "trashed = false and 'folder123' in parents and (name contains 'Test')",
+      });
+      expect(result.isOk()).toBe(true);
+    });
+
+    test('should automatically exclude trashed files from all queries', async () => {
+      const mockFiles = [
+        {
+          id: 'file1',
+          name: 'Active Document.docx',
+          mimeType: 'application/vnd.google-apps.document',
+          createdTime: '2023-01-01T10:00:00Z',
+          modifiedTime: '2023-01-01T10:30:00Z',
+          webViewLink: 'https://docs.google.com/document/d/file1',
+          parents: ['root'],
+        },
+      ];
+
+      const expectedResult: DriveFileListResult = {
+        files: mockFiles,
+        nextPageToken: undefined,
+        incompleteSearch: false,
+      };
+
+      mockDriveService.listFiles.mockResolvedValue(ok(expectedResult));
+
+      const result = await tool.executeImpl({});
+
+      expect(mockDriveService.listFiles).toHaveBeenCalledWith({
+        query: 'trashed = false',
+      });
+      expect(result.isOk()).toBe(true);
+    });
+
+    test('should combine trashed filter with custom query', async () => {
+      const mockFiles = [
+        {
+          id: 'file1',
+          name: 'Test Document.docx',
+          mimeType: 'application/vnd.google-apps.document',
+          createdTime: '2023-01-01T10:00:00Z',
+          modifiedTime: '2023-01-01T10:30:00Z',
+          webViewLink: 'https://docs.google.com/document/d/file1',
+          parents: ['root'],
+        },
+      ];
+
+      const expectedResult: DriveFileListResult = {
+        files: mockFiles,
+        nextPageToken: undefined,
+        incompleteSearch: false,
+      };
+
+      mockDriveService.listFiles.mockResolvedValue(ok(expectedResult));
+
+      const result = await tool.executeImpl({
+        query: "name contains 'Test'",
+      });
+
+      expect(mockDriveService.listFiles).toHaveBeenCalledWith({
+        query: "trashed = false and (name contains 'Test')",
+      });
+      expect(result.isOk()).toBe(true);
+    });
+
+    test('should combine trashed filter with folder and custom query', async () => {
+      const mockFiles = [
+        {
+          id: 'file1',
+          name: 'Test Document.docx',
+          mimeType: 'application/vnd.google-apps.document',
+          createdTime: '2023-01-01T10:00:00Z',
+          modifiedTime: '2023-01-01T10:30:00Z',
+          webViewLink: 'https://docs.google.com/document/d/file1',
+          parents: ['folder123'],
+        },
+      ];
+
+      const expectedResult: DriveFileListResult = {
+        files: mockFiles,
+        nextPageToken: undefined,
+        incompleteSearch: false,
+      };
+
+      mockDriveService.listFiles.mockResolvedValue(ok(expectedResult));
+
+      const result = await tool.executeImpl({
+        query: "name contains 'Test'",
+        folderId: 'folder123',
+      });
+
+      expect(mockDriveService.listFiles).toHaveBeenCalledWith({
+        query: "trashed = false and 'folder123' in parents and (name contains 'Test')",
       });
       expect(result.isOk()).toBe(true);
     });

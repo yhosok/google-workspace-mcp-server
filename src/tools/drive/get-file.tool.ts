@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SchemaFactory } from '../base/tool-schema.js';
 import { BaseDriveTool } from './base-drive-tool.js';
 import type { DriveFileInfo, MCPToolResult } from '../../types/index.js';
 import type {
@@ -9,23 +10,13 @@ import { Result, ok, err } from 'neverthrow';
 import { GoogleDriveError } from '../../errors/index.js';
 
 /**
- * Schema for get file input parameters
- * Requires fileId and allows optional fields specification
+ * Input parameters for get file tool
  */
-const GetFileInputSchema = z.object({
-  fileId: z
-    .string({
-      description: 'The unique identifier of the Drive file',
-    })
-    .min(1, 'File ID cannot be empty')
-    .max(100, 'File ID too long'),
-  fields: z
-    .array(z.string())
-    .optional()
-    .describe('Array of fields to include in the response'),
-});
-
-type GetFileInput = z.infer<typeof GetFileInputSchema>;
+type GetFileInput = {
+  fileId: string;
+  fields?: string[];
+  includePermissions?: boolean;
+};
 
 /**
  * Result interface for get file operation
@@ -95,11 +86,9 @@ export class GetFileTool extends BaseDriveTool<GetFileInput, MCPToolResult> {
   }
 
   public getToolMetadata(): ToolMetadata {
-    return {
-      title: 'Get Drive File',
-      description: 'Gets metadata and details for a specific Google Drive file',
-      inputSchema: {},
-    };
+    return SchemaFactory.createToolMetadata(
+      'google-workspace__drive__get-file'
+    );
   }
 
   public async executeImpl(
@@ -110,10 +99,10 @@ export class GetFileTool extends BaseDriveTool<GetFileInput, MCPToolResult> {
 
     try {
       // Validate input parameters
-      const validationResult = this.validateWithSchema(
-        GetFileInputSchema,
-        args
+      const inputSchema = SchemaFactory.createToolInputSchema(
+        'google-workspace__drive__get-file'
       );
+      const validationResult = this.validateWithSchema(inputSchema, args);
       if (validationResult.isErr()) {
         this.logger.error('Input validation failed', {
           error: validationResult.error.message,
@@ -171,9 +160,16 @@ export class GetFileTool extends BaseDriveTool<GetFileInput, MCPToolResult> {
       let driveOptions: any = undefined;
 
       // Handle fields parameter (convert array to comma-separated string)
-      if (validatedArgs.fields && validatedArgs.fields.length > 0) {
+      let fieldsArray = validatedArgs.fields ? [...validatedArgs.fields] : [];
+
+      // Handle includePermissions parameter
+      if (validatedArgs.includePermissions && !fieldsArray.includes('permissions')) {
+        fieldsArray.push('permissions');
+      }
+
+      if (fieldsArray.length > 0) {
         driveOptions = {
-          fields: validatedArgs.fields.join(','),
+          fields: fieldsArray.join(','),
         };
       }
 

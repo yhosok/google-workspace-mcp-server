@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SchemaFactory } from '../base/tool-schema.js';
 import { BaseDriveTool } from './base-drive-tool.js';
 import type { DriveFileListResult, MCPToolResult } from '../../types/index.js';
 import type {
@@ -9,41 +10,15 @@ import { Result, ok, err } from 'neverthrow';
 import { GoogleDriveError } from '../../errors/index.js';
 
 /**
- * Schema for list files input parameters
- * Includes all the parameters needed for Drive file listing operations
+ * Input parameters for list files tool
  */
-const ListFilesInputSchema = z.object({
-  query: z
-    .string({
-      description: 'Drive API query string for searching files',
-    })
-    .max(2048, 'Query string too long')
-    .optional(),
-  maxResults: z
-    .number({
-      description: 'Maximum number of results to return (1-1000)',
-    })
-    .min(1, 'maxResults must be at least 1')
-    .max(1000, 'maxResults cannot exceed 1000')
-    .optional(),
-  pageToken: z
-    .string({
-      description: 'Token to specify which page of results to return',
-    })
-    .optional(),
-  orderBy: z
-    .string({
-      description: 'How to order the files in the result set',
-    })
-    .optional(),
-  folderId: z
-    .string({
-      description: 'List files within a specific folder',
-    })
-    .optional(),
-});
-
-type ListFilesInput = z.infer<typeof ListFilesInputSchema>;
+type ListFilesInput = {
+  query?: string;
+  maxResults?: number;
+  pageToken?: string;
+  orderBy?: string;
+  folderId?: string;
+};
 
 /**
  * Result interface for list files operation with additional metadata
@@ -92,7 +67,7 @@ interface ListFilesResult {
  *
  * // Search for specific files
  * const result = await tool.execute({
- *   query: 'name contains "Report"'
+ *   query: 'name contains \'Report\''
  * });
  *
  * // List files in specific folder
@@ -110,12 +85,9 @@ export class ListFilesTool extends BaseDriveTool<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return {
-      title: 'List Drive Files',
-      description:
-        'Lists files in Google Drive with optional filtering and search',
-      inputSchema: {},
-    };
+    return SchemaFactory.createToolMetadata(
+      'google-workspace__drive__list-files'
+    );
   }
 
   public async executeImpl(
@@ -126,10 +98,10 @@ export class ListFilesTool extends BaseDriveTool<
 
     try {
       // Validate input parameters
-      const validationResult = this.validateWithSchema(
-        ListFilesInputSchema,
-        args
+      const inputSchema = SchemaFactory.createToolInputSchema(
+        'google-workspace__drive__list-files'
       );
+      const validationResult = this.validateWithSchema(inputSchema, args);
       if (validationResult.isErr()) {
         this.logger.error('Input validation failed', {
           error: validationResult.error.message,
@@ -186,22 +158,22 @@ export class ListFilesTool extends BaseDriveTool<
         driveOptions.orderBy = validatedArgs.orderBy;
       }
 
-      // Build query string
-      let queryString = validatedArgs.query || '';
-
+      // Build query string with automatic trashed filter
+      let queryParts: string[] = ['trashed = false'];
+      
       // Handle folderId parameter by adding to query
       if (validatedArgs.folderId !== undefined) {
-        const folderQuery = `'${validatedArgs.folderId}' in parents`;
-        if (queryString) {
-          queryString = `${folderQuery} and (${queryString})`;
-        } else {
-          queryString = folderQuery;
-        }
+        queryParts.push(`'${validatedArgs.folderId}' in parents`);
       }
-
-      if (queryString) {
-        driveOptions.query = queryString;
+      
+      // Add user's custom query if provided
+      if (validatedArgs.query) {
+        queryParts.push(`(${validatedArgs.query})`);
       }
+      
+      // Combine all query parts
+      const queryString = queryParts.join(' and ');
+      driveOptions.query = queryString;
 
       // List files using the drive service
       const result = await this.driveService.listFiles(driveOptions);

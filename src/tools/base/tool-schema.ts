@@ -15,7 +15,11 @@ export type SupportedTool =
   | 'google-workspace__sheets__write-range'
   | 'google-workspace__sheets__append-rows'
   | 'google-workspace__sheets__add-sheet'
-  | 'google-workspace__sheets__create-spreadsheet';
+  | 'google-workspace__sheets__create-spreadsheet'
+  // Drive tools
+  | 'google-workspace__drive__list-files'
+  | 'google-workspace__drive__get-file'
+  | 'google-workspace__drive__get-file-content';
 
 /**
  * Factory class for creating standardized Zod schemas for Google Workspace MCP tools
@@ -102,6 +106,54 @@ export class SchemaFactory {
   }
 
   /**
+   * Creates a schema for Google Drive file ID validation
+   */
+  public static createFileIdSchema(): z.ZodString {
+    return z
+      .string()
+      .trim()
+      .min(1, 'File ID cannot be empty')
+      .max(100, 'File ID too long')
+      .describe('The unique identifier of the Drive file');
+  }
+
+  /**
+   * Creates a schema for Google Drive folder ID validation
+   */
+  public static createFolderIdSchema(): z.ZodOptional<z.ZodString> {
+    return z
+      .string()
+      .trim()
+      .min(1, 'Folder ID cannot be empty')
+      .optional()
+      .describe('List files within a specific folder');
+  }
+
+  /**
+   * Creates a schema for Drive API query string validation
+   */
+  public static createQuerySchema(): z.ZodOptional<z.ZodString> {
+    return z
+      .string({
+        description: 'Drive API query string for searching files',
+      })
+      .max(2048, 'Query string too long')
+      .optional();
+  }
+
+  /**
+   * Creates a schema for Drive API export format validation
+   */
+  public static createExportFormatSchema(): z.ZodOptional<
+    z.ZodEnum<['pdf', 'docx', 'xlsx', 'csv', 'txt', 'html', 'odt', 'rtf']>
+  > {
+    return z
+      .enum(['pdf', 'docx', 'xlsx', 'csv', 'txt', 'html', 'odt', 'rtf'])
+      .optional()
+      .describe('Export format for Google Workspace files');
+  }
+
+  /**
    * Creates input schema for specific tools with caching
    */
   public static createToolInputSchema(
@@ -177,6 +229,58 @@ export class SchemaFactory {
             .describe(
               'Optional array of titles for initial sheets. If not provided, a single "Sheet1" will be created'
             ),
+        });
+        break;
+
+      case 'google-workspace__drive__list-files':
+        schema = z.object({
+          query: SchemaFactory.createQuerySchema(),
+          maxResults: z
+            .number({
+              description: 'Maximum number of results to return (1-1000)',
+            })
+            .min(1, 'maxResults must be at least 1')
+            .max(1000, 'maxResults cannot exceed 1000')
+            .optional(),
+          pageToken: z
+            .string({
+              description: 'Token to specify which page of results to return',
+            })
+            .optional(),
+          orderBy: z
+            .string({
+              description: 'How to order the files in the result set',
+            })
+            .optional(),
+          folderId: SchemaFactory.createFolderIdSchema(),
+        });
+        break;
+
+      case 'google-workspace__drive__get-file':
+        schema = z.object({
+          fileId: SchemaFactory.createFileIdSchema(),
+          fields: z
+            .array(z.string())
+            .optional()
+            .describe('Array of fields to include in the response'),
+          includePermissions: z
+            .boolean()
+            .optional()
+            .describe('Whether to include file permissions in the response'),
+        });
+        break;
+
+      case 'google-workspace__drive__get-file-content':
+        schema = z.object({
+          fileId: SchemaFactory.createFileIdSchema(),
+          exportFormat: SchemaFactory.createExportFormatSchema(),
+          maxFileSize: z
+            .number({
+              description: 'Maximum file size in bytes for download operations',
+            })
+            .min(1, 'Maximum file size must be positive')
+            .max(1024 * 1024 * 1024, 'Maximum file size too large (max 1GB)')
+            .optional(),
         });
         break;
 
@@ -314,6 +418,18 @@ export class SchemaFactory {
         title: 'Create New Spreadsheet',
         description:
           'Create a new spreadsheet. If GOOGLE_DRIVE_FOLDER_ID is configured, the spreadsheet will be created in that folder; otherwise it will be created in the default location',
+      },
+      'google-workspace__drive__list-files': {
+        title: 'List Drive Files',
+        description: 'List files in Google Drive with optional filtering and search',
+      },
+      'google-workspace__drive__get-file': {
+        title: 'Get Drive File Metadata',
+        description: 'Gets metadata and details for a specific Google Drive file',
+      },
+      'google-workspace__drive__get-file-content': {
+        title: 'Get Drive File Content',
+        description: 'Downloads and retrieves content from a Google Drive file',
       },
     };
 
