@@ -1392,7 +1392,7 @@ For more information, see [Google Docs](https://docs.google.com).
       // Create DocsService without DriveService
       const docsServiceWithoutDrive = new DocsService(
         mockAuthService,
-        null as any
+        undefined
       );
       mockGoogle.docs.mockReturnValue(mockDocsApi);
       await docsServiceWithoutDrive.initialize();

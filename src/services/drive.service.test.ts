@@ -196,6 +196,7 @@ describe('DriveService', () => {
       expect(mockDriveApi.files.list).toHaveBeenCalledWith({
         q: "mimeType='application/vnd.google-apps.spreadsheet'",
         pageSize: 1,
+        supportsAllDrives: true,
       });
     });
 
@@ -264,6 +265,7 @@ describe('DriveService', () => {
           mimeType: 'application/vnd.google-apps.spreadsheet',
         },
         fields: 'id, name, webViewLink, parents, createdTime',
+        supportsAllDrives: true,
       });
     });
 
@@ -298,6 +300,7 @@ describe('DriveService', () => {
           parents: ['target-folder-id'],
         },
         fields: 'id, name, webViewLink, parents, createdTime',
+        supportsAllDrives: true,
       });
     });
 
@@ -408,6 +411,7 @@ describe('DriveService', () => {
           mimeType: 'application/vnd.google-apps.document',
         },
         fields: 'id, name, webViewLink, parents, createdTime',
+        supportsAllDrives: true,
       });
     });
 
@@ -441,6 +445,7 @@ describe('DriveService', () => {
           parents: ['target-folder-id'],
         },
         fields: 'id, name, webViewLink, parents, createdTime',
+        supportsAllDrives: true,
       });
     });
 
@@ -625,6 +630,7 @@ describe('DriveService', () => {
         fields:
           'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
         orderBy: 'modifiedTime desc',
+        supportsAllDrives: true,
       });
     });
 
@@ -666,6 +672,7 @@ describe('DriveService', () => {
         fields:
           'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
         orderBy: 'modifiedTime desc',
+        supportsAllDrives: true,
       });
     });
 
@@ -702,6 +709,7 @@ describe('DriveService', () => {
         fields:
           'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
         orderBy: 'modifiedTime desc',
+        supportsAllDrives: true,
       });
     });
 
@@ -878,6 +886,7 @@ describe('DriveService', () => {
         fileId: 'file123',
         fields:
           'id, name, mimeType, createdTime, modifiedTime, webViewLink, webContentLink, parents, size, version, description, owners, permissions',
+        supportsAllDrives: true,
       });
     });
 
@@ -900,6 +909,7 @@ describe('DriveService', () => {
       expect(mockDriveApi.files.get).toHaveBeenCalledWith({
         fileId: 'file123',
         fields: 'id, name, mimeType',
+        supportsAllDrives: true,
       });
     });
 
@@ -1014,10 +1024,12 @@ describe('DriveService', () => {
       expect(mockDriveApi.files.get).toHaveBeenNthCalledWith(1, {
         fileId: 'file123',
         fields: 'id, mimeType, size, name',
+        supportsAllDrives: true,
       });
       expect(mockDriveApi.files.get).toHaveBeenNthCalledWith(2, {
         fileId: 'file123',
         alt: 'media',
+        supportsAllDrives: true,
       });
     });
 
@@ -1055,6 +1067,7 @@ describe('DriveService', () => {
       expect(mockDriveApi.files.get).toHaveBeenCalledWith({
         fileId: 'doc123',
         fields: 'id, mimeType, size, name',
+        supportsAllDrives: true,
       });
       expect(mockDriveApi.files.export).toHaveBeenCalledWith({
         fileId: 'doc123',
@@ -1294,6 +1307,7 @@ describe('DriveService', () => {
       expect(mockDriveApi.files.get).toHaveBeenCalledWith({
         fileId: 'doc123',
         fields: 'id, mimeType, size, name',
+        supportsAllDrives: true,
       });
       expect(mockDriveApi.files.export).toHaveBeenCalledWith({
         fileId: 'doc123',
@@ -1409,83 +1423,6 @@ console.log('Hello World');
         expect(result.error.statusCode).toBe(400);
         expect(result.error.message).toContain('Markdown export not available');
       }
-    });
-
-    test('should handle external Google Docs with inaccessible metadata but allow export', async () => {
-      // Simulate metadata access failure (404) for external shared doc
-      const metadataError = new Error('File not found') as Error & {
-        status: number;
-      };
-      metadataError.status = 404;
-
-      // Mock export success
-      const mockExportResponse = {
-        data: '# External Doc\n\nThis is content from an externally shared Google Doc.',
-        headers: {
-          'content-type': 'text/markdown',
-          'content-length': '76',
-        },
-      };
-
-      // First call (metadata) fails, second call (export) succeeds
-      mockDriveApi.files.get.mockRejectedValueOnce(metadataError);
-      mockDriveApi.files.export.mockResolvedValue(mockExportResponse);
-
-      const result = await driveService.getFileContent('external-doc-123', {
-        exportFormat: 'markdown',
-      });
-
-      expect(result.isOk()).toBe(true);
-      if (result.isOk()) {
-        expect(result.value.content).toBe(
-          '# External Doc\n\nThis is content from an externally shared Google Doc.'
-        );
-        expect(result.value.mimeType).toBe('text/markdown');
-        expect(result.value.size).toBe(76);
-        expect(result.value.isExported).toBe(true);
-        expect(result.value.exportFormat).toBe('markdown');
-      }
-
-      // Verify metadata was attempted but fallback used
-      expect(mockDriveApi.files.get).toHaveBeenCalledWith({
-        fileId: 'external-doc-123',
-        fields: 'id, mimeType, size, name',
-      });
-
-      // Verify export was called with fallback MIME type
-      expect(mockDriveApi.files.export).toHaveBeenCalledWith({
-        fileId: 'external-doc-123',
-        mimeType: 'text/markdown',
-      });
-
-      // Verify warning was logged about fallback
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        'File metadata not accessible, attempting fallback for Google Docs export',
-        expect.objectContaining({
-          fileId: 'external-doc-123',
-          error: expect.stringContaining('File not found'),
-        })
-      );
-    });
-
-    test('should not use fallback for non-404 metadata errors', async () => {
-      // Simulate a different error (403 permission denied)
-      const metadataError = new Error('Access denied') as Error & {
-        status: number;
-      };
-      metadataError.status = 403;
-
-      mockDriveApi.files.get.mockRejectedValue(metadataError);
-
-      const result = await driveService.getFileContent('restricted-doc-123');
-
-      expect(result.isErr()).toBe(true);
-      if (result.isErr()) {
-        expect(result.error.statusCode).toBe(403);
-      }
-
-      // Verify no export was attempted
-      expect(mockDriveApi.files.export).not.toHaveBeenCalled();
     });
   });
 });

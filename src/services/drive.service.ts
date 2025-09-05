@@ -244,6 +244,7 @@ export class DriveService extends GoogleService {
       await this.driveApi.files.list({
         q: "mimeType='application/vnd.google-apps.spreadsheet'",
         pageSize: 1,
+        supportsAllDrives: true,
       });
 
       this.logger.info('Drive health check passed', {
@@ -481,6 +482,7 @@ export class DriveService extends GoogleService {
       const response = await this.driveApi.files.create({
         requestBody: fileMetadata,
         fields: 'id, name, webViewLink, parents, createdTime',
+        supportsAllDrives: true,
       });
 
       // Validate response
@@ -602,12 +604,14 @@ export class DriveService extends GoogleService {
         pageToken?: string;
         orderBy?: string;
         fields: string;
+        supportsAllDrives?: boolean;
       } = {
         fields:
           options?.fields ||
           'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
         pageSize: options?.pageSize || 100,
         orderBy: options?.orderBy || 'modifiedTime desc',
+        supportsAllDrives: true,
         ...(options?.query && { q: options.query }),
         ...(options?.pageToken && { pageToken: options.pageToken }),
       };
@@ -732,11 +736,13 @@ export class DriveService extends GoogleService {
       const requestParams: {
         fileId: string;
         fields: string;
+        supportsAllDrives?: boolean;
       } = {
         fileId: fileId.trim(),
         fields:
           options?.fields ||
           'id, name, mimeType, createdTime, modifiedTime, webViewLink, webContentLink, parents, size, version, description, owners, permissions',
+        supportsAllDrives: true,
       };
 
       // Call Drive API
@@ -797,27 +803,22 @@ export class DriveService extends GoogleService {
    * - Google Sheets: Export to XLSX, ODS, CSV, PDF
    * - Google Slides: Export to PPTX, ODP, PDF, TXT, JPEG, PNG, SVG
    *
-   * Fallback Behavior for External Documents:
-   * When metadata retrieval fails with 404 errors for potential Google Docs,
-   * the method attempts export operation with assumed document type. This enables
-   * access to externally shared Google Docs where metadata permissions are
-   * restricted but export permissions are available. Non-404 errors (403, 500, etc.)
-   * will still fail immediately.
+   * Shared Drive Support:
+   * All Drive API calls include supportsAllDrives: true to enable access to
+   * files stored in Google Shared Drives (Team Drives).
    *
-   * Access Patterns:
-   * - Documents created via MCP: Full metadata and export access
-   * - External shared documents: Export access only (metadata may fail)
-   * - Private documents: Both metadata and export will fail
+   * Access Requirements:
+   * - User must have appropriate permissions to access the file
+   * - Both metadata access and export permissions are required
+   * - Files in shared drives require proper sharing permissions
    *
    * Important: Large file size validation and memory management included.
-   * Size validation is skipped when metadata is unavailable due to fallback behavior.
    *
    * Use Cases:
    * - File backup and archival
    * - Format conversion workflows
    * - Content processing pipelines
    * - Document generation from templates
-   * - Accessing externally shared Google Docs for export
    *
    * @param fileId The ID of the file to download
    * @param options Optional export format and size limits
@@ -833,8 +834,8 @@ export class DriveService extends GoogleService {
    *   exportFormat: 'pdf'
    * });
    *
-   * // Export external Google Doc as Markdown
-   * const markdownResult = await service.getFileContent('external-doc-id', {
+   * // Export Google Doc as Markdown
+   * const markdownResult = await service.getFileContent('doc-id', {
    *   exportFormat: 'markdown'
    * });
    *
@@ -891,12 +892,12 @@ export class DriveService extends GoogleService {
       } = {};
       let mimeType: string;
       let fileSize: number;
-      let metadataAvailable = false;
 
       try {
         const metadataResponse = await this.driveApi.files.get({
           fileId: fileId.trim(),
           fields: 'id, mimeType, size, name',
+          supportsAllDrives: true,
         });
 
         if (!metadataResponse.data) {
@@ -911,9 +912,8 @@ export class DriveService extends GoogleService {
         file = metadataResponse.data;
         mimeType = file.mimeType || '';
         fileSize = parseInt(file.size || '0', 10);
-        metadataAvailable = true;
 
-        // Validate file size when metadata is available
+        // Validate file size
         if (fileSize > maxFileSize) {
           throw new GoogleDriveError(
             `File size too large (${Math.round(fileSize / 1024 / 1024)}MB exceeds limit of ${Math.round(maxFileSize / 1024 / 1024)}MB)`,
@@ -923,32 +923,11 @@ export class DriveService extends GoogleService {
           );
         }
       } catch (error) {
-        // For Google Docs that might not have accessible metadata (e.g., shared external docs)
-        // but still allow export operations, we'll proceed with a graceful fallback
         const driveError = this.convertToDriveError(
           error instanceof Error ? error : new Error(String(error)),
           fileId
         );
-
-        // Check if this is a 404 error that might still allow export for Google Docs
-        if (driveError.statusCode === 404) {
-          this.logger.warn(
-            'File metadata not accessible, attempting fallback for Google Docs export',
-            {
-              fileId,
-              error: driveError.message,
-              requestId: context.requestId,
-            }
-          );
-
-          // Use fallback values for Google Docs - we'll attempt export and let it fail if it's truly inaccessible
-          mimeType = 'application/vnd.google-apps.document';
-          fileSize = 0; // Skip size validation for fallback cases
-          metadataAvailable = false;
-        } else {
-          // For non-404 errors or if it's not potentially a Google Doc, rethrow the error
-          throw driveError;
-        }
+        throw driveError;
       }
 
       // Define Google Workspace MIME types and their export formats
@@ -1030,6 +1009,7 @@ export class DriveService extends GoogleService {
         const contentResponse = await this.driveApi.files.get({
           fileId: fileId.trim(),
           alt: 'media',
+          supportsAllDrives: true,
         });
 
         content = contentResponse.data as string | Buffer;
@@ -1060,7 +1040,6 @@ export class DriveService extends GoogleService {
         isExported,
         exportFormat,
         contentSize,
-        metadataAvailable,
         requestId: context.requestId,
       });
 
