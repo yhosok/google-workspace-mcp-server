@@ -245,6 +245,7 @@ export class DriveService extends GoogleService {
         q: "mimeType='application/vnd.google-apps.spreadsheet'",
         pageSize: 1,
         supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
       });
 
       this.logger.info('Drive health check passed', {
@@ -525,16 +526,19 @@ export class DriveService extends GoogleService {
    * Lists files from Google Drive with optional filtering and pagination.
    *
    * Retrieves a list of files from the user's Google Drive, with support for:
-   * - Search queries using Google Drive search syntax
+   * - Search queries using Google Drive search syntax (includes trashed = false filtering)
    * - Pagination with page tokens and custom page sizes
    * - Field selection to optimize performance
    * - Custom ordering options
+   * - Shared Drive (Team Drive) access with corpora and driveId parameters
+   * - Drive ID extraction for files in shared drives
    *
    * **Use Cases**:
    * - File browser implementation
    * - Search functionality
    * - Bulk operations setup
    * - Drive content audit
+   * - Shared drive file management
    *
    * @param options Optional filtering and pagination parameters
    * @returns Promise resolving to file list or error
@@ -544,9 +548,16 @@ export class DriveService extends GoogleService {
    * // List recent files
    * const result = await service.listFiles();
    *
-   * // Search for specific files
+   * // Search for specific files (excluding trashed files)
    * const searchResult = await service.listFiles({
-   *   query: "name contains 'report' and mimeType = 'application/pdf'"
+   *   query: "name contains 'report' and mimeType = 'application/pdf' and trashed = false"
+   * });
+   *
+   * // Search within a specific shared drive
+   * const sharedDriveResult = await service.listFiles({
+   *   corpora: 'teamDrive',
+   *   driveId: 'shared-drive-id',
+   *   query: "mimeType = 'application/vnd.google-apps.folder' and trashed = false"
    * });
    *
    * // Paginated listing
@@ -581,6 +592,42 @@ export class DriveService extends GoogleService {
       }
     }
 
+    // Validate corpora parameter
+    if (options?.corpora !== undefined) {
+      const validCorpora = ['user', 'domain', 'teamDrive', 'allTeamDrives'];
+      if (!validCorpora.includes(options.corpora)) {
+        return driveErr(
+          new GoogleDriveError(
+            `Invalid corpora value. Must be one of: ${validCorpora.join(', ')}`,
+            'GOOGLE_DRIVE_INVALID_INPUT',
+            400,
+            undefined,
+            undefined,
+            { reason: 'Invalid corpora parameter' }
+          )
+        );
+      }
+    }
+
+    // Validate driveId parameter format (basic validation)
+    if (options?.driveId !== undefined) {
+      if (
+        typeof options.driveId !== 'string' ||
+        options.driveId.trim() === ''
+      ) {
+        return driveErr(
+          new GoogleDriveError(
+            'driveId must be a non-empty string',
+            'GOOGLE_DRIVE_INVALID_INPUT',
+            400,
+            undefined,
+            undefined,
+            { reason: 'Invalid driveId parameter' }
+          )
+        );
+      }
+    }
+
     const context = this.createContext('listFiles', {
       options,
     });
@@ -605,15 +652,21 @@ export class DriveService extends GoogleService {
         orderBy?: string;
         fields: string;
         supportsAllDrives?: boolean;
+        includeItemsFromAllDrives?: boolean;
+        corpora?: string;
+        driveId?: string;
       } = {
         fields:
           options?.fields ||
-          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
+          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size, driveId), nextPageToken, incompleteSearch',
         pageSize: options?.pageSize || 100,
         orderBy: options?.orderBy || 'modifiedTime desc',
         supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
         ...(options?.query && { q: options.query }),
         ...(options?.pageToken && { pageToken: options.pageToken }),
+        ...(options?.corpora && { corpora: options.corpora }),
+        ...(options?.driveId && { driveId: options.driveId }),
       };
 
       // Call Drive API
@@ -641,6 +694,7 @@ export class DriveService extends GoogleService {
           size: file.size || undefined,
           version: file.version || undefined,
           description: file.description || undefined,
+          driveId: file.driveId || undefined,
           owners: file.owners?.map(owner => ({
             displayName: owner.displayName || undefined,
             emailAddress: owner.emailAddress || undefined,
@@ -741,7 +795,7 @@ export class DriveService extends GoogleService {
         fileId: fileId.trim(),
         fields:
           options?.fields ||
-          'id, name, mimeType, createdTime, modifiedTime, webViewLink, webContentLink, parents, size, version, description, owners, permissions',
+          'id, name, mimeType, createdTime, modifiedTime, webViewLink, webContentLink, parents, size, version, description, owners, permissions, driveId',
         supportsAllDrives: true,
       };
 
@@ -771,6 +825,7 @@ export class DriveService extends GoogleService {
         size: file.size || undefined,
         version: file.version || undefined,
         description: file.description || undefined,
+        driveId: file.driveId || undefined,
         owners: file.owners?.map(owner => ({
           displayName: owner.displayName || undefined,
           emailAddress: owner.emailAddress || undefined,

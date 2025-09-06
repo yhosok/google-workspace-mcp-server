@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseCalendarTools } from './base-calendar-tool.js';
+import { CALENDAR_TOOLS } from '../base/tool-definitions.js';
 import type { CalendarListResult, MCPToolResult } from '../../types/index.js';
 import type {
   ToolExecutionContext,
@@ -7,6 +8,7 @@ import type {
 } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
+import { SchemaFactory } from '../base/tool-schema.js';
 
 /**
  * Schema for list calendars input (no parameters required)
@@ -45,15 +47,13 @@ export class ListCalendarsTool extends BaseCalendarTools<
   CalendarListResult
 > {
   public getToolName(): string {
-    return 'google-workspace__calendar__list-calendars';
+    return CALENDAR_TOOLS.LIST_CALENDARS;
   }
 
   public getToolMetadata(): ToolMetadata {
-    return {
-      title: 'List Calendars',
-      description: 'Lists all calendars accessible to the authenticated user',
-      inputSchema: {},
-    };
+    return SchemaFactory.createToolMetadata(
+      CALENDAR_TOOLS.LIST_CALENDARS
+    );
   }
 
   public async executeImpl(

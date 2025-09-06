@@ -1,4 +1,14 @@
 import { z } from 'zod';
+import {
+  ALL_TOOLS,
+  SHEETS_TOOLS,
+  DRIVE_TOOLS,
+  CALENDAR_TOOLS,
+  DOCS_TOOLS,
+  TOOL_METADATA,
+  getToolMetadata,
+  type SupportedToolId,
+} from './tool-definitions.js';
 
 /**
  * Cache for compiled schemas to improve performance
@@ -7,15 +17,9 @@ const schemaCache = new Map<string, z.ZodType>();
 
 /**
  * Supported tool types for schema generation
+ * Now imported from centralized tool definitions
  */
-export type SupportedTool =
-  // PDR-style naming for sheets tools
-  | 'google-workspace__sheets__list-spreadsheets'
-  | 'google-workspace__sheets__read-range'
-  | 'google-workspace__sheets__write-range'
-  | 'google-workspace__sheets__append-rows'
-  | 'google-workspace__sheets__add-sheet'
-  | 'google-workspace__sheets__create-spreadsheet';
+export type SupportedTool = SupportedToolId;
 
 /**
  * Factory class for creating standardized Zod schemas for Google Workspace MCP tools
@@ -102,6 +106,180 @@ export class SchemaFactory {
   }
 
   /**
+   * Creates a schema for Google Drive file ID validation
+   */
+  public static createFileIdSchema(): z.ZodString {
+    return z
+      .string()
+      .trim()
+      .min(1, 'File ID cannot be empty')
+      .max(100, 'File ID too long')
+      .describe('The unique identifier of the Drive file');
+  }
+
+  /**
+   * Creates a schema for Google Drive folder ID validation
+   */
+  public static createFolderIdSchema(): z.ZodOptional<z.ZodString> {
+    return z
+      .string()
+      .trim()
+      .min(1, 'Folder ID cannot be empty')
+      .optional()
+      .describe('List files within a specific folder');
+  }
+
+  /**
+   * Creates a schema for calendar ID validation
+   */
+  public static createCalendarIdSchema(): z.ZodString {
+    return z
+      .string()
+      .min(1, 'Calendar ID cannot be empty')
+      .describe('The calendar ID');
+  }
+
+  /**
+   * Creates a schema for event ID validation
+   */
+  public static createEventIdSchema(): z.ZodString {
+    return z
+      .string()
+      .min(1, 'Event ID cannot be empty')
+      .describe('The unique identifier of the event');
+  }
+
+  /**
+   * Creates a schema for document ID validation
+   */
+  public static createDocumentIdSchema(): z.ZodString {
+    return z
+      .string({
+        required_error: 'Document ID is required',
+        invalid_type_error: 'Document ID must be a string',
+      })
+      .min(1, 'Document ID cannot be empty')
+      .max(100, 'Document ID too long')
+      .describe('The unique identifier of the Google Docs document');
+  }
+
+  /**
+   * Creates a schema for document title validation
+   */
+  public static createDocumentTitleSchema(): z.ZodString {
+    return z
+      .string({
+        required_error: 'Title is required',
+        invalid_type_error: 'Title must be a string',
+      })
+      .min(1, 'Title cannot be empty')
+      .max(255, 'Title too long')
+      .describe('The title of the document');
+  }
+
+  /**
+   * Creates a schema for Drive API query string validation
+   */
+  public static createQuerySchema(): z.ZodOptional<z.ZodString> {
+    return z
+      .string({
+        description: 'Drive API query string for searching files',
+      })
+      .max(2048, 'Query string too long')
+      .optional();
+  }
+
+  /**
+   * Creates a schema for Drive API export format validation
+   */
+  public static createExportFormatSchema(): z.ZodOptional<
+    z.ZodEnum<['pdf', 'docx', 'xlsx', 'csv', 'txt', 'html', 'odt', 'rtf']>
+  > {
+    return z
+      .enum(['pdf', 'docx', 'xlsx', 'csv', 'txt', 'html', 'odt', 'rtf'])
+      .optional()
+      .describe('Export format for Google Workspace files');
+  }
+
+  /**
+   * Creates a schema for Calendar event time information
+   */
+  public static createEventTimeSchema(): z.ZodEffects<z.ZodObject<any>, any> {
+    return z
+      .object({
+        dateTime: z
+          .string()
+          .optional()
+          .describe('ISO 8601 date-time string with timezone'),
+        date: z
+          .string()
+          .optional()
+          .describe('ISO 8601 date string for all-day events'),
+        timeZone: z
+          .string()
+          .optional()
+          .describe('Time zone identifier (e.g., "America/New_York")'),
+      })
+      .refine(data => !!(data.dateTime || data.date), {
+        message: 'Either dateTime or date must be provided',
+      });
+  }
+
+  /**
+   * Creates a schema for Calendar event attendee information
+   */
+  public static createAttendeeSchema(): z.ZodObject<any> {
+    return z.object({
+      email: z.string().email().describe('Email address of the attendee'),
+      displayName: z
+        .string()
+        .optional()
+        .describe('Display name of the attendee'),
+      optional: z
+        .boolean()
+        .optional()
+        .describe('Whether attendance is optional'),
+      responseStatus: z
+        .enum(['needsAction', 'declined', 'tentative', 'accepted'])
+        .optional(),
+      comment: z.string().optional().describe('Comment from the attendee'),
+      additionalGuests: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe('Number of additional guests'),
+    });
+  }
+
+  /**
+   * Creates a schema for Calendar reminder settings
+   */
+  public static createReminderSchema(): z.ZodObject<any> {
+    return z.object({
+      useDefault: z
+        .boolean()
+        .optional()
+        .describe('Whether to use default reminders'),
+      overrides: z
+        .array(
+          z.object({
+            method: z
+              .enum(['email', 'popup'])
+              .describe('Reminder delivery method'),
+            minutes: z
+              .number()
+              .int()
+              .min(0)
+              .describe('Minutes before event to send reminder'),
+          })
+        )
+        .optional()
+        .describe('Custom reminder settings'),
+    });
+  }
+
+  /**
    * Creates input schema for specific tools with caching
    */
   public static createToolInputSchema(
@@ -117,18 +295,18 @@ export class SchemaFactory {
     let schema: z.ZodObject<Record<string, z.ZodType>>;
 
     switch (tool) {
-      case 'google-workspace__sheets__list-spreadsheets':
+      case SHEETS_TOOLS.LIST_SPREADSHEETS:
         schema = z.object({});
         break;
 
-      case 'google-workspace__sheets__read-range':
+      case SHEETS_TOOLS.READ_RANGE:
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           range: SchemaFactory.createRangeSchema(),
         });
         break;
 
-      case 'google-workspace__sheets__write-range':
+      case SHEETS_TOOLS.WRITE_RANGE:
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           range: SchemaFactory.createRangeSchema(),
@@ -136,7 +314,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__sheets__append-rows':
+      case SHEETS_TOOLS.APPEND_ROWS:
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           range: SchemaFactory.createRangeSchema(),
@@ -144,7 +322,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__sheets__add-sheet':
+      case SHEETS_TOOLS.ADD_SHEET:
         schema = z.object({
           spreadsheetId: SchemaFactory.createSpreadsheetIdSchema(),
           title: z
@@ -163,7 +341,7 @@ export class SchemaFactory {
         });
         break;
 
-      case 'google-workspace__sheets__create-spreadsheet':
+      case SHEETS_TOOLS.CREATE_SPREADSHEET:
         schema = z.object({
           title: z
             .string()
@@ -177,6 +355,285 @@ export class SchemaFactory {
             .describe(
               'Optional array of titles for initial sheets. If not provided, a single "Sheet1" will be created'
             ),
+        });
+        break;
+
+      case DRIVE_TOOLS.LIST_FILES:
+        schema = z.object({
+          query: SchemaFactory.createQuerySchema(),
+          maxResults: z
+            .number({
+              description: 'Maximum number of results to return (1-1000)',
+            })
+            .min(1, 'maxResults must be at least 1')
+            .max(1000, 'maxResults cannot exceed 1000')
+            .optional(),
+          pageToken: z
+            .string({
+              description: 'Token to specify which page of results to return',
+            })
+            .optional(),
+          orderBy: z
+            .string({
+              description: 'How to order the files in the result set',
+            })
+            .optional(),
+          folderId: SchemaFactory.createFolderIdSchema(),
+        });
+        break;
+
+      case DRIVE_TOOLS.GET_FILE:
+        schema = z.object({
+          fileId: SchemaFactory.createFileIdSchema(),
+          fields: z
+            .array(z.string())
+            .optional()
+            .describe('Array of fields to include in the response'),
+          includePermissions: z
+            .boolean()
+            .optional()
+            .describe('Whether to include file permissions in the response'),
+        });
+        break;
+
+      case DRIVE_TOOLS.GET_FILE_CONTENT:
+        schema = z.object({
+          fileId: SchemaFactory.createFileIdSchema(),
+          exportFormat: SchemaFactory.createExportFormatSchema(),
+          maxFileSize: z
+            .number({
+              description: 'Maximum file size in bytes for download operations',
+            })
+            .min(1, 'Maximum file size must be positive')
+            .max(1024 * 1024 * 1024, 'Maximum file size too large (max 1GB)')
+            .optional(),
+        });
+        break;
+
+      // Calendar tools
+      case CALENDAR_TOOLS.LIST_CALENDARS:
+        schema = z.object({});
+        break;
+
+      case CALENDAR_TOOLS.LIST:
+        schema = z.object({
+          calendarId: SchemaFactory.createCalendarIdSchema(),
+          timeMin: z
+            .string()
+            .optional()
+            .describe('Lower bound (exclusive) for events to list'),
+          timeMax: z
+            .string()
+            .optional()
+            .describe('Upper bound (exclusive) for events to list'),
+          maxResults: z
+            .number()
+            .int()
+            .min(1)
+            .max(2500)
+            .optional()
+            .describe('Maximum number of events to return'),
+          orderBy: z
+            .enum(['startTime', 'updated'])
+            .optional()
+            .describe('How to order the events'),
+          singleEvents: z
+            .boolean()
+            .optional()
+            .describe('Expand recurring events into instances'),
+          showDeleted: z
+            .boolean()
+            .optional()
+            .describe('Include deleted events'),
+          showHiddenInvitations: z
+            .boolean()
+            .optional()
+            .describe('Include hidden invitations'),
+          q: z.string().optional().describe('Free text search terms'),
+        });
+        break;
+
+      case CALENDAR_TOOLS.GET as SupportedTool:
+        schema = z.object({
+          calendarId: SchemaFactory.createCalendarIdSchema(),
+          eventId: SchemaFactory.createEventIdSchema(),
+        });
+        break;
+
+      case CALENDAR_TOOLS.CREATE as SupportedTool:
+        schema = z.object({
+          calendarId: SchemaFactory.createCalendarIdSchema(),
+          summary: z
+            .string()
+            .min(1)
+            .max(1024)
+            .describe('The title/summary of the event'),
+          description: z
+            .string()
+            .max(8192)
+            .optional()
+            .describe('Detailed description of the event'),
+          location: z
+            .string()
+            .max(1024)
+            .optional()
+            .describe('Location of the event'),
+          start: SchemaFactory.createEventTimeSchema().describe(
+            'Start date/time of the event'
+          ),
+          end: SchemaFactory.createEventTimeSchema().describe(
+            'End date/time of the event'
+          ),
+          attendees: z
+            .array(SchemaFactory.createAttendeeSchema())
+            .optional()
+            .describe('List of event attendees'),
+          reminders: SchemaFactory.createReminderSchema()
+            .optional()
+            .describe('Reminder settings for the event'),
+          recurrence: z
+            .array(z.string())
+            .optional()
+            .describe('RRULE recurrence patterns'),
+          transparency: z
+            .enum(['opaque', 'transparent'])
+            .optional()
+            .describe('Event transparency'),
+          visibility: z
+            .enum(['default', 'public', 'private', 'confidential'])
+            .optional(),
+          anyoneCanAddSelf: z
+            .boolean()
+            .optional()
+            .describe('Whether anyone can add themselves'),
+          guestsCanInviteOthers: z
+            .boolean()
+            .optional()
+            .describe('Whether guests can invite others'),
+          guestsCanModify: z
+            .boolean()
+            .optional()
+            .describe('Whether guests can modify event'),
+          guestsCanSeeOtherGuests: z
+            .boolean()
+            .optional()
+            .describe('Whether guests can see other guests'),
+        });
+        break;
+
+      case CALENDAR_TOOLS.QUICK_ADD:
+        schema = z.object({
+          calendarId: SchemaFactory.createCalendarIdSchema(),
+          text: z
+            .string()
+            .min(1)
+            .max(1024)
+            .describe('Natural language description of the event to create'),
+        });
+        break;
+
+      case CALENDAR_TOOLS.DELETE as SupportedTool:
+        schema = z.object({
+          calendarId: SchemaFactory.createCalendarIdSchema(),
+          eventId: SchemaFactory.createEventIdSchema(),
+          sendUpdates: z
+            .enum(['all', 'externalOnly', 'none'])
+            .optional()
+            .describe('Whether to send cancellation emails to attendees'),
+        });
+        break;
+
+      // Docs tools
+      case DOCS_TOOLS.GET as SupportedTool:
+        schema = z.object({
+          documentId: SchemaFactory.createDocumentIdSchema(),
+          includeContent: z
+            .boolean()
+            .optional()
+            .describe(
+              'Whether to include the document body content in the response'
+            ),
+          format: z
+            .string()
+            .transform(val => val.toLowerCase() as 'markdown' | 'json')
+            .refine(val => ['markdown', 'json'].includes(val), {
+              message: 'Format must be either "markdown" or "json"',
+            })
+            .default('markdown')
+            .optional()
+            .describe(
+              'Output format: markdown for plain text markdown or json for structured document data'
+            ),
+        });
+        break;
+
+      case DOCS_TOOLS.CREATE as SupportedTool:
+        schema = z.object({
+          title: SchemaFactory.createDocumentTitleSchema(),
+          folderId: z
+            .string()
+            .optional()
+            .describe(
+              'Optional folder ID where the document should be created'
+            ),
+        });
+        break;
+
+      case DOCS_TOOLS.UPDATE as SupportedTool:
+        schema = z.object({
+          documentId: SchemaFactory.createDocumentIdSchema(),
+          requests: z
+            .array(z.any(), {
+              required_error: 'Requests array is required',
+              invalid_type_error: 'Requests must be an array',
+            })
+            .describe(
+              'Array of batch update requests to apply to the document'
+            ),
+        });
+        break;
+
+      case DOCS_TOOLS.INSERT_TEXT:
+        schema = z.object({
+          documentId: SchemaFactory.createDocumentIdSchema(),
+          text: z
+            .string({
+              required_error: 'Text is required',
+              invalid_type_error: 'Text cannot be null',
+            })
+            .describe('The text to insert into the document'),
+          index: z
+            .number({
+              invalid_type_error: 'Index must be a number',
+            })
+            .int('Index must be an integer')
+            .min(0, 'Index must be non-negative')
+            .optional()
+            .describe(
+              'The position where text should be inserted (0-based index)'
+            ),
+        });
+        break;
+
+      case DOCS_TOOLS.REPLACE_TEXT:
+        schema = z.object({
+          documentId: SchemaFactory.createDocumentIdSchema(),
+          searchText: z
+            .string({
+              required_error: 'Search text is required',
+              invalid_type_error: 'Text cannot be null',
+            })
+            .describe('The text to search for and replace'),
+          replaceText: z
+            .string({
+              required_error: 'Replace text is required',
+              invalid_type_error: 'Text cannot be null',
+            })
+            .describe('The replacement text (can be empty for deletion)'),
+          matchCase: z
+            .boolean()
+            .optional()
+            .describe('Whether to match case when searching for text'),
         });
         break;
 
@@ -195,7 +652,7 @@ export class SchemaFactory {
     tool: SupportedTool
   ): z.ZodObject<Record<string, z.ZodType>> {
     switch (tool) {
-      case 'google-workspace__sheets__list-spreadsheets':
+      case SHEETS_TOOLS.LIST_SPREADSHEETS:
         return z.object({
           spreadsheets: z.array(
             z.object({
@@ -207,21 +664,21 @@ export class SchemaFactory {
           ),
         });
 
-      case 'google-workspace__sheets__read-range':
+      case SHEETS_TOOLS.READ_RANGE:
         return z.object({
           range: z.string(),
           values: z.array(z.array(z.string())),
           majorDimension: z.enum(['ROWS', 'COLUMNS']),
         });
 
-      case 'google-workspace__sheets__write-range':
+      case SHEETS_TOOLS.WRITE_RANGE:
         return z.object({
           updatedCells: z.number(),
           updatedRows: z.number(),
           updatedColumns: z.number(),
         });
 
-      case 'google-workspace__sheets__append-rows':
+      case SHEETS_TOOLS.APPEND_ROWS:
         return z.object({
           updates: z.object({
             updatedRows: z.number(),
@@ -229,7 +686,7 @@ export class SchemaFactory {
           }),
         });
 
-      case 'google-workspace__sheets__add-sheet':
+      case SHEETS_TOOLS.ADD_SHEET:
         return z.object({
           sheetId: z.number(),
           title: z.string(),
@@ -237,7 +694,7 @@ export class SchemaFactory {
           spreadsheetId: z.string(),
         });
 
-      case 'google-workspace__sheets__create-spreadsheet':
+      case SHEETS_TOOLS.CREATE_SPREADSHEET:
         return z.object({
           spreadsheetId: z.string(),
           spreadsheetUrl: z.string(),
@@ -281,6 +738,7 @@ export class SchemaFactory {
 
   /**
    * Creates a complete tool metadata object with schema
+   * Now uses centralized tool definitions and metadata
    */
   public static createToolMetadata(tool: SupportedTool): {
     title: string;
@@ -288,37 +746,10 @@ export class SchemaFactory {
     inputSchema: Record<string, z.ZodType>;
   } {
     const inputSchema = SchemaFactory.createToolInputSchema(tool);
-
-    const metadata = {
-      'google-workspace__sheets__list-spreadsheets': {
-        title: 'List Spreadsheets',
-        description: 'List all spreadsheets in the configured Drive folder',
-      },
-      'google-workspace__sheets__read-range': {
-        title: 'Read Spreadsheet Range',
-        description: 'Read data from a specific spreadsheet range',
-      },
-      'google-workspace__sheets__write-range': {
-        title: 'Write to Spreadsheet Range',
-        description: 'Write data to a specific spreadsheet range',
-      },
-      'google-workspace__sheets__append-rows': {
-        title: 'Append to Spreadsheet',
-        description: 'Append data to a spreadsheet',
-      },
-      'google-workspace__sheets__add-sheet': {
-        title: 'Add Sheet to Spreadsheet',
-        description: 'Add a new sheet (tab) to an existing spreadsheet',
-      },
-      'google-workspace__sheets__create-spreadsheet': {
-        title: 'Create New Spreadsheet',
-        description:
-          'Create a new spreadsheet. If GOOGLE_DRIVE_FOLDER_ID is configured, the spreadsheet will be created in that folder; otherwise it will be created in the default location',
-      },
-    };
+    const metadata = getToolMetadata(tool);
 
     return {
-      ...metadata[tool],
+      ...metadata,
       inputSchema: inputSchema.shape,
     };
   }

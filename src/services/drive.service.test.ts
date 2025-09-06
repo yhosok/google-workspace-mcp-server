@@ -197,6 +197,7 @@ describe('DriveService', () => {
         q: "mimeType='application/vnd.google-apps.spreadsheet'",
         pageSize: 1,
         supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
       });
     });
 
@@ -628,9 +629,10 @@ describe('DriveService', () => {
       expect(mockDriveApi.files.list).toHaveBeenCalledWith({
         pageSize: 100,
         fields:
-          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
+          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size, driveId), nextPageToken, incompleteSearch',
         orderBy: 'modifiedTime desc',
         supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
       });
     });
 
@@ -670,9 +672,10 @@ describe('DriveService', () => {
         q: "name contains 'Test'",
         pageSize: 100,
         fields:
-          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
+          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size, driveId), nextPageToken, incompleteSearch',
         orderBy: 'modifiedTime desc',
         supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
       });
     });
 
@@ -707,9 +710,10 @@ describe('DriveService', () => {
         pageSize: 10,
         pageToken: 'existing-page-token',
         fields:
-          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size), nextPageToken, incompleteSearch',
+          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size, driveId), nextPageToken, incompleteSearch',
         orderBy: 'modifiedTime desc',
         supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
       });
     });
 
@@ -825,6 +829,181 @@ describe('DriveService', () => {
         expect(result.error.code).toBe('GOOGLE_DRIVE_NOT_INITIALIZED');
       }
     });
+
+    test('should include trashed = false when querying folders', async () => {
+      const mockResponse = {
+        data: {
+          files: [
+            {
+              id: 'folder1',
+              name: 'Test Folder',
+              mimeType: 'application/vnd.google-apps.folder',
+              createdTime: '2024-01-01T12:00:00.000Z',
+              modifiedTime: '2024-01-01T12:00:00.000Z',
+            },
+          ],
+          nextPageToken: undefined,
+          incompleteSearch: false,
+        },
+      };
+
+      mockDriveApi.files.list.mockResolvedValue(mockResponse);
+
+      const result = await driveService.listFiles({
+        query:
+          "mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+      });
+
+      expect(result.isOk()).toBe(true);
+      expect(mockDriveApi.files.list).toHaveBeenCalledWith({
+        q: "mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+        pageSize: 100,
+        fields:
+          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size, driveId), nextPageToken, incompleteSearch',
+        orderBy: 'modifiedTime desc',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+      });
+    });
+
+    test('should support corpora parameter', async () => {
+      const mockResponse = {
+        data: {
+          files: [
+            {
+              id: 'file1',
+              name: 'Document 1',
+              mimeType: 'application/vnd.google-apps.document',
+              createdTime: '2024-01-01T12:00:00.000Z',
+              modifiedTime: '2024-01-01T12:00:00.000Z',
+            },
+          ],
+          nextPageToken: undefined,
+          incompleteSearch: false,
+        },
+      };
+
+      mockDriveApi.files.list.mockResolvedValue(mockResponse);
+
+      const result = await driveService.listFiles({
+        corpora: 'teamDrive',
+        driveId: 'shared-drive-id',
+      });
+
+      expect(result.isOk()).toBe(true);
+      expect(mockDriveApi.files.list).toHaveBeenCalledWith({
+        pageSize: 100,
+        fields:
+          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size, driveId), nextPageToken, incompleteSearch',
+        orderBy: 'modifiedTime desc',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        corpora: 'teamDrive',
+        driveId: 'shared-drive-id',
+      });
+    });
+
+    test('should support driveId parameter without corpora', async () => {
+      const mockResponse = {
+        data: {
+          files: [
+            {
+              id: 'file1',
+              name: 'Document 1',
+              mimeType: 'application/vnd.google-apps.document',
+              createdTime: '2024-01-01T12:00:00.000Z',
+              modifiedTime: '2024-01-01T12:00:00.000Z',
+            },
+          ],
+          nextPageToken: undefined,
+          incompleteSearch: false,
+        },
+      };
+
+      mockDriveApi.files.list.mockResolvedValue(mockResponse);
+
+      const result = await driveService.listFiles({
+        driveId: 'shared-drive-id',
+      });
+
+      expect(result.isOk()).toBe(true);
+      expect(mockDriveApi.files.list).toHaveBeenCalledWith({
+        pageSize: 100,
+        fields:
+          'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size, driveId), nextPageToken, incompleteSearch',
+        orderBy: 'modifiedTime desc',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        driveId: 'shared-drive-id',
+      });
+    });
+
+    test('should validate corpora parameter', async () => {
+      const result = await driveService.listFiles({
+        corpora: 'invalid' as 'user' | 'domain' | 'teamDrive' | 'allTeamDrives',
+      });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain(
+          'Invalid corpora value. Must be one of: user, domain, teamDrive, allTeamDrives'
+        );
+      }
+    });
+
+    test('should validate driveId parameter', async () => {
+      const result = await driveService.listFiles({
+        driveId: '',
+      });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain(
+          'driveId must be a non-empty string'
+        );
+      }
+    });
+
+    test('should extract driveId from files in listFiles response', async () => {
+      const mockResponse = {
+        data: {
+          files: [
+            {
+              id: 'file1',
+              name: 'Document 1',
+              mimeType: 'application/vnd.google-apps.document',
+              createdTime: '2024-01-01T12:00:00.000Z',
+              modifiedTime: '2024-01-01T12:00:00.000Z',
+              driveId: 'shared-drive-123',
+            },
+            {
+              id: 'file2',
+              name: 'Document 2',
+              mimeType: 'application/vnd.google-apps.document',
+              createdTime: '2024-01-02T12:00:00.000Z',
+              modifiedTime: '2024-01-02T12:00:00.000Z',
+              // No driveId for regular files
+            },
+          ],
+          nextPageToken: undefined,
+          incompleteSearch: false,
+        },
+      };
+
+      mockDriveApi.files.list.mockResolvedValue(mockResponse);
+
+      const result = await driveService.listFiles({
+        fields:
+          'files(id, name, mimeType, createdTime, modifiedTime, driveId), nextPageToken, incompleteSearch',
+      });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.files).toHaveLength(2);
+        expect(result.value.files[0].driveId).toBe('shared-drive-123');
+        expect(result.value.files[1].driveId).toBeUndefined();
+      }
+    });
   });
 
   describe('getFile', () => {
@@ -885,7 +1064,7 @@ describe('DriveService', () => {
       expect(mockDriveApi.files.get).toHaveBeenCalledWith({
         fileId: 'file123',
         fields:
-          'id, name, mimeType, createdTime, modifiedTime, webViewLink, webContentLink, parents, size, version, description, owners, permissions',
+          'id, name, mimeType, createdTime, modifiedTime, webViewLink, webContentLink, parents, size, version, description, owners, permissions, driveId',
         supportsAllDrives: true,
       });
     });
@@ -911,6 +1090,59 @@ describe('DriveService', () => {
         fields: 'id, name, mimeType',
         supportsAllDrives: true,
       });
+    });
+
+    test('should extract driveId when present in shared drive files', async () => {
+      const mockResponse = {
+        data: {
+          id: 'file123',
+          name: 'Test Document',
+          mimeType: 'application/vnd.google-apps.document',
+          createdTime: '2024-01-01T12:00:00.000Z',
+          modifiedTime: '2024-01-01T13:00:00.000Z',
+          driveId: 'shared-drive-123',
+        },
+      };
+
+      mockDriveApi.files.get.mockResolvedValue(mockResponse);
+
+      const result = await driveService.getFile('file123');
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.id).toBe('file123');
+        expect(result.value.driveId).toBe('shared-drive-123');
+      }
+
+      expect(mockDriveApi.files.get).toHaveBeenCalledWith({
+        fileId: 'file123',
+        fields:
+          'id, name, mimeType, createdTime, modifiedTime, webViewLink, webContentLink, parents, size, version, description, owners, permissions, driveId',
+        supportsAllDrives: true,
+      });
+    });
+
+    test('should handle missing driveId for regular files', async () => {
+      const mockResponse = {
+        data: {
+          id: 'file123',
+          name: 'Test Document',
+          mimeType: 'application/vnd.google-apps.document',
+          createdTime: '2024-01-01T12:00:00.000Z',
+          modifiedTime: '2024-01-01T13:00:00.000Z',
+          // No driveId field for regular files
+        },
+      };
+
+      mockDriveApi.files.get.mockResolvedValue(mockResponse);
+
+      const result = await driveService.getFile('file123');
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.id).toBe('file123');
+        expect(result.value.driveId).toBeUndefined();
+      }
     });
 
     test('should handle 404 Not Found error', async () => {

@@ -83,11 +83,31 @@ describe('GetFileTool', () => {
   describe('getToolMetadata', () => {
     test('should return correct metadata with input schema', () => {
       const metadata = tool.getToolMetadata();
-      expect(metadata.title).toBe('Get Drive File');
+      expect(metadata.title).toBe('Get Drive File Metadata');
       expect(metadata.description).toBe(
         'Gets metadata and details for a specific Google Drive file'
       );
       expect(metadata.inputSchema).toBeDefined();
+    });
+
+    test('should have required fileId field in schema', () => {
+      const metadata = tool.getToolMetadata();
+      expect(metadata.inputSchema).toHaveProperty('fileId');
+    });
+
+    test('should have optional fields field in schema', () => {
+      const metadata = tool.getToolMetadata();
+      expect(metadata.inputSchema).toHaveProperty('fields');
+    });
+
+    test('should have optional includePermissions field in schema', () => {
+      const metadata = tool.getToolMetadata();
+      expect(metadata.inputSchema).toHaveProperty('includePermissions');
+    });
+
+    test('should only require fileId field', () => {
+      const metadata = tool.getToolMetadata();
+      expect(metadata.inputSchema).toHaveProperty('fileId');
     });
   });
 
@@ -415,7 +435,7 @@ describe('GetFileTool', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('File not found');
+        expect(result.error.message).toContain('File ID cannot be empty');
       }
     });
 

@@ -1,6 +1,7 @@
 import { Result, ok, err } from 'neverthrow';
 import { BaseSheetsTools } from './base-sheets-tool.js';
 import { SchemaFactory } from '../base/tool-schema.js';
+import { SHEETS_TOOLS } from '../base/tool-definitions.js';
 import type {
   ToolMetadata,
   ToolExecutionContext,
@@ -38,12 +39,12 @@ export class SheetsWriteTool extends BaseSheetsTools<
   }
 
   public getToolName(): string {
-    return 'google-workspace__sheets__write-range';
+    return SHEETS_TOOLS.WRITE_RANGE;
   }
 
   public getToolMetadata(): ToolMetadata {
     return SchemaFactory.createToolMetadata(
-      'google-workspace__sheets__write-range'
+      SHEETS_TOOLS.WRITE_RANGE
     );
   }
 
@@ -63,7 +64,7 @@ export class SheetsWriteTool extends BaseSheetsTools<
     // Parameter validation
     const validationResult = this.validateWithSchema(
       SchemaFactory.createToolInputSchema(
-        'google-workspace__sheets__write-range'
+        SHEETS_TOOLS.WRITE_RANGE
       ),
       params,
       { operation: 'write-sheets', requestId }

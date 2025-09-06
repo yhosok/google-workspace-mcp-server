@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { SchemaFactory } from '../base/tool-schema.js';
+import { DRIVE_TOOLS } from '../base/tool-definitions.js';
 import { BaseDriveTool } from './base-drive-tool.js';
 import type { DriveFileContent, MCPToolResult } from '../../types/index.js';
 import type {
@@ -9,30 +11,21 @@ import { Result, ok, err } from 'neverthrow';
 import { GoogleDriveError } from '../../errors/index.js';
 
 /**
- * Schema for get file content input parameters
- * Requires fileId and allows optional export format and file size limits
+ * Input parameters for get file content tool
  */
-const GetFileContentInputSchema = z.object({
-  fileId: z
-    .string({
-      description: 'The unique identifier of the Drive file',
-    })
-    .min(1, 'File ID cannot be empty')
-    .max(100, 'File ID too long'),
-  exportFormat: z
-    .enum(['pdf', 'docx', 'xlsx', 'csv', 'txt', 'html', 'odt', 'rtf'])
-    .optional()
-    .describe('Export format for Google Workspace files'),
-  maxFileSize: z
-    .number({
-      description: 'Maximum file size in bytes for download operations',
-    })
-    .min(1, 'Maximum file size must be positive')
-    .max(1024 * 1024 * 1024, 'Maximum file size too large (max 1GB)')
-    .optional(),
-});
-
-type GetFileContentInput = z.infer<typeof GetFileContentInputSchema>;
+type GetFileContentInput = {
+  fileId: string;
+  exportFormat?:
+    | 'pdf'
+    | 'docx'
+    | 'xlsx'
+    | 'csv'
+    | 'txt'
+    | 'html'
+    | 'odt'
+    | 'rtf';
+  maxFileSize?: number;
+};
 
 /**
  * Result interface for get file content operation
@@ -97,15 +90,13 @@ export class GetFileContentTool extends BaseDriveTool<
   MCPToolResult
 > {
   public getToolName(): string {
-    return 'google-workspace__drive__get-file-content';
+    return DRIVE_TOOLS.GET_FILE_CONTENT;
   }
 
   public getToolMetadata(): ToolMetadata {
-    return {
-      title: 'Get Drive File Content',
-      description: 'Downloads and retrieves content from a Google Drive file',
-      inputSchema: {},
-    };
+    return SchemaFactory.createToolMetadata(
+      DRIVE_TOOLS.GET_FILE_CONTENT
+    );
   }
 
   public async executeImpl(
@@ -116,10 +107,10 @@ export class GetFileContentTool extends BaseDriveTool<
 
     try {
       // Validate input parameters
-      const validationResult = this.validateWithSchema(
-        GetFileContentInputSchema,
-        args
+      const inputSchema = SchemaFactory.createToolInputSchema(
+        DRIVE_TOOLS.GET_FILE_CONTENT
       );
+      const validationResult = this.validateWithSchema(inputSchema, args);
       if (validationResult.isErr()) {
         this.logger.error('Input validation failed', {
           error: validationResult.error.message,

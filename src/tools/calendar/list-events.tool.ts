@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseCalendarTools } from './base-calendar-tool.js';
+import { CALENDAR_TOOLS } from '../base/tool-definitions.js';
 import type { CalendarEventsResult, MCPToolResult } from '../../types/index.js';
 import type {
   ToolExecutionContext,
@@ -7,47 +8,12 @@ import type {
 } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
+import { SchemaFactory } from '../base/tool-schema.js';
 
-/**
- * Schema for list events input
- */
-const ListEventsInputSchema = z
-  .object({
-    calendarId: z
-      .string()
-      .min(1)
-      .describe('The calendar ID to list events from'),
-    timeMin: z
-      .string()
-      .optional()
-      .describe('Lower bound (exclusive) for event start time (RFC3339)'),
-    timeMax: z
-      .string()
-      .optional()
-      .describe('Upper bound (exclusive) for event start time (RFC3339)'),
-    maxResults: z
-      .number()
-      .int()
-      .min(1)
-      .max(2500)
-      .optional()
-      .describe('Maximum number of events to return'),
-    singleEvents: z
-      .boolean()
-      .optional()
-      .describe('Whether to expand recurring events into instances'),
-    orderBy: z
-      .enum(['startTime', 'updated'])
-      .optional()
-      .describe('How to order the events'),
-    q: z.string().optional().describe('Free text search query'),
-    showDeleted: z
-      .boolean()
-      .optional()
-      .describe('Whether to include deleted events'),
-  })
-  .describe('List events from a calendar with optional filtering');
-
+// Define the type from the tool schema
+const ListEventsInputSchema = SchemaFactory.createToolInputSchema(
+  CALENDAR_TOOLS.LIST
+);
 type ListEventsInput = z.infer<typeof ListEventsInputSchema>;
 
 /**
@@ -94,17 +60,11 @@ export class ListEventsTool extends BaseCalendarTools<
   CalendarEventsResult
 > {
   public getToolName(): string {
-    return 'google-workspace__calendar__list';
+    return CALENDAR_TOOLS.LIST;
   }
 
   public getToolMetadata(): ToolMetadata {
-    return {
-      title:
-        'Lists events from a specific calendar with optional filtering and search',
-      description:
-        'Lists events from a specific calendar with optional filtering and search',
-      inputSchema: ListEventsInputSchema.shape,
-    };
+    return SchemaFactory.createToolMetadata(CALENDAR_TOOLS.LIST);
   }
 
   public async executeImpl(

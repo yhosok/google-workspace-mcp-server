@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseDocsTools } from './base-docs-tool.js';
+import { DOCS_TOOLS } from '../base/tool-definitions.js';
 import type { DocsDocumentInfo, MCPToolResult } from '../../types/index.js';
 import type {
   ToolExecutionContext,
@@ -8,41 +9,12 @@ import type {
 import { Result, ok, err } from 'neverthrow';
 import { GoogleDocsError, GoogleWorkspaceError } from '../../errors/index.js';
 import { docs_v1 } from 'googleapis';
+import { SchemaFactory } from '../base/tool-schema.js';
 
-/**
- * Schema for get document input parameters
- * Includes document ID, optional content inclusion flag, and format selection
- */
-const GetDocumentInputSchema = z.object({
-  documentId: z
-    .string({
-      description: 'The unique identifier of the Google Docs document',
-      required_error: 'Document ID is required',
-      invalid_type_error: 'Document ID must be a string',
-    })
-    .min(1, 'Document ID cannot be empty')
-    .max(100, 'Document ID too long'),
-  includeContent: z
-    .boolean({
-      description:
-        'Whether to include the document body content in the response',
-      invalid_type_error: 'Include content must be a boolean',
-    })
-    .optional(),
-  format: z
-    .string({
-      description:
-        'Output format: markdown for plain text markdown or json for structured document data',
-      invalid_type_error: 'Format must be either "markdown" or "json"',
-    })
-    .transform(val => val.toLowerCase() as 'markdown' | 'json')
-    .refine(val => ['markdown', 'json'].includes(val), {
-      message: 'Format must be either "markdown" or "json"',
-    })
-    .default('markdown')
-    .optional(),
-});
-
+// Define the type from the tool schema
+const GetDocumentInputSchema = SchemaFactory.createToolInputSchema(
+  DOCS_TOOLS.GET
+);
 type GetDocumentInput = z.infer<typeof GetDocumentInputSchema>;
 
 /**
@@ -100,7 +72,7 @@ export class GetDocumentTool extends BaseDocsTools<
    * @returns The tool name string
    */
   public getToolName(): string {
-    return 'google-workspace__docs__get';
+    return DOCS_TOOLS.GET;
   }
 
   /**
@@ -108,12 +80,7 @@ export class GetDocumentTool extends BaseDocsTools<
    * @returns ToolMetadata object with input schema and descriptions
    */
   public getToolMetadata(): ToolMetadata {
-    return {
-      title: 'Get Google Document',
-      description:
-        'Retrieves a Google Document with its metadata and optional content. Supports markdown (default) and JSON output formats.',
-      inputSchema: GetDocumentInputSchema.shape,
-    };
+    return SchemaFactory.createToolMetadata(DOCS_TOOLS.GET);
   }
 
   /**

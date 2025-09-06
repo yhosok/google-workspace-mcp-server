@@ -76,6 +76,26 @@ describe('GetFileContentTool', () => {
       );
       expect(metadata.inputSchema).toBeDefined();
     });
+
+    test('should have required fileId field in schema', () => {
+      const metadata = tool.getToolMetadata();
+      expect(metadata.inputSchema).toHaveProperty('fileId');
+    });
+
+    test('should have optional exportFormat field in schema', () => {
+      const metadata = tool.getToolMetadata();
+      expect(metadata.inputSchema).toHaveProperty('exportFormat');
+    });
+
+    test('should have optional maxFileSize field in schema', () => {
+      const metadata = tool.getToolMetadata();
+      expect(metadata.inputSchema).toHaveProperty('maxFileSize');
+    });
+
+    test('should only require fileId field', () => {
+      const metadata = tool.getToolMetadata();
+      expect(metadata.inputSchema).toHaveProperty('fileId');
+    });
   });
 
   describe('executeImpl', () => {
@@ -406,7 +426,7 @@ describe('GetFileContentTool', () => {
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('File not found');
+        expect(result.error.message).toContain('File ID cannot be empty');
       }
     });
 

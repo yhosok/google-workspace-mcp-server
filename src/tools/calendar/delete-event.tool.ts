@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseCalendarTools } from './base-calendar-tool.js';
+import { CALENDAR_TOOLS } from '../base/tool-definitions.js';
 import type {
   CalendarDeleteEventResult,
   MCPToolResult,
@@ -10,27 +11,12 @@ import type {
 } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleWorkspaceError } from '../../errors/index.js';
+import { SchemaFactory } from '../base/tool-schema.js';
 
-/**
- * Schema for delete event input
- */
-const DeleteEventInputSchema = z
-  .object({
-    calendarId: z
-      .string()
-      .min(1)
-      .describe('The calendar ID containing the event'),
-    eventId: z
-      .string()
-      .min(1)
-      .describe('The unique identifier of the event to delete'),
-    sendUpdates: z
-      .enum(['all', 'externalOnly', 'none'])
-      .optional()
-      .describe('Whether to send cancellation emails to attendees'),
-  })
-  .describe('Delete a calendar event');
-
+// Define the type from the tool schema
+const DeleteEventInputSchema = SchemaFactory.createToolInputSchema(
+  CALENDAR_TOOLS.DELETE
+);
 type DeleteEventInput = z.infer<typeof DeleteEventInputSchema>;
 
 /**
@@ -84,16 +70,13 @@ export class DeleteEventTool extends BaseCalendarTools<
   CalendarDeleteEventResult
 > {
   public getToolName(): string {
-    return 'google-workspace__calendar__delete';
+    return CALENDAR_TOOLS.DELETE;
   }
 
   public getToolMetadata(): ToolMetadata {
-    return {
-      title: 'Delete Calendar Event',
-      description:
-        'Deletes a calendar event with optional attendee notifications',
-      inputSchema: DeleteEventInputSchema.shape,
-    };
+    return SchemaFactory.createToolMetadata(
+      CALENDAR_TOOLS.DELETE
+    );
   }
 
   public async executeImpl(

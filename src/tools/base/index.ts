@@ -12,3 +12,22 @@ export {
 } from './tool-registry.js';
 
 export { SchemaFactory, type SupportedTool } from './tool-schema.js';
+
+export {
+  ALL_TOOLS,
+  SHEETS_TOOLS,
+  DRIVE_TOOLS,
+  CALENDAR_TOOLS,
+  DOCS_TOOLS,
+  TOOL_METADATA,
+  TOOLS_BY_SERVICE,
+  getToolMetadata,
+  isToolFromService,
+  getToolsForService,
+  isValidToolId,
+  type SupportedToolId,
+  type SheetsToolId,
+  type DriveToolId,
+  type CalendarToolId,
+  type DocsToolId,
+} from './tool-definitions.js';

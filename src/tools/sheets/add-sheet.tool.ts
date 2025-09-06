@@ -1,6 +1,7 @@
 import { Result, ok, err } from 'neverthrow';
 import { BaseSheetsTools } from './base-sheets-tool.js';
 import { SchemaFactory } from '../base/tool-schema.js';
+import { SHEETS_TOOLS } from '../base/tool-definitions.js';
 import type {
   ToolMetadata,
   ToolExecutionContext,
@@ -39,12 +40,12 @@ export class SheetsAddSheetTool extends BaseSheetsTools<
   }
 
   public getToolName(): string {
-    return 'google-workspace__sheets__add-sheet';
+    return SHEETS_TOOLS.ADD_SHEET;
   }
 
   public getToolMetadata(): ToolMetadata {
     return SchemaFactory.createToolMetadata(
-      'google-workspace__sheets__add-sheet'
+      SHEETS_TOOLS.ADD_SHEET
     );
   }
 
@@ -64,7 +65,7 @@ export class SheetsAddSheetTool extends BaseSheetsTools<
     // Validate parameters using schema validation
     const validationResult = this.validateWithSchema(
       SchemaFactory.createToolInputSchema(
-        'google-workspace__sheets__add-sheet'
+        SHEETS_TOOLS.ADD_SHEET
       ),
       params,
       { operation: 'add-sheet' }

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseDocsTools } from './base-docs-tool.js';
+import { DOCS_TOOLS } from '../base/tool-definitions.js';
 import type { DocsDocumentInfo, MCPToolResult } from '../../types/index.js';
 import type {
   ToolExecutionContext,
@@ -8,28 +9,12 @@ import type {
 import { Result, ok, err } from 'neverthrow';
 import { GoogleDocsError, GoogleWorkspaceError } from '../../errors/index.js';
 import { docs_v1 } from 'googleapis';
+import { SchemaFactory } from '../base/tool-schema.js';
 
-/**
- * Schema for create document input parameters
- * Includes the title and optional folder placement parameters
- */
-const CreateDocumentInputSchema = z.object({
-  title: z
-    .string({
-      description: 'The title of the new document',
-      required_error: 'Title is required',
-      invalid_type_error: 'Title must be a string',
-    })
-    .min(1, 'Title cannot be empty')
-    .max(255, 'Title too long'),
-  folderId: z
-    .string({
-      description: 'Optional folder ID where the document should be created',
-      invalid_type_error: 'Folder ID must be a string',
-    })
-    .optional(),
-});
-
+// Define the type from the tool schema
+const CreateDocumentInputSchema = SchemaFactory.createToolInputSchema(
+  DOCS_TOOLS.CREATE
+);
 type CreateDocumentInput = z.infer<typeof CreateDocumentInputSchema>;
 
 /**
@@ -77,7 +62,7 @@ export class CreateDocumentTool extends BaseDocsTools<
    * @returns The tool name string
    */
   public getToolName(): string {
-    return 'google-workspace__docs__create';
+    return DOCS_TOOLS.CREATE;
   }
 
   /**
@@ -85,12 +70,7 @@ export class CreateDocumentTool extends BaseDocsTools<
    * @returns ToolMetadata object with input schema and descriptions
    */
   public getToolMetadata(): ToolMetadata {
-    return {
-      title: 'Create Google Document',
-      description:
-        'Creates a new Google Document with the specified title and optional folder location',
-      inputSchema: CreateDocumentInputSchema.shape,
-    };
+    return SchemaFactory.createToolMetadata(DOCS_TOOLS.CREATE);
   }
 
   /**
