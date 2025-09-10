@@ -1,6 +1,16 @@
 # Google Workspace MCP Server
 
-[![CI](https://github.com/yourusername/google-workspace-mcp-server/workflows/CI/badge.svg)](https://github.com/yourusername/google-workspace-mcp-server/actions)
+> **⚠️ WARNING: Experimental Software**
+> 
+> This Google Workspace MCP server is currently in active development and **has not undergone comprehensive testing**. While the core functionality has been implemented with unit tests, the integration with various Google Workspace services may have edge cases and compatibility issues that have not been fully addressed.
+> 
+> **Recommendations:**
+> - Use with caution in production environments
+> - Test thoroughly with your specific use cases before relying on this server
+> - Consider starting with read-only mode (`GOOGLE_READ_ONLY_MODE=true`) to minimize risks
+> - Report any issues or unexpected behavior through GitHub Issues
+> 
+> **Testing Status:** Limited testing coverage - proceed with appropriate caution for your use case.
 
 A Model Context Protocol (MCP) server for Google Workspace integration, providing seamless access to Google Sheets, Calendar, Drive, and Docs services with advanced folder management capabilities.
 
@@ -412,6 +422,8 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
 
 ## Available Tools
 
+This server provides comprehensive tools for interacting with Google Workspace services. All tools follow the naming convention `google-workspace__[service]__[operation]` and support both read and write operations (write operations require explicit configuration).
+
 ### Sheets Tools
 
 #### `google-workspace__sheets__list-spreadsheets`
@@ -486,43 +498,6 @@ Creates a new spreadsheet with optional initial sheets.
 **Example usage in Claude:**
 ```
 "Create a new spreadsheet called 'Sales Report' with sheets for each quarter"
-```
-
-## Folder Management
-
-### Optional Folder Placement
-
-The server supports optional folder placement for new spreadsheets through the `GOOGLE_DRIVE_FOLDER_ID` environment variable:
-
-**When configured:**
-- New spreadsheets are created directly in the specified folder
-- Uses DriveService for efficient folder-based creation
-- Maintains all existing spreadsheet functionality
-
-**When not configured:**
-- Spreadsheets are created in the default location (root)
-- Uses traditional Sheets API for backward compatibility
-- No changes to existing functionality
-
-### Benefits
-
-- **Organization**: Keep spreadsheets organized in specific folders
-- **Performance**: Direct folder creation instead of create-then-move
-- **Optional Configuration**: Users without folder configuration use the default behavior (root placement)
-- **Flexibility**: Per-environment folder configuration
-
-### Usage Examples
-
-**With folder configuration:**
-```bash
-# Create spreadsheet in specified folder
-GOOGLE_DRIVE_FOLDER_ID=1A2B3C4D5E6F7G8H9I0J
-```
-
-**Without folder configuration:**
-```bash
-# Create spreadsheet in root (default behavior)
-# GOOGLE_DRIVE_FOLDER_ID= (empty or not set)
 ```
 
 ### Calendar Tools
@@ -739,6 +714,43 @@ Replaces all occurrences of specified text in a Google Document.
 ```
 "Replace all instances of 'draft' with 'final' in document [document-id]"
 "Replace 'Project X' with 'Project Alpha' in document [document-id] with case sensitivity"
+```
+
+## Folder Management
+
+### Optional Folder Placement
+
+The server supports optional folder placement for new spreadsheets through the `GOOGLE_DRIVE_FOLDER_ID` environment variable:
+
+**When configured:**
+- New spreadsheets are created directly in the specified folder
+- Uses DriveService for efficient folder-based creation
+- Maintains all existing spreadsheet functionality
+
+**When not configured:**
+- Spreadsheets are created in the default location (root)
+- Uses traditional Sheets API for backward compatibility
+- No changes to existing functionality
+
+### Benefits
+
+- **Organization**: Keep spreadsheets organized in specific folders
+- **Performance**: Direct folder creation instead of create-then-move
+- **Optional Configuration**: Users without folder configuration use the default behavior (root placement)
+- **Flexibility**: Per-environment folder configuration
+
+### Usage Examples
+
+**With folder configuration:**
+```bash
+# Create spreadsheet in specified folder
+GOOGLE_DRIVE_FOLDER_ID=1A2B3C4D5E6F7G8H9I0J
+```
+
+**Without folder configuration:**
+```bash
+# Create spreadsheet in root (default behavior)
+# GOOGLE_DRIVE_FOLDER_ID= (empty or not set)
 ```
 
 ## Retry and Error Handling
