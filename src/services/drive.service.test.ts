@@ -633,6 +633,7 @@ describe('DriveService', () => {
         orderBy: 'modifiedTime desc',
         supportsAllDrives: true,
         includeItemsFromAllDrives: true,
+        q: 'trashed = false',
       });
     });
 
@@ -669,7 +670,7 @@ describe('DriveService', () => {
       }
 
       expect(mockDriveApi.files.list).toHaveBeenCalledWith({
-        q: "name contains 'Test'",
+        q: "trashed = false and name contains 'Test'",
         pageSize: 100,
         fields:
           'files(id, name, mimeType, createdTime, modifiedTime, webViewLink, parents, size, driveId), nextPageToken, incompleteSearch',
@@ -714,6 +715,7 @@ describe('DriveService', () => {
         orderBy: 'modifiedTime desc',
         supportsAllDrives: true,
         includeItemsFromAllDrives: true,
+        q: 'trashed = false',
       });
     });
 
@@ -900,6 +902,7 @@ describe('DriveService', () => {
         includeItemsFromAllDrives: true,
         corpora: 'teamDrive',
         driveId: 'shared-drive-id',
+        q: 'trashed = false',
       });
     });
 
@@ -935,6 +938,7 @@ describe('DriveService', () => {
         supportsAllDrives: true,
         includeItemsFromAllDrives: true,
         driveId: 'shared-drive-id',
+        q: 'trashed = false',
       });
     });
 

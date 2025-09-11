@@ -43,7 +43,6 @@ import {
   ReplaceTextTool,
 } from '../../tools/docs/index.js';
 
-
 /**
  * Google Docs Service Module
  *

@@ -425,6 +425,64 @@ export interface DriveFileListOptions {
   fields?: string;
   corpora?: 'user' | 'domain' | 'teamDrive' | 'allTeamDrives';
   driveId?: string;
+
+  // Structured filter options for better API usability
+  filters?: {
+    /** Whether to include only trashed files */
+    trashed?: boolean;
+    /** Filter by exact mime type */
+    mimeType?: string;
+    /** Filter by name containing string */
+    nameContains?: string;
+    /** Filter by parent folder IDs */
+    parentsIn?: string[];
+    /** Full text search in file content */
+    fullText?: string;
+    /** Files modified after this date (ISO 8601) */
+    modifiedAfter?: string;
+    /** Files modified before this date (ISO 8601) */
+    modifiedBefore?: string;
+    /** Files created after this date (ISO 8601) */
+    createdAfter?: string;
+    /** Files created before this date (ISO 8601) */
+    createdBefore?: string;
+
+    // Permission-based filters
+    /** Email addresses of file owners */
+    owners?: string[];
+    /** Email addresses with write access */
+    writers?: string[];
+    /** Email addresses with read access */
+    readers?: string[];
+
+    // User interaction filters
+    /** Files starred by user */
+    starred?: boolean;
+    /** Files shared with current user */
+    sharedWithMe?: boolean;
+    /** ISO 8601 timestamp for when viewed by user */
+    viewedByMeTime?: string;
+
+    // Property filters
+    /** Array of custom property keys to check */
+    properties?: string[];
+    /** Array of app-specific property keys */
+    appProperties?: string[];
+
+    // Visibility and shortcuts
+    /** File visibility level */
+    visibility?:
+      | 'anyoneCanFind'
+      | 'anyoneWithLink'
+      | 'domainCanFind'
+      | 'domainWithLink'
+      | 'limited';
+    /** For filtering shortcuts by target */
+    shortcutDetails?: { targetId?: string };
+  };
+
+  // Control default trashed filter behavior
+  includeTrashed?: boolean;
 }
 
 export interface DriveFileListResult {

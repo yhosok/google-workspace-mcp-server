@@ -43,9 +43,7 @@ export class SheetsWriteTool extends BaseSheetsTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      SHEETS_TOOLS.WRITE_RANGE
-    );
+    return SchemaFactory.createToolMetadata(SHEETS_TOOLS.WRITE_RANGE);
   }
 
   public async executeImpl(
@@ -63,9 +61,7 @@ export class SheetsWriteTool extends BaseSheetsTools<
 
     // Parameter validation
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema(
-        SHEETS_TOOLS.WRITE_RANGE
-      ),
+      SchemaFactory.createToolInputSchema(SHEETS_TOOLS.WRITE_RANGE),
       params,
       { operation: 'write-sheets', requestId }
     );

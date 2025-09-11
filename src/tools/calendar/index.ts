@@ -21,4 +21,3 @@ export { GetEventTool } from './get-event.tool.js';
 export { CreateEventTool } from './create-event.tool.js';
 export { QuickAddTool } from './quick-add.tool.js';
 export { DeleteEventTool } from './delete-event.tool.js';
-

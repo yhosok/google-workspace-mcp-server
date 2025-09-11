@@ -44,9 +44,7 @@ export class SheetsAddSheetTool extends BaseSheetsTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      SHEETS_TOOLS.ADD_SHEET
-    );
+    return SchemaFactory.createToolMetadata(SHEETS_TOOLS.ADD_SHEET);
   }
 
   public async executeImpl(
@@ -64,9 +62,7 @@ export class SheetsAddSheetTool extends BaseSheetsTools<
 
     // Validate parameters using schema validation
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema(
-        SHEETS_TOOLS.ADD_SHEET
-      ),
+      SchemaFactory.createToolInputSchema(SHEETS_TOOLS.ADD_SHEET),
       params,
       { operation: 'add-sheet' }
     );

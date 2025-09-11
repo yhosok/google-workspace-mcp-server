@@ -94,9 +94,7 @@ export class GetFileContentTool extends BaseDriveTool<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      DRIVE_TOOLS.GET_FILE_CONTENT
-    );
+    return SchemaFactory.createToolMetadata(DRIVE_TOOLS.GET_FILE_CONTENT);
   }
 
   public async executeImpl(

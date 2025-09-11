@@ -74,9 +74,7 @@ export class DeleteEventTool extends BaseCalendarTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      CALENDAR_TOOLS.DELETE
-    );
+    return SchemaFactory.createToolMetadata(CALENDAR_TOOLS.DELETE);
   }
 
   public async executeImpl(

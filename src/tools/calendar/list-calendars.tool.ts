@@ -51,9 +51,7 @@ export class ListCalendarsTool extends BaseCalendarTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      CALENDAR_TOOLS.LIST_CALENDARS
-    );
+    return SchemaFactory.createToolMetadata(CALENDAR_TOOLS.LIST_CALENDARS);
   }
 
   public async executeImpl(

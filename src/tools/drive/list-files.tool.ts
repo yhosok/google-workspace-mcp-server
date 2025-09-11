@@ -2,22 +2,21 @@ import { z } from 'zod';
 import { SchemaFactory } from '../base/tool-schema.js';
 import { DRIVE_TOOLS } from '../base/tool-definitions.js';
 import { BaseDriveTool } from './base-drive-tool.js';
-import type { DriveFileListResult, MCPToolResult } from '../../types/index.js';
+import type { DriveFileListResult, DriveFileListOptions, MCPToolResult } from '../../types/index.js';
 import type {
   ToolExecutionContext,
   ToolMetadata,
 } from '../base/tool-registry.js';
 import { Result, ok, err } from 'neverthrow';
 import { GoogleDriveError } from '../../errors/index.js';
+import { DriveQueryBuilder } from '../../utils/drive-query-builder.js';
 
 /**
  * Input parameters for list files tool
+ * Uses maxResults instead of pageSize for tool interface compatibility
  */
-type ListFilesInput = {
-  query?: string;
+type ListFilesInput = Omit<DriveFileListOptions, 'pageSize' | 'fields' | 'corpora' | 'driveId'> & {
   maxResults?: number;
-  pageToken?: string;
-  orderBy?: string;
   folderId?: string;
 };
 
@@ -86,9 +85,7 @@ export class ListFilesTool extends BaseDriveTool<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      DRIVE_TOOLS.LIST_FILES
-    );
+    return SchemaFactory.createToolMetadata(DRIVE_TOOLS.LIST_FILES);
   }
 
   public async executeImpl(
@@ -142,39 +139,33 @@ export class ListFilesTool extends BaseDriveTool<
       await this.driveService.initialize();
 
       // Build the query parameters for DriveService
-      const driveOptions: any = {};
+      // Let the service handle query building for consistency
+      const driveOptions: import('../../types/index.js').DriveFileListOptions =
+        {
+          // Basic parameters
+          pageSize: validatedArgs.maxResults,
+          pageToken: validatedArgs.pageToken,
+          orderBy: validatedArgs.orderBy,
 
-      // Handle maxResults parameter (convert to pageSize)
-      if (validatedArgs.maxResults !== undefined) {
-        driveOptions.pageSize = validatedArgs.maxResults;
-      }
+          // Query and filtering options
+          query: validatedArgs.query,
+          includeTrashed: validatedArgs.includeTrashed,
+          filters: validatedArgs.filters,
+        };
 
-      // Handle pageToken parameter
-      if (validatedArgs.pageToken !== undefined) {
-        driveOptions.pageToken = validatedArgs.pageToken;
-      }
-
-      // Handle orderBy parameter
-      if (validatedArgs.orderBy !== undefined) {
-        driveOptions.orderBy = validatedArgs.orderBy;
-      }
-
-      // Build query string with automatic trashed filter
-      let queryParts: string[] = ['trashed = false'];
-
-      // Handle folderId parameter by adding to query
+      // Handle folderId parameter by adding to filters
       if (validatedArgs.folderId !== undefined) {
-        queryParts.push(`'${validatedArgs.folderId}' in parents`);
+        if (!driveOptions.filters) {
+          driveOptions.filters = {};
+        }
+        driveOptions.filters.parentsIn = [validatedArgs.folderId];
       }
 
-      // Add user's custom query if provided
-      if (validatedArgs.query) {
-        queryParts.push(`(${validatedArgs.query})`);
-      }
-
-      // Combine all query parts
-      const queryString = queryParts.join(' and ');
-      driveOptions.query = queryString;
+      this.logger.info('Prepared Drive API options', {
+        originalQuery: validatedArgs.query,
+        includeTrashed: validatedArgs.includeTrashed,
+        structuredFilters: driveOptions.filters,
+      });
 
       // List files using the drive service
       const result = await this.driveService.listFiles(driveOptions);

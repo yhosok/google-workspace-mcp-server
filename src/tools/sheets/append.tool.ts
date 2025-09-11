@@ -43,9 +43,7 @@ export class SheetsAppendTool extends BaseSheetsTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      SHEETS_TOOLS.APPEND_ROWS
-    );
+    return SchemaFactory.createToolMetadata(SHEETS_TOOLS.APPEND_ROWS);
   }
 
   public async executeImpl(
@@ -63,9 +61,7 @@ export class SheetsAppendTool extends BaseSheetsTools<
 
     // Parameter validation
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema(
-        SHEETS_TOOLS.APPEND_ROWS
-      ),
+      SchemaFactory.createToolInputSchema(SHEETS_TOOLS.APPEND_ROWS),
       params,
       { operation: 'append-sheets', requestId, useSpecificMessages: true }
     );

@@ -87,9 +87,7 @@ export class GetFileTool extends BaseDriveTool<GetFileInput, MCPToolResult> {
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      DRIVE_TOOLS.GET_FILE
-    );
+    return SchemaFactory.createToolMetadata(DRIVE_TOOLS.GET_FILE);
   }
 
   public async executeImpl(

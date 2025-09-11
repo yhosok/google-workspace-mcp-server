@@ -88,9 +88,7 @@ export class CreateEventTool extends BaseCalendarTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      CALENDAR_TOOLS.CREATE as any
-    );
+    return SchemaFactory.createToolMetadata(CALENDAR_TOOLS.CREATE as any);
   }
 
   public async executeImpl(

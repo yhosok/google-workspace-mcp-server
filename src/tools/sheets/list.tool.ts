@@ -35,9 +35,7 @@ export class SheetsListTool extends BaseSheetsTools<{}, MCPToolResult> {
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      SHEETS_TOOLS.LIST_SPREADSHEETS
-    );
+    return SchemaFactory.createToolMetadata(SHEETS_TOOLS.LIST_SPREADSHEETS);
   }
 
   public async executeImpl(

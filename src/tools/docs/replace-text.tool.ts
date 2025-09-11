@@ -94,9 +94,7 @@ export class ReplaceTextTool extends BaseDocsTools<
    * @returns ToolMetadata object with input schema and descriptions
    */
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      DOCS_TOOLS.REPLACE_TEXT
-    );
+    return SchemaFactory.createToolMetadata(DOCS_TOOLS.REPLACE_TEXT);
   }
 
   /**

@@ -190,6 +190,122 @@ export class SchemaFactory {
   }
 
   /**
+   * Creates a schema for Drive API structured filters
+   */
+  public static createDriveFiltersSchema(): z.ZodOptional<
+    z.ZodObject<{
+      trashed: z.ZodOptional<z.ZodBoolean>;
+      mimeType: z.ZodOptional<z.ZodString>;
+      nameContains: z.ZodOptional<z.ZodString>;
+      parentsIn: z.ZodOptional<z.ZodArray<z.ZodString>>;
+      fullText: z.ZodOptional<z.ZodString>;
+      modifiedAfter: z.ZodOptional<z.ZodString>;
+      modifiedBefore: z.ZodOptional<z.ZodString>;
+      createdAfter: z.ZodOptional<z.ZodString>;
+      createdBefore: z.ZodOptional<z.ZodString>;
+      owners: z.ZodOptional<z.ZodArray<z.ZodString>>;
+      writers: z.ZodOptional<z.ZodArray<z.ZodString>>;
+      readers: z.ZodOptional<z.ZodArray<z.ZodString>>;
+      starred: z.ZodOptional<z.ZodBoolean>;
+      sharedWithMe: z.ZodOptional<z.ZodBoolean>;
+      viewedByMeTime: z.ZodOptional<z.ZodString>;
+      properties: z.ZodOptional<z.ZodArray<z.ZodString>>;
+      appProperties: z.ZodOptional<z.ZodArray<z.ZodString>>;
+      visibility: z.ZodOptional<z.ZodEnum<['anyoneCanFind', 'anyoneWithLink', 'domainCanFind', 'domainWithLink', 'limited']>>;
+      shortcutDetails: z.ZodOptional<z.ZodObject<{ targetId: z.ZodOptional<z.ZodString> }>>;
+    }>
+  > {
+    return z
+      .object({
+        trashed: z
+          .boolean()
+          .optional()
+          .describe('Whether to include only trashed files'),
+        mimeType: z.string().optional().describe('Filter by exact mime type'),
+        nameContains: z
+          .string()
+          .optional()
+          .describe('Filter by name containing string'),
+        parentsIn: z
+          .array(z.string())
+          .optional()
+          .describe('Filter by parent folder IDs'),
+        fullText: z
+          .string()
+          .optional()
+          .describe('Full text search in file content'),
+        modifiedAfter: z
+          .string()
+          .optional()
+          .describe('Files modified after this date (ISO 8601)'),
+        modifiedBefore: z
+          .string()
+          .optional()
+          .describe('Files modified before this date (ISO 8601)'),
+        createdAfter: z
+          .string()
+          .optional()
+          .describe('Files created after this date (ISO 8601)'),
+        createdBefore: z
+          .string()
+          .optional()
+          .describe('Files created before this date (ISO 8601)'),
+        owners: z
+          .array(z.string().email('Owner must be a valid email address'))
+          .optional()
+          .describe('Filter by file owners (array of email addresses)'),
+        writers: z
+          .array(z.string().email('Writer must be a valid email address'))
+          .optional()
+          .describe('Filter by users with write access (array of email addresses)'),
+        readers: z
+          .array(z.string().email('Reader must be a valid email address'))
+          .optional()
+          .describe('Filter by users with read access (array of email addresses)'),
+        starred: z
+          .boolean()
+          .optional()
+          .describe('Filter by starred status'),
+        sharedWithMe: z
+          .boolean()
+          .optional()
+          .describe('Filter by files shared with the authenticated user'),
+        viewedByMeTime: z
+          .string()
+          .datetime('viewedByMeTime must be a valid ISO 8601 datetime')
+          .optional()
+          .describe('Filter by last viewed time (ISO 8601 datetime)'),
+        properties: z
+          .array(z.string().min(1, 'Property key cannot be empty'))
+          .optional()
+          .describe('Filter by custom file properties (array of property keys)'),
+        appProperties: z
+          .array(z.string().min(1, 'App property key cannot be empty'))
+          .optional()
+          .describe('Filter by app-specific properties (array of property keys)'),
+        visibility: z
+          .enum(['anyoneCanFind', 'anyoneWithLink', 'domainCanFind', 'domainWithLink', 'limited'], {
+            errorMap: () => ({ message: 'Visibility must be one of: anyoneCanFind, anyoneWithLink, domainCanFind, domainWithLink, limited' })
+          })
+          .optional()
+          .describe('Filter by file visibility level'),
+        shortcutDetails: z
+          .object({
+            targetId: z
+              .string()
+              .min(1, 'Target ID cannot be empty')
+              .optional()
+              .describe('Target file ID for shortcuts')
+          })
+          .optional()
+          .describe('Filter by shortcut details'),
+      })
+      .strict()
+      .optional()
+      .describe('Structured filter options for Drive file search');
+  }
+
+  /**
    * Creates a schema for Drive API export format validation
    */
   public static createExportFormatSchema(): z.ZodOptional<
@@ -379,6 +495,13 @@ export class SchemaFactory {
             })
             .optional(),
           folderId: SchemaFactory.createFolderIdSchema(),
+          filters: SchemaFactory.createDriveFiltersSchema(),
+          includeTrashed: z
+            .boolean()
+            .optional()
+            .describe(
+              'Whether to include trashed files (overrides default trashed=false filter)'
+            ),
         });
         break;
 

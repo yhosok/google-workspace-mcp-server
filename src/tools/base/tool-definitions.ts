@@ -16,7 +16,7 @@
  */
 export const SHEETS_TOOLS = {
   LIST_SPREADSHEETS: 'google-workspace__sheets__list-spreadsheets',
-  READ_RANGE: 'google-workspace__sheets__read-range', 
+  READ_RANGE: 'google-workspace__sheets__read-range',
   WRITE_RANGE: 'google-workspace__sheets__write-range',
   APPEND_ROWS: 'google-workspace__sheets__append-rows',
   ADD_SHEET: 'google-workspace__sheets__add-sheet',
@@ -104,7 +104,75 @@ export const TOOL_METADATA = {
   // Drive tool metadata
   [DRIVE_TOOLS.LIST_FILES]: {
     title: 'List Drive Files',
-    description: 'List files in Google Drive with optional filtering and search',
+    description: `List files in Google Drive with advanced search capabilities using multiple parameter types for flexible filtering.
+
+PARAMETERS:
+1. query (optional): Raw Drive API query string for custom searches
+2. folderId (optional): List files within a specific folder only  
+3. maxResults (optional): Limit results (1-1000, default: all)
+4. pageToken (optional): For pagination through large result sets
+5. orderBy (optional): Sort order for results
+6. includeTrashed (optional): Include trashed files (overrides default trashed=false filter)
+7. filters (optional): Structured filter object with individual fields
+
+DRIVE API QUERY SYNTAX (for 'query' parameter):
+• Basic format: <field> <operator> <value>
+• Available fields: 
+  - Basic file metadata: name, mimeType, modifiedTime, createdTime, parents, trashed, fullText
+  - Permission-related fields: owners, writers, readers
+  - User interaction fields: starred, sharedWithMe, viewedByMeTime
+  - Custom properties: properties, appProperties
+  - File visibility and shortcuts: visibility, shortcutDetails.targetId
+• Operators: = (equals), != (not equals), contains, in, has, < > >= <= (for dates/times)
+• Logic operators: and, or, parentheses () for grouping
+• String values: Use single quotes around values
+
+COMMON QUERY EXAMPLES:
+• name contains 'Report'
+• mimeType = 'application/pdf'
+• mimeType = 'application/vnd.google-apps.spreadsheet'
+• mimeType = 'application/vnd.google-apps.document'
+• mimeType = 'application/vnd.google-apps.folder'
+• '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms' in parents
+• modifiedTime > '2023-01-01T00:00:00'
+• createdTime >= '2024-01-01T00:00:00Z'
+• fullText contains 'important document'
+• trashed = true (to find deleted files)
+• (name contains 'Report' or name contains 'Summary') and mimeType = 'application/pdf'
+• name contains 'budget' and modifiedTime > '2024-01-01T00:00:00' and trashed = false
+• 'user@example.com' in owners (files owned by specific user)
+• starred = true (starred files)
+• 'user@example.com' in writers (files user can edit)
+• sharedWithMe = true (files shared with current user)
+• properties has 'myKey' (files with custom property)
+• shortcutDetails.targetId = 'file-id' (shortcuts to specific file)
+• viewedByMeTime > '2024-01-01T00:00:00' (recently viewed files)
+• visibility = 'limited' (files with restricted visibility)
+
+STRUCTURED FILTERS (alternative to raw query):
+Use the 'filters' parameter object with individual fields:
+• trashed: boolean - Include only trashed files
+• mimeType: string - Filter by exact mime type  
+• nameContains: string - Filter by name containing string
+• parentsIn: string[] - Filter by parent folder IDs
+• fullText: string - Full text search in file content
+• modifiedAfter/Before: ISO 8601 date strings
+• createdAfter/Before: ISO 8601 date strings
+
+IMPORTANT BEHAVIOR:
+• Default: 'trashed = false' is automatically added unless 'includeTrashed = true' is set or trashed is explicitly specified in query
+• Date format: ISO 8601 (e.g., '2023-01-01T00:00:00' or '2023-01-01T00:00:00Z')
+• Use 'folderId' parameter for simple folder searches instead of complex parent queries
+• Combine parameters: You can use 'query' with 'folderId' and other parameters
+• Pagination: Use 'maxResults' and 'pageToken' for handling large result sets
+
+MIME TYPES FOR GOOGLE WORKSPACE:
+• Documents: 'application/vnd.google-apps.document'
+• Spreadsheets: 'application/vnd.google-apps.spreadsheet'  
+• Presentations: 'application/vnd.google-apps.presentation'
+• Folders: 'application/vnd.google-apps.folder'
+• PDFs: 'application/pdf'
+• Images: 'image/jpeg', 'image/png', etc.`,
   },
   [DRIVE_TOOLS.GET_FILE]: {
     title: 'Get Drive File Metadata',
@@ -184,7 +252,8 @@ export type SupportedToolId = (typeof ALL_TOOLS)[keyof typeof ALL_TOOLS];
  */
 export type SheetsToolId = (typeof SHEETS_TOOLS)[keyof typeof SHEETS_TOOLS];
 export type DriveToolId = (typeof DRIVE_TOOLS)[keyof typeof DRIVE_TOOLS];
-export type CalendarToolId = (typeof CALENDAR_TOOLS)[keyof typeof CALENDAR_TOOLS];
+export type CalendarToolId =
+  (typeof CALENDAR_TOOLS)[keyof typeof CALENDAR_TOOLS];
 export type DocsToolId = (typeof DOCS_TOOLS)[keyof typeof DOCS_TOOLS];
 
 /**
@@ -201,7 +270,7 @@ export const TOOLS_BY_SERVICE = {
 /**
  * Helper function to get tool metadata by tool ID
  * Provides type-safe access to tool titles and descriptions
- * 
+ *
  * @param toolId - The tool identifier
  * @returns Tool metadata object with title and description
  */
@@ -218,7 +287,7 @@ export function getToolMetadata(toolId: SupportedToolId): {
 
 /**
  * Helper function to check if a tool ID belongs to a specific service
- * 
+ *
  * @param toolId - The tool identifier to check
  * @param service - The service name to check against
  * @returns True if the tool belongs to the specified service
@@ -232,7 +301,7 @@ export function isToolFromService(
 
 /**
  * Helper function to get all tools for a specific service
- * 
+ *
  * @param service - The service name
  * @returns Array of tool IDs for the specified service
  */
@@ -244,7 +313,7 @@ export function getToolsForService(
 
 /**
  * Validation helper to ensure a string is a valid tool ID
- * 
+ *
  * @param toolId - The string to validate
  * @returns True if the string is a valid tool ID
  */

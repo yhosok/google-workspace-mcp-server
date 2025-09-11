@@ -83,9 +83,7 @@ export class QuickAddTool extends BaseCalendarTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      CALENDAR_TOOLS.QUICK_ADD
-    );
+    return SchemaFactory.createToolMetadata(CALENDAR_TOOLS.QUICK_ADD);
   }
 
   public async executeImpl(

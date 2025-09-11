@@ -42,9 +42,7 @@ export class SheetsReadTool extends BaseSheetsTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      SHEETS_TOOLS.READ_RANGE
-    );
+    return SchemaFactory.createToolMetadata(SHEETS_TOOLS.READ_RANGE);
   }
 
   public async executeImpl(
@@ -61,9 +59,7 @@ export class SheetsReadTool extends BaseSheetsTools<
 
     // Parameter validation
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema(
-        SHEETS_TOOLS.READ_RANGE
-      ),
+      SchemaFactory.createToolInputSchema(SHEETS_TOOLS.READ_RANGE),
       params,
       { operation: 'read-sheets', requestId }
     );

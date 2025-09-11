@@ -40,9 +40,7 @@ export class SheetsCreateSpreadsheetTool extends BaseSheetsTools<
   }
 
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      SHEETS_TOOLS.CREATE_SPREADSHEET
-    );
+    return SchemaFactory.createToolMetadata(SHEETS_TOOLS.CREATE_SPREADSHEET);
   }
 
   public async executeImpl(
@@ -71,9 +69,7 @@ export class SheetsCreateSpreadsheetTool extends BaseSheetsTools<
 
     // Parameter validation using unified schema approach
     const validationResult = this.validateWithSchema(
-      SchemaFactory.createToolInputSchema(
-        SHEETS_TOOLS.CREATE_SPREADSHEET
-      ),
+      SchemaFactory.createToolInputSchema(SHEETS_TOOLS.CREATE_SPREADSHEET),
       params,
       { operation: 'sheets-create-spreadsheet', requestId }
     );

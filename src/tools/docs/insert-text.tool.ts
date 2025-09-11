@@ -98,9 +98,7 @@ export class InsertTextTool extends BaseDocsTools<
    * @returns ToolMetadata object with input schema and descriptions
    */
   public getToolMetadata(): ToolMetadata {
-    return SchemaFactory.createToolMetadata(
-      DOCS_TOOLS.INSERT_TEXT
-    );
+    return SchemaFactory.createToolMetadata(DOCS_TOOLS.INSERT_TEXT);
   }
 
   /**

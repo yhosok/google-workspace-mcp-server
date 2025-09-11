@@ -17,6 +17,7 @@ import {
   googleOk,
 } from '../errors/index.js';
 import { createServiceLogger, Logger } from '../utils/logger.js';
+import { DriveQueryBuilder } from '../utils/drive-query-builder.js';
 
 /**
  * Base interface for Drive file creation results.
@@ -443,7 +444,7 @@ export class DriveService extends GoogleService {
       return driveErr(
         new GoogleDriveError(
           `${operationName} title cannot be empty`,
-          'GOOGLE_DRIVE_INVALID_INPUT',
+          'GOOGLE_DRIVE_VALIDATION_ERROR',
           400,
           undefined,
           parentFolderId,
@@ -582,7 +583,7 @@ export class DriveService extends GoogleService {
         return driveErr(
           new GoogleDriveError(
             'pageSize must be between 1 and 1000',
-            'GOOGLE_DRIVE_INVALID_INPUT',
+            'GOOGLE_DRIVE_VALIDATION_ERROR',
             400,
             undefined,
             undefined,
@@ -599,7 +600,7 @@ export class DriveService extends GoogleService {
         return driveErr(
           new GoogleDriveError(
             `Invalid corpora value. Must be one of: ${validCorpora.join(', ')}`,
-            'GOOGLE_DRIVE_INVALID_INPUT',
+            'GOOGLE_DRIVE_VALIDATION_ERROR',
             400,
             undefined,
             undefined,
@@ -618,7 +619,7 @@ export class DriveService extends GoogleService {
         return driveErr(
           new GoogleDriveError(
             'driveId must be a non-empty string',
-            'GOOGLE_DRIVE_INVALID_INPUT',
+            'GOOGLE_DRIVE_VALIDATION_ERROR',
             400,
             undefined,
             undefined,
@@ -644,6 +645,105 @@ export class DriveService extends GoogleService {
 
       await this.ensureInitialized();
 
+      // Use DriveQueryBuilder to ensure consistent query handling between service and tools
+      // This ensures both service and tool layers apply the same default filters (e.g., trashed = false)
+      const queryBuilder = new DriveQueryBuilder({
+        includeTrashed: options?.includeTrashed,
+      });
+
+      // Add custom query if provided
+      if (options?.query) {
+        queryBuilder.withCustomQuery(options.query);
+      }
+
+      // Add structured filters if provided
+      if (options?.filters) {
+        const filters = options.filters;
+
+        if (filters.trashed !== undefined) {
+          queryBuilder.withTrashed(filters.trashed);
+        }
+
+        if (filters.mimeType) {
+          queryBuilder.withMimeType(filters.mimeType);
+        }
+
+        if (filters.nameContains) {
+          queryBuilder.withNameContains(filters.nameContains);
+        }
+
+        if (filters.parentsIn && filters.parentsIn.length > 0) {
+          queryBuilder.withParentsIn(filters.parentsIn);
+        }
+
+        if (filters.fullText) {
+          queryBuilder.withFullText(filters.fullText);
+        }
+
+        if (filters.modifiedAfter) {
+          queryBuilder.withModifiedAfter(filters.modifiedAfter);
+        }
+
+        if (filters.modifiedBefore) {
+          queryBuilder.withModifiedBefore(filters.modifiedBefore);
+        }
+
+        if (filters.createdAfter) {
+          queryBuilder.withCreatedAfter(filters.createdAfter);
+        }
+
+        if (filters.createdBefore) {
+          queryBuilder.withCreatedBefore(filters.createdBefore);
+        }
+
+        // Permission-based filters
+        if (filters.owners && filters.owners.length > 0) {
+          queryBuilder.withOwners(filters.owners);
+        }
+
+        if (filters.writers && filters.writers.length > 0) {
+          queryBuilder.withWriters(filters.writers);
+        }
+
+        if (filters.readers && filters.readers.length > 0) {
+          queryBuilder.withReaders(filters.readers);
+        }
+
+        // User interaction filters
+        if (filters.starred !== undefined) {
+          queryBuilder.withStarred(filters.starred);
+        }
+
+        if (filters.sharedWithMe !== undefined) {
+          queryBuilder.withSharedWithMe(filters.sharedWithMe);
+        }
+
+        if (filters.viewedByMeTime) {
+          queryBuilder.withViewedByMeTime(filters.viewedByMeTime);
+        }
+
+        // Custom properties filters
+        if (filters.properties && filters.properties.length > 0) {
+          queryBuilder.withProperties(filters.properties);
+        }
+
+        if (filters.appProperties && filters.appProperties.length > 0) {
+          queryBuilder.withAppProperties(filters.appProperties);
+        }
+
+        // Visibility and shortcuts
+        if (filters.visibility) {
+          queryBuilder.withVisibility(filters.visibility);
+        }
+
+        if (filters.shortcutDetails && filters.shortcutDetails.targetId) {
+          queryBuilder.withShortcutTargetId(filters.shortcutDetails.targetId);
+        }
+      }
+
+      // Build the final query string with consistent default filtering
+      const finalQuery = queryBuilder.build();
+
       // Build request parameters
       const requestParams: {
         q?: string;
@@ -663,7 +763,7 @@ export class DriveService extends GoogleService {
         orderBy: options?.orderBy || 'modifiedTime desc',
         supportsAllDrives: true,
         includeItemsFromAllDrives: true,
-        ...(options?.query && { q: options.query }),
+        q: finalQuery,
         ...(options?.pageToken && { pageToken: options.pageToken }),
         ...(options?.corpora && { corpora: options.corpora }),
         ...(options?.driveId && { driveId: options.driveId }),
@@ -713,6 +813,8 @@ export class DriveService extends GoogleService {
       this.logger.info('Successfully listed files', {
         fileCount: result.files.length,
         hasNextPage: !!result.nextPageToken,
+        originalQuery: options?.query,
+        builtQuery: finalQuery,
         requestId: context.requestId,
       });
 
@@ -759,7 +861,7 @@ export class DriveService extends GoogleService {
       return driveErr(
         new GoogleDriveError(
           'fileId cannot be empty',
-          'GOOGLE_DRIVE_INVALID_INPUT',
+          'GOOGLE_DRIVE_VALIDATION_ERROR',
           400,
           fileId,
           undefined,
@@ -909,7 +1011,7 @@ export class DriveService extends GoogleService {
       return driveErr(
         new GoogleDriveError(
           'fileId cannot be empty',
-          'GOOGLE_DRIVE_INVALID_INPUT',
+          'GOOGLE_DRIVE_VALIDATION_ERROR',
           400,
           fileId,
           undefined,
